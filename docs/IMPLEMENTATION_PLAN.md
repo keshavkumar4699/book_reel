@@ -24,7 +24,7 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 
 | # | Phase | Outcome | Depends on | Status |
 |---|---|---|---|---|
-| 0 | Foundations | Repo layout, Flutter scaffold, design tokens, lint, CI | — | ✅ Done (CI workflow added; first GitHub run pending) |
+| 0 | Foundations | Repo layout, Flutter scaffold, design tokens, lint, CI | — | ✅ Done (CI green: analyze, tests, APK build) |
 | 1 | Reading engine | EPUB/PDF → chapters → blocks → sentences with stable IDs; rule segmenter; hard-word detector | 0 | ✅ Done |
 | 2 | Reel reader MVP | Library, import, Reel mode + Page mode, themes, typography, TOC, TTS | 1 | ✅ Done, except "Open with" from other apps |
 | 3 | Reader tools | Highlights, notes, saved cards, word sheet + offline dictionary, word list, Notebook tab | 2 | ✅ Done |
@@ -38,7 +38,8 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 ### Verification so far
 - App: `flutter analyze` clean; 43 tests (parsers, segmenter, lexicon, habit engine, feed, data layer, AI client contract, reader widget test).
 - Server: `tsc` clean; 27 tests (rule segmenter, validator, prompt, Claude client against a mocked SDK, service incl. quota/refusal/batch, habit/leagues, HTTP API).
-- **Not yet verified:** an Android APK build (the Android SDK could not be downloaded in the development container; CI builds it), performance on real devices, and a live Claude call with a real API key.
+- Android: CI builds a debug APK (first green run: CI #2). `flutter_local_notifications` is pinned to 22.x because 23.0 needs compileSdk 37, which Flutter 3.47's Android Gradle plugin (9.1) doesn't support yet.
+- **Not yet verified:** the app on real devices (behaviour and performance), and a live Claude call with a real API key.
 
 ### Deviations from DESIGN.md
 - Local storage uses an atomic JSON-file store behind a small interface (`app/lib/data/json_store.dart`) instead of Drift. It is enough for single-device data; switch to Drift/SQLite when sync lands.
