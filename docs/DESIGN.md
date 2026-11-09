@@ -4,8 +4,9 @@
 |---|---|
 | **Product** | BookReel (working name): read EPUB / text PDF books as a vertical feed of short "reel" cards |
 | **Platform** | Android first (Flutter, so iOS is possible later) |
-| **Status** | Draft v1.0 |
+| **Status** | Draft v1.1 |
 | **Date** | 2026-11-09 |
+| **UX/UI guidelines** | [`UX_DESIGN.md`](./UX_DESIGN.md) (takes priority over this file for interaction & visual design) |
 
 ---
 
@@ -62,8 +63,8 @@ Each book becomes a vertical feed of cards. Each card holds one segment of the b
 │  points softly highlighted   │
 │  and hard words underlined.  │
 │                              │
-│                       ♡  ⤴  🔖│ ← like · share · save
-│                       ✎  ⋯   │ ← highlight/note · more
+│                              │
+│   ♡     ✎     🔖     ⤴    ⋯  │ ← bottom action row (fades while reading)
 └──────────────────────────────┘
 ```
 
@@ -80,13 +81,15 @@ Each book becomes a vertical feed of cards. Each card holds one segment of the b
 | Pinch | Change font size |
 | Tap the top bar | Show table of contents / chapter scrubber |
 
-**Other reels features:** infinite feed within a book, a "Continue reading" feed across all books in progress, a "For You" feed of saved/liked and recap cards for spaced review, auto-advance mode (scrolls at the user's measured reading speed, can be paused), ambient background sounds (optional), haptic feedback on swipes and milestones.
+**Other reels features:** a continuous feed within a book, split into **sessions** with a segmented daily-goal bar and a designed "Session complete" ending (see UX_DESIGN.md §5.3); a "Review" feed of saved/liked cards and words for spaced review, auto-advance mode (scrolls at the user's measured reading speed, can be paused), ambient background sounds (optional), haptic feedback on swipes and milestones.
 
 **Special card types** inserted by the pipeline:
 - **Chapter title card**: chapter name, estimated reels and minutes, optional AI one-line teaser.
 - **Recap card**: every ~10 cards and at the end of each chapter, 2–3 AI bullet points summarising what was just read (clearly marked as AI-written).
 - **"Previously…" strip**: a one-line context reminder shown on cards that depend on earlier text when the user returns after a break of more than 24 h.
 - **Milestone card**: "You finished Part 1 🎉" with a one-tap share.
+- **Recall card** (optional, every ~10 cards): one-tap "what was the main idea?" check, with no penalty (testing effect).
+- **Reflect card** (optional, chapter end): "One idea you'll try this week?", saved to the Notebook.
 
 ### 2.3 Classic reading mode (basic reading-app features)
 Some readers will want normal paging sometimes. A toggle switches between **Reel mode** and **Page mode** at the same position. Both modes share the same position model (sentence ID), so the reading position is never lost.
@@ -97,6 +100,7 @@ Must-have reader features:
 - Table of contents, chapter scrubber, go to %.
 - Full-text search inside a book.
 - Bookmarks, highlights (4 colours), notes.
+- Letter- and word-spacing controls (these help dyslexic readers more than special fonts).
 - Text-to-speech using Android TTS: plays the current card and auto-advances. Sentence highlighting during playback.
 - Brightness control and a "keep screen on" setting.
 - Offline reading; processed books are fully cached.
@@ -158,17 +162,17 @@ Every shared image includes book title, author, a small BookReel watermark and a
 A card counts as **read** only if the dwell time is at least `0.35 × expected_time`, where `expected_time = words / user_wpm`. The user's WPM is learned from their own history, clamped to 120–600. This stops speed-scrolling from counting. Cards scrolled past too quickly are counted as "skimmed": progress is saved, but they don't count toward goals or leaderboards.
 
 **Daily goal & streak**
-- Daily goal options: 5 / 10 / 20 / 40 verified cards, or 5 / 15 / 30 minutes. Default: 10 cards.
+- Daily goal options: 5 / 10 / 20 / 40 verified cards, or 5 / 15 / 30 minutes. Default: 10 cards. Alternative **weekly goal** mode (e.g. 5 of 7 days) for users who find daily streaks stressful.
 - The streak goes up by one each local day the goal is met. Uses the user's time zone; a change of time zone is handled without losing the streak.
 - **Streak freeze:** 1 per week on Free, 3 on paid tiers. Freezes are used automatically on a missed day.
-- Reminder notification at the user's preferred time if the goal isn't met yet, plus a "streak at risk" nudge 2 h before midnight. Both can be turned off.
+- One reminder at the user's chosen time, worded around the habit they named in onboarding ("After your morning tea…"). A calm "streak at risk" nudge at 8 pm only if they haven't read yet. No reminders during quiet hours (22:00–08:00). All can be turned off.
 
 **Competition**
 | Feature | Description |
 |---|---|
 | Friends | Follow users, contact discovery (opt-in), invite link |
-| Activity feed | "Asha read 32 reels of *Sapiens* · 41 min" with **Kudos** 👏 and comments |
-| Leaderboards | Weekly and monthly: verified minutes, verified cards, current streak. Scopes: Friends, Clubs, City, Country, Global, per-book |
+| Activity feed | "Asha read 32 reels of *Sapiens* · 41 min" with **Kudos** 👏 and comments. Social notifications are grouped into one daily digest |
+| Leaderboards | Default: **Friends** and weekly **Leagues** of ~24 similar readers (top 5 move up). Ranked by verified active days and minutes. City/Country/Global and per-book boards are opt-in. Users can hide all comparisons |
 | Clubs | Groups (book club, college, office) with their own leaderboards and a shared current book |
 | Challenges | Monthly ("Read 1,000 reels in December"), book challenges ("Finish *1984* in 21 days"), club challenges |
 | Book segments | The Strava "segment" idea: per-chapter leaderboards ranked by **consistency** (days active), not speed, so skimming isn't rewarded |
@@ -181,10 +185,10 @@ A card counts as **read** only if the dwell time is at least `0.35 × expected_t
 - Privacy: profile and activity visibility can be Public, Friends or Private. Leaderboards are opt-in for minors.
 
 ### 2.10 Onboarding
-1. Choose interests and reading level. Pick a starter book or import one.
-2. Short interactive tutorial on the first 3 cards (swipe, double-tap, long-press word, share).
-3. Set daily goal and reminder time.
-4. Optional sign-in (Google). The app can be used without an account. Accounts are needed for sync, social features and paid AI tiers.
+1. Choose 3 interests → a processed starter book opens **immediately** (first card in under 60 s).
+2. The first 3 cards are the tutorial (swipe, long-press word, share), and they count toward day 1's goal.
+3. After those cards: set the daily goal and the habit anchor ("After I ___, I'll read"), then the reminder time, then ask for notification permission (explaining why first).
+4. Optional sign-in (Google), offered when saving or adding friends. The app can be used without an account. Accounts are needed for sync, social features and paid AI tiers.
 
 ### 2.11 Settings
 Reading (card length, AI hook titles on/off, key-point highlight style, hard-word underline, font/theme), Goals & reminders, Privacy & social, AI model tier and usage meter, Storage (cache size, offline books), Account & subscription, Data export & delete account.
@@ -511,7 +515,7 @@ Leaderboards live in Redis sorted sets: `lb:{scope}:{scopeId}:{metric}:{period}`
 ---
 
 ## 10. Metrics
-- **North star:** verified reading minutes per weekly active user.
+- **North star:** books finished per monthly active user. Guardrails: recall accuracy, the "Did BookReel make your week better?" score, and regret rate (see UX_DESIGN.md §11). An experiment that raises time spent but lowers these counts as a failure.
 - Activation: % new users reading ≥ 20 cards on day 1.
 - Retention: D1 / D7 / D30; % users with a ≥ 7-day streak.
 - Book completion rate (BookReel vs. industry baseline).
