@@ -24,22 +24,32 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 
 | # | Phase | Outcome | Depends on | Status |
 |---|---|---|---|---|
-| 0 | Foundations | Repo layout, Flutter scaffold, design tokens, lint, CI | — | ✅ Done |
+| 0 | Foundations | Repo layout, Flutter scaffold, design tokens, lint, CI | — | ✅ Done (CI workflow added; first GitHub run pending) |
 | 1 | Reading engine | EPUB/PDF → chapters → blocks → sentences with stable IDs; rule segmenter; hard-word detector | 0 | ✅ Done |
-| 2 | Reel reader MVP | Library, import, Reel mode + Page mode, themes, typography, TOC, TTS | 1 | ✅ Done |
+| 2 | Reel reader MVP | Library, import, Reel mode + Page mode, themes, typography, TOC, TTS | 1 | ✅ Done, except "Open with" from other apps |
 | 3 | Reader tools | Highlights, notes, saved cards, word sheet + offline dictionary, word list, Notebook tab | 2 | ✅ Done |
 | 4 | Habit engine | Dwell verification, daily/weekly goals, streaks & freezes, session complete, Today screen, reminders | 2 | ✅ Done |
-| 5 | Sharing | Card & progress images, templates, share sheet, short-quote limit | 3, 4 | ✅ Done |
-| 6 | AI segmentation backend | Claude pipeline (Haiku/Sonnet/Opus), validator/repairer, content-hash cache, quotas, Batch API; app client | 1 | ✅ Done (in-memory stores) |
-| 7 | Accounts, sync & social | Firebase Auth, sync, friends, activity feed, kudos, leagues, clubs, challenges | 4, 6 | 🟡 Server logic done (verification, streaks, leagues); auth, persistence and social UI to do |
-| 8 | Monetization & free-tier AI | Play Billing, entitlements, tier routing, regional pricing, on-device LLM | 6, 7 | 🟡 Tier routing & quotas done; billing and on-device model to do |
+| 5 | Sharing | Card & progress images, templates, share sheet, short-quote limit | 3, 4 | ✅ Done, except deep links (need a domain + Phase 7) |
+| 6 | AI segmentation backend | Claude pipeline (Haiku/Sonnet/Opus), validator/repairer, content-hash cache, quotas, Batch API; app client | 1 | ✅ Done with in-memory stores; tested against a mocked Claude client, no live API call yet |
+| 7 | Accounts, sync & social | Firebase Auth, sync, friends, activity feed, kudos, leagues, clubs, challenges | 4, 6 | 🟡 Server logic and endpoints done (verification, streaks, leagues, friends, kudos); auth, persistence, app sync and social UI to do |
+| 8 | Monetization & free-tier AI | Play Billing, entitlements, tier routing, regional pricing, on-device LLM | 6, 7 | 🟡 Tier routing and regional quotas done; billing and on-device model to do |
 | 9 | Quality & launch | Gold-set evaluation, accessibility audit, performance, closed beta, Play listing | all | ⬜ Not started |
+
+### Verification so far
+- App: `flutter analyze` clean; 43 tests (parsers, segmenter, lexicon, habit engine, feed, data layer, AI client contract, reader widget test).
+- Server: `tsc` clean; 27 tests (rule segmenter, validator, prompt, Claude client against a mocked SDK, service incl. quota/refusal/batch, habit/leagues, HTTP API).
+- **Not yet verified:** an Android APK build (the Android SDK could not be downloaded in the development container; CI builds it), performance on real devices, and a live Claude call with a real API key.
+
+### Deviations from DESIGN.md
+- Local storage uses an atomic JSON-file store behind a small interface (`app/lib/data/json_store.dart`) instead of Drift. It is enough for single-device data; switch to Drift/SQLite when sync lands.
+- Material You dynamic colour was dropped: `dynamic_color` 2.1 targets the new standalone `material_ui` package and is type-incompatible with Flutter 3.47's built-in Material. The app uses a fixed ember seed scheme.
+
 
 ---
 
 ## Phase 0 — Foundations
 - Flutter app (`app/`), Android only, package `app.bookreel`.
-- `analysis_options.yaml` with `flutter_lints` + stricter rules.
+- `analysis_options.yaml` with `flutter_lints`.
 - Design system: `ThemeData` (Material 3) + `ReadingTheme` `ThemeExtension` (Paper, White, Sepia, Dark, Black), bundled reading fonts (Literata, Atkinson Hyperlegible).
 - State: Riverpod. Navigation: go_router with a 4-tab `StatefulShellRoute` (Today, Library, Notebook, Friends) + full-screen reader route.
 - CI: GitHub Actions runs `flutter analyze`, `flutter test`, and the server's `npm test`.
@@ -60,7 +70,7 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 **Exit criteria:** a 300-page EPUB is parsed and segmented on device in < 3 s; no card breaks a sentence; ≥ 95% of cards fall inside the length band.
 
 ## Phase 2 — Reel reader MVP
-- Library: import (file picker and "Open with"), grid with cover/progress, starter public-domain sample book bundled.
+- Library: import via the file picker ("Open with" from other apps is still to do), grid with cover/progress, a bundled public-domain starter book.
 - Reader: vertical pager, card types (text, chapter, recap, recall, reflect, milestone), segmented goal bar, fading chrome, bottom action row, long cards scroll inside the card, position anchored to sentence IDs.
 - Page mode toggle (continuous chapter text) at the same position.
 - Settings: theme, font, size, line height, letter spacing, card length, key-point style, hard-word underline, TTS.
