@@ -1,5 +1,7 @@
 /// Word frequency + offline dictionary used for hard-word detection and the
 /// word sheet (DESIGN.md §2.5).
+// Private fields keep the public constructor names readable.
+// ignore_for_file: prefer_initializing_formals
 library;
 
 enum ReadingLevel {

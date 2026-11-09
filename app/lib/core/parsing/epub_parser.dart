@@ -17,9 +17,12 @@ class ParseException implements Exception {
 }
 
 class ParsedBook {
-  const ParsedBook({required this.content, this.coverBytes, this.coverExtension});
+  const ParsedBook({required this.content, this.coverBytes, this.coverExtension, this.isPublicDomain = false});
 
   final BookContent content;
+
+  /// From `dc:rights`; enables unlimited quote sharing (DESIGN.md §2.6).
+  final bool isPublicDomain;
   final Uint8List? coverBytes;
   final String? coverExtension;
 }
@@ -57,6 +60,7 @@ class EpubParser {
     final title = meta('title') ?? 'Untitled';
     final author = meta('creator') ?? 'Unknown author';
     final language = meta('language') ?? 'en';
+    final rights = (meta('rights') ?? '').toLowerCase();
 
     final manifest = <String, _Item>{};
     for (final item in opf.descendants.whereType<XmlElement>().where((e) => e.localName == 'item')) {
@@ -109,6 +113,7 @@ class EpubParser {
       content: BookContent(title: title, author: author, language: language, chapters: chapters),
       coverBytes: cover?.$1,
       coverExtension: cover?.$2,
+      isPublicDomain: rights.contains('public domain'),
     );
   }
 

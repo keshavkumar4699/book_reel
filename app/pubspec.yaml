@@ -1,5 +1,5 @@
 name: book_reel
-description: "Read books as reels"
+description: "BookReel: read books as short reel cards, build a reading habit."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -47,7 +47,6 @@ dependencies:
   flutter_local_notifications: ^23.0.0
   timezone: ^0.11.2
   flutter_timezone: ^5.1.1
-  dynamic_color: ^2.1.0
   http: ^1.6.0
   crypto: ^3.0.8
   collection: ^1.19.1
@@ -75,6 +74,25 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/books/
+    - assets/lexicon/zipf.tsv.gz
+    - assets/lexicon/wordnet.json.gz
+
+  fonts:
+    - family: Literata
+      fonts:
+        - asset: assets/fonts/Literata.ttf
+        - asset: assets/fonts/Literata-Italic.ttf
+          style: italic
+    - family: AtkinsonHyperlegible
+      fonts:
+        - asset: assets/fonts/AtkinsonHyperlegible-Regular.ttf
+        - asset: assets/fonts/AtkinsonHyperlegible-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/AtkinsonHyperlegible-Italic.ttf
+          style: italic
 
   # To add assets to your application, add an assets section, like this:
   # assets:
