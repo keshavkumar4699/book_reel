@@ -9,6 +9,7 @@ import { localDateKey, weekKey } from "./habit/engine.js";
 import { LeagueService } from "./habit/leagues.js";
 import { SegmentRequestSchema } from "./segmentation/schema.js";
 import { QuotaExceeded, SegmentService, TierNotEligible, type Caller } from "./segmentation/service.js";
+import type { Track } from "./music/catalog.js";
 import { landingPage, ShareSchema, ShareService } from "./social/shares.js";
 import { SyncPushSchema, SyncService } from "./social/sync.js";
 import type { QuotaStore } from "./stores/memory.js";
@@ -22,6 +23,8 @@ export interface AppDeps {
   publicBaseUrl?: string;
   /** SHA-256 signing-certificate fingerprints for Android App Links. */
   androidCertFingerprints?: string[];
+  /** Licensed soundtrack catalog (paid tiers). */
+  music?: Track[];
   logger?: boolean;
 }
 
@@ -160,6 +163,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.get<{ Querystring: { since?: string } }>("/v1/sync", async (req) =>
     sync.pull((await caller(req)).userId, Math.max(0, Number(req.query.since ?? 0) || 0)),
   );
+
+  // ------------------------------------------------------------ soundtrack (paid)
+  app.get<{ Querystring: { tier?: string } }>("/v1/music/tracks", async (req, reply) => {
+    await caller(req);
+    // Entitlements arrive with Play Billing (Phase 8); until then the tier is the client's claim, as for /v1/segment.
+    const tier = req.query.tier ?? "free";
+    if (!["plus", "pro", "scholar"].includes(tier)) {
+      return reply.code(403).send({ error: "tier_not_eligible", message: "The soundtrack is available on Plus, Pro and Scholar." });
+    }
+    return { tracks: deps.music ?? [] };
+  });
 
   // ------------------------------------------------------------ share links & web pages
   app.post("/v1/share", async (req) => shares.create((await caller(req)).userId, ShareSchema.parse(req.body)));

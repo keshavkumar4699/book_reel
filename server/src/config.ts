@@ -57,7 +57,11 @@ export function quotaFor(tier: Tier, region: string | undefined): number {
 }
 
 /** Bump when prompts or validation change so cached segment maps are rebuilt. */
-export const SEGMENTER_VERSION = "seg-v1";
+export const SEGMENTER_VERSION = "seg-v2"; // v2: card mood + energy for the soundtrack
+
+/** The "soul" of a card, used to pick matching music (paid tiers). */
+export const MOODS = ["calm", "reflective", "hopeful", "joyful", "playful", "romantic", "mysterious", "tense", "sad", "epic"] as const;
+export type Mood = (typeof MOODS)[number];
 
 export const LIMITS = {
   maxChaptersPerRequest: 3,

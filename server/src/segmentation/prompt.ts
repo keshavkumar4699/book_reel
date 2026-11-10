@@ -27,6 +27,8 @@ Rules for the output:
 - recaps: after roughly every 10 cards and at the end of the chapter, 2 or 3 short bullets summarising what was just read. after_card is the 0-based index of the card the recap follows.
 - recalls: after roughly every 10 cards (not after the last card), one multiple-choice question about the main idea of the preceding cards, with 3 options and exactly one correct answer. Test understanding, not trivia.
 - chapter_teaser: one sentence (max 30 words) that invites the reader into the chapter without spoilers.
+- mood: the emotional soul of the card as a reader would feel it, used to choose background music. One of: calm, reflective, hopeful, joyful, playful, romantic, mysterious, tense, sad, epic. Judge the scene or idea, not single words; most everyday passages are calm or reflective.
+- energy: how intense the card feels, from 1 (very quiet) to 5 (intense). Neighbouring cards in the same scene should usually share a mood and energy, so the music doesn't jump around.
 
 Write titles, hooks, meanings, recaps and questions in the language of the book.`;
 

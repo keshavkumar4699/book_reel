@@ -1,4 +1,4 @@
-import { LENGTH_BANDS, LIMITS, type CardLength } from "../config.js";
+import { LENGTH_BANDS, LIMITS, MOODS, type CardLength } from "../config.js";
 import { boundaryScore, countWords, SCENE_BREAK, toUnits } from "./ruleSegmenter.js";
 import type { ModelOutput, OutCard, OutChapter, Sentence } from "./schema.js";
 
@@ -153,6 +153,8 @@ export function validateAndRepair(
       standalone: r.card.standalone,
       key_sids: key,
       hard_words: hard.map((h) => ({ word: h.word, sid: h.sid, meaning: h.meaning.slice(0, 200) })),
+      mood: r.card.mood && (MOODS as readonly string[]).includes(r.card.mood) ? r.card.mood : undefined,
+      energy: r.card.energy === undefined ? undefined : Math.min(5, Math.max(1, Math.round(r.card.energy))),
     };
   });
 

@@ -109,3 +109,16 @@ describe("prompt", () => {
     expect(SYSTEM_PROMPT).not.toContain("Atomic");
   });
 });
+
+describe("card mood", () => {
+  it("keeps valid moods and energies, drops unknown ones", () => {
+    const ch = makeChapter();
+    const out = perfectOutput(ch);
+    out.cards[1]!.mood = "furious";
+    out.cards[2]!.energy = 9;
+    const v = validateAndRepair(0, ch.sentences, out, "standard");
+    expect(v.chapter.cards[0]).toMatchObject({ mood: "reflective", energy: 2 });
+    expect(v.chapter.cards[1]!.mood).toBeUndefined();
+    expect(v.chapter.cards[2]!.energy).toBe(5);
+  });
+});

@@ -429,6 +429,7 @@ Google Play keeps **15%** of subscription revenue.
 | Share templates | 3 | All | All + custom colours | All + custom colours |
 | Highlights export | Plain text | Markdown / PDF | Markdown / PDF | Markdown / PDF / Notion |
 | Cloud sync | Progress only | Full | Full | Full |
+| AI soundtrack (mood-matched music) | — | ✓ | ✓ | ✓ |
 | Ads | Small banner in Library only, **never in the reel feed** | None | None | None |
 | Free trial | — | 7 days | 7 days | 7 days |
 

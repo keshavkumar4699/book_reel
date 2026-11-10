@@ -20,6 +20,7 @@ import '../../data/segments.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../services/notifications.dart';
+import '../../services/soundtrack.dart';
 import '../../services/tts.dart';
 import '../../ui/theme.dart';
 import '../../ui/vibes.dart';
@@ -55,6 +56,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// Kept from initState: `ref` must not be used in dispose(), where the last
   /// card's reading time is still recorded.
   late final HabitNotifier _habit;
+  late final SoundtrackNotifier _soundtrack;
+  bool _showNowPlaying = false;
+  Timer? _nowPlayingTimer;
   final Set<int> _requestedAi = {};
 
   @override
@@ -62,6 +66,65 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _habit = ref.read(habitProvider.notifier);
+    _soundtrack = ref.read(soundtrackProvider.notifier);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _soundtrack.loadCatalog();
+      _cueMusicForCurrent(chapterStart: true);
+    });
+  }
+
+  /// Lets the AI soundtrack follow the card on screen (paid tiers).
+  void _cueMusicForCurrent({bool chapterStart = false}) {
+    if (!mounted || _feed.isEmpty) return;
+    final item = _feed[_page.clamp(0, _feed.length - 1)];
+    final card = item.card;
+    if (card != null) _soundtrack.onCard(card.mood, card.energy, chapterStart: chapterStart);
+  }
+
+  Future<void> _onMusic() async {
+    final settings = ref.read(settingsProvider);
+    if (!isPaidTier(settings.tier)) {
+      await showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('🎧 AI soundtrack', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              const Text('The AI reads the mood of every card and plays music that fits it: calm for quiet moments, '
+                  'tense for a chase, hopeful when things turn around. Available on Plus, Pro and Scholar.'),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.push('/settings');
+                },
+                child: const Text('See plans'),
+              ),
+            ]),
+          ),
+        ),
+      );
+      return;
+    }
+    final st = ref.read(soundtrackProvider);
+    if (st.loaded && st.tracks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(st.message ?? 'No soundtrack available yet.'),
+      ));
+      return;
+    }
+    final on = !settings.soundtrack;
+    ref.read(settingsProvider.notifier).update((x) => x.copyWith(soundtrack: on));
+    if (on) {
+      await _soundtrack.loadCatalog();
+      _cueMusicForCurrent(chapterStart: true);
+    } else {
+      await _soundtrack.stop();
+    }
   }
 
   @override
@@ -69,6 +132,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     // Providers can't be modified while the tree is being torn down, so the
     // last card's reading time is recorded right after.
     _recordCurrent(deferred: true);
+    _nowPlayingTimer?.cancel();
+    scheduleMicrotask(_soundtrack.stop);
     WidgetsBinding.instance.removeObserver(this);
     _pager?.dispose();
     Tts.instance.stop();
@@ -197,6 +262,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         });
       }
       if (_tts) _speak(item);
+      final previous = index > 0 ? _feed[index - 1] : null;
+      _soundtrack.onCard(item.card!.mood, item.card!.energy, chapterStart: previous?.chapterIndex != item.chapterIndex);
     }
     if (item.kind == CardKind.milestone) {
       if (ref.read(libraryProvider.notifier).markFinished(widget.bookId)) {
@@ -262,7 +329,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
 
   void _speak(FeedItem item) {
     final text = item.card!.sentenceIds.map((sid) => _sentences[sid]?.sentence.text ?? '').join(' ');
+    _soundtrack.duck(true);
     Tts.instance.speak(text, onDone: () {
+      _soundtrack.duck(false);
       if (mounted && _tts && _pager != null && _page < _feed.length - 1) {
         _pager!.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       }
@@ -341,6 +410,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       _speak(_feed[_page]);
     } else {
       Tts.instance.stop();
+      _soundtrack.duck(false);
     }
   }
 
@@ -548,6 +618,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final style = vibeStyles[s.vibe]!;
     final onScene = s.vibe != Vibe.paper;
     final chromeColor = onScene ? Colors.white : t.text;
+    final soundtrack = ref.watch(soundtrackProvider);
+    ref.listen(soundtrackProvider.select((x) => x.playing?.id), (prev, next) {
+      if (next == null || next == prev) return;
+      setState(() => _showNowPlaying = true);
+      _nowPlayingTimer?.cancel();
+      _nowPlayingTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted) setState(() => _showNowPlaying = false);
+      });
+    });
 
     return Stack(children: [
       PageView.builder(
@@ -584,9 +663,41 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
               : '${today.minutes.floor()}/${goal.dailyTarget} min',
           goalDone: today.meets(goal),
           vibeEmoji: style.emoji,
+          music: !isPaidTier(s.tier)
+              ? _MusicButton.locked
+              : (s.soundtrack && soundtrack.playing != null)
+                  ? _MusicButton.playing
+                  : s.soundtrack
+                      ? _MusicButton.on
+                      : _MusicButton.off,
+          onMusic: _onMusic,
           onClose: () => context.canPop() ? context.pop() : context.go('/library'),
           onVibe: _pickVibe,
           onMore: () => _more(book, s, t),
+        ),
+      ),
+      // "Now playing" credit (attribution is required by music licenses).
+      Positioned(
+        top: padding.top + 64,
+        left: 0,
+        right: 0,
+        child: IgnorePointer(
+          child: AnimatedOpacity(
+            opacity: _showNowPlaying && soundtrack.playing != null ? 1 : 0,
+            duration: const Duration(milliseconds: 300),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(color: const Color(0x99000000), borderRadius: BorderRadius.circular(20)),
+                child: Text(
+                  soundtrack.playing == null ? '' : '♪ ${soundtrack.playing!.attribution}  ·  ${soundtrack.mood ?? ''}',
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
       if (!s.gestureTutorialSeen && _feed.isNotEmpty)
@@ -767,7 +878,9 @@ class _GoalBar extends StatelessWidget {
   }
 }
 
-/// Top bar: close · streak flame · today's goal · vibe switcher · menu.
+enum _MusicButton { locked, off, on, playing }
+
+/// Top bar: close · streak flame · today's goal · soundtrack · vibe switcher · menu.
 class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.color,
@@ -776,6 +889,8 @@ class _TopBar extends StatelessWidget {
     required this.goalLabel,
     required this.goalDone,
     required this.vibeEmoji,
+    required this.music,
+    required this.onMusic,
     required this.onClose,
     required this.onVibe,
     required this.onMore,
@@ -787,6 +902,8 @@ class _TopBar extends StatelessWidget {
   final String goalLabel;
   final bool goalDone;
   final String vibeEmoji;
+  final _MusicButton music;
+  final VoidCallback onMusic;
   final VoidCallback onClose;
   final VoidCallback onVibe;
   final VoidCallback onMore;
@@ -814,6 +931,24 @@ class _TopBar extends StatelessWidget {
         Text(goalLabel, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
       ])),
       const Spacer(),
+      IconButton(
+        tooltip: switch (music) {
+          _MusicButton.locked => 'AI soundtrack (paid plans)',
+          _MusicButton.off => 'Turn on soundtrack',
+          _ => 'Turn off soundtrack',
+        },
+        onPressed: onMusic,
+        icon: Icon(
+          switch (music) {
+            _MusicButton.playing => Icons.music_note,
+            _MusicButton.on => Icons.music_note_outlined,
+            _MusicButton.off => Icons.music_off_outlined,
+            _MusicButton.locked => Icons.headphones_outlined,
+          },
+          color: music == _MusicButton.playing ? accent : color,
+          shadows: shadow,
+        ),
+      ),
       IconButton(tooltip: 'Change vibe', onPressed: onVibe, icon: Text(vibeEmoji, style: const TextStyle(fontSize: 20))),
       IconButton(tooltip: 'More', icon: Icon(Icons.more_horiz, color: color, shadows: shadow), onPressed: onMore),
     ]);

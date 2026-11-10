@@ -54,6 +54,8 @@ class SegmentCard {
     this.standalone = true,
     this.keySids = const [],
     this.hardWords = const [],
+    this.mood,
+    this.energy,
   });
 
   final int chapterIndex;
@@ -68,6 +70,12 @@ class SegmentCard {
   final List<String> keySids;
   final List<HardWord> hardWords;
 
+  /// Emotional tone chosen by the AI (soundtrack); null for rule-based cards.
+  final String? mood;
+
+  /// 1 (very quiet) – 5 (intense).
+  final int? energy;
+
   Map<String, dynamic> toJson() => {
         'ch': chapterIndex,
         'start_sid': startSid,
@@ -80,6 +88,8 @@ class SegmentCard {
         'standalone': standalone,
         'key_sids': keySids,
         'hard_words': hardWords.map((h) => h.toJson()).toList(),
+        if (mood != null) 'mood': mood,
+        if (energy != null) 'energy': energy,
       };
 
   factory SegmentCard.fromJson(Map<String, dynamic> json) => SegmentCard(
@@ -96,6 +106,8 @@ class SegmentCard {
         hardWords: ((json['hard_words'] as List?) ?? const [])
             .map((e) => HardWord.fromJson(e as Map<String, dynamic>))
             .toList(),
+        mood: json['mood'] as String?,
+        energy: (json['energy'] as num?)?.toInt(),
       );
 }
 

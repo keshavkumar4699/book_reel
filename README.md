@@ -69,6 +69,13 @@ Configuration (all optional locally):
 | `FIREBASE_PROJECT_ID` | Enables Google sign-in (Firebase ID tokens); without it, accounts are per device |
 | `PUBLIC_BASE_URL` | Base URL for share and invite links |
 | `ANDROID_CERT_SHA256` | Signing-certificate fingerprints for Android App Links |
+| `MUSIC_CATALOG` | Soundtrack catalog JSON (default `./music/catalog.json`; see `music/catalog.example.json`) |
+
+### AI soundtrack (paid tiers)
+
+During segmentation Claude also tags each card with a **mood** (calm, reflective, hopeful, joyful, playful, romantic, mysterious, tense, sad, epic) and an **energy** (1–5). The app picks a matching track from the server's catalog, changes music only when a new mood holds for two cards (or a chapter starts) and at most every 30 seconds, crossfades, lowers the volume during read-aloud, and shows each track's credit when it starts.
+
+**Licensing:** the catalog ships empty. Only add tracks you have the rights to stream inside the app. NoCopyrightSounds (NCS) music is free for online videos and streams, but use in an app or a paid feature needs a license from NCS. Every catalog entry must include a license note and the attribution text; entries without them are rejected.
 
 Models by tier: Plus → `claude-haiku-5-5`, Pro → `claude-sonnet-5-5`, Scholar → `claude-opus-5-5` (`server/src/config.ts`).
 

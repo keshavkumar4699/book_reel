@@ -27,6 +27,8 @@ export function perfectOutput(ch: ChapterInput, perCard = 8): ModelOutput {
       hook: "Tiny actions add up faster than you think.",
       type: "argument",
       standalone: true,
+      mood: "reflective",
+      energy: 2,
       key_sids: [slice[1]!.sid],
       hard_words: [{ word: "habits", sid: slice[0]!.sid, meaning: "repeated behaviours" }],
     });

@@ -8,6 +8,7 @@ import '../../data/ai_client.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../services/notifications.dart';
+import '../../services/soundtrack.dart';
 import '../../ui/theme.dart';
 import '../../ui/vibes.dart';
 
@@ -64,6 +65,28 @@ class SettingsScreen extends ConsumerWidget {
           value: s.animatedBackground,
           onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
         ),
+        header('AI soundtrack'),
+        SwitchListTile(
+          title: const Text('Mood music'),
+          subtitle: Text(s.tier == Tier.free
+              ? 'The AI reads each card’s mood and plays matching music. Plus, Pro and Scholar.'
+              : 'Follows the mood of each card. Track credits appear when the music changes.'),
+          value: s.soundtrack && s.tier != Tier.free,
+          onChanged: s.tier == Tier.free ? null : (v) => n.update((x) => x.copyWith(soundtrack: v)),
+        ),
+        if (s.tier != Tier.free)
+          _SliderTile(
+            label: 'Music volume',
+            value: s.musicVolume,
+            min: 0.05,
+            max: 1,
+            divisions: 19,
+            display: '${(s.musicVolume * 100).round()}%',
+            onChanged: (v) {
+              n.update((x) => x.copyWith(musicVolume: v));
+              ref.read(soundtrackProvider.notifier).applyVolume();
+            },
+          ),
         header('Reading'),
         ListTile(
           title: const Text('Paper theme'),

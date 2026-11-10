@@ -52,6 +52,7 @@ dependencies:
   collection: ^1.19.1
   intl: ^0.20.3
   path: ^1.9.1
+  just_audio: ^0.10.6
 
 dev_dependencies:
   flutter_test:

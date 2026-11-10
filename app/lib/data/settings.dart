@@ -60,6 +60,8 @@ class AppSettings {
     this.animatedBackground = true,
     this.gestureTutorialSeen = false,
     this.layoutVersion = currentLayoutVersion,
+    this.soundtrack = true,
+    this.musicVolume = 0.35,
   });
 
   final ReadingThemeId theme;
@@ -97,6 +99,10 @@ class AppSettings {
   final bool animatedBackground;
   final bool gestureTutorialSeen;
   final int layoutVersion;
+
+  /// Mood-matched background music (paid tiers).
+  final bool soundtrack;
+  final double musicVolume;
 
   GoalConfig get goal => GoalConfig(
         unit: goalUnit,
@@ -139,6 +145,8 @@ class AppSettings {
     Vibe? vibe,
     bool? animatedBackground,
     bool? gestureTutorialSeen,
+    bool? soundtrack,
+    double? musicVolume,
   }) =>
       AppSettings(
         theme: theme ?? this.theme,
@@ -174,6 +182,8 @@ class AppSettings {
         animatedBackground: animatedBackground ?? this.animatedBackground,
         gestureTutorialSeen: gestureTutorialSeen ?? this.gestureTutorialSeen,
         layoutVersion: layoutVersion,
+        soundtrack: soundtrack ?? this.soundtrack,
+        musicVolume: musicVolume ?? this.musicVolume,
       );
 
   Map<String, dynamic> toJson() => {
@@ -210,6 +220,8 @@ class AppSettings {
         'animatedBackground': animatedBackground,
         'gestureTutorialSeen': gestureTutorialSeen,
         'layoutVersion': layoutVersion,
+        'soundtrack': soundtrack,
+        'musicVolume': musicVolume,
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> j) {
@@ -255,6 +267,8 @@ class AppSettings {
       vibe: pick(Vibe.values, j['vibe'], d.vibe),
       animatedBackground: (j['animatedBackground'] as bool?) ?? d.animatedBackground,
       gestureTutorialSeen: (j['gestureTutorialSeen'] as bool?) ?? d.gestureTutorialSeen,
+      soundtrack: (j['soundtrack'] as bool?) ?? d.soundtrack,
+      musicVolume: num_(j['musicVolume'], d.musicVolume),
     );
   }
 }

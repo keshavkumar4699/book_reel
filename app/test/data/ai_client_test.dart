@@ -32,6 +32,8 @@ void main() {
           'hard_words': [
             {'word': 'curiosity', 'sid': sids[2], 'meaning': 'eager wish to know'},
           ],
+          'mood': 'mysterious',
+          'energy': 2,
         },
         {
           'start_sid': sids[mid],
@@ -59,6 +61,9 @@ void main() {
     expect(seg.cards.expand((c) => c.sentenceIds).toList(), sids);
     expect(seg.cards.first.keySids, [sids[1]]);
     expect(seg.cards.first.hardWords.single.meaning, 'eager wish to know');
+    expect(seg.cards.first.mood, 'mysterious');
+    expect(seg.cards.first.energy, 2);
+    expect(seg.cards.last.mood, isNull);
     expect(seg.recalls[0]!.options.first, 'Curiosity');
     expect(seg.recaps[1], ['Alice follows the Rabbit.']);
   });

@@ -131,6 +131,8 @@ ChapterSegments? parseServerChapter(Chapter chapter, Map<String, dynamic> json) 
         for (final h in ((c['hard_words'] as List?) ?? const []).cast<Map<String, dynamic>>())
           if (sids.contains(h['sid'])) HardWord.fromJson(h),
       ],
+      mood: c['mood'] as String?,
+      energy: (c['energy'] as num?)?.toInt(),
     ));
     expected = end + 1;
   }

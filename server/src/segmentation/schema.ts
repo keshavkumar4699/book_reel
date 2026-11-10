@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MOODS } from "../config.js";
+
 export const BlockTypeSchema = z.enum(["heading", "paragraph", "quote", "list", "dialogue", "preformatted"]);
 
 export const SentenceSchema = z.object({
@@ -43,6 +45,9 @@ export const ModelCardSchema = z.object({
   standalone: z.boolean(),
   key_sids: z.array(z.string()),
   hard_words: z.array(z.object({ word: z.string(), sid: z.string(), meaning: z.string() })),
+  // Older cached answers have no mood; the validator treats unknown values as absent.
+  mood: z.string().optional(),
+  energy: z.number().int().optional(),
 });
 
 export const ModelOutputSchema = z.object({
@@ -76,7 +81,7 @@ export const MODEL_OUTPUT_JSON_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["start_sid", "end_sid", "title", "hook", "type", "standalone", "key_sids", "hard_words"],
+        required: ["start_sid", "end_sid", "title", "hook", "type", "standalone", "key_sids", "hard_words", "mood", "energy"],
         properties: {
           start_sid: { type: "string" },
           end_sid: { type: "string" },
@@ -87,6 +92,8 @@ export const MODEL_OUTPUT_JSON_SCHEMA = {
             enum: ["narrative", "argument", "example", "dialogue", "definition", "description", "summary", "quote"],
           },
           standalone: { type: "boolean" },
+          mood: { type: "string", enum: [...MOODS] },
+          energy: { type: "integer", enum: [1, 2, 3, 4, 5] },
           key_sids: { type: "array", items: { type: "string" } },
           hard_words: {
             type: "array",
@@ -137,6 +144,10 @@ export interface OutCard {
   standalone: boolean;
   key_sids: string[];
   hard_words: { word: string; sid: string; meaning?: string }[];
+  /** Emotional tone of the card (soundtrack); absent for rule-based cards. */
+  mood?: string;
+  /** 1 (very quiet) – 5 (intense). */
+  energy?: number;
 }
 
 export interface OutChapter {

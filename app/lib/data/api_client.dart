@@ -95,6 +95,10 @@ class BookReelApi {
 
   Future<Map<String, dynamic>> pullSync(int since) async => (await _send('GET', '/v1/sync?since=$since')) as Map<String, dynamic>;
 
+  /// Licensed soundtrack catalog (paid tiers; 403 on Free).
+  Future<List<Map<String, dynamic>>> musicTracks(String tier) async =>
+      (((await _send('GET', '/v1/music/tracks?tier=$tier')) as Map<String, dynamic>)['tracks'] as List).cast<Map<String, dynamic>>();
+
   /// Creates a short share link with a web preview; returns its URL.
   Future<String> createShare(Map<String, dynamic> payload) async =>
       ((await _send('POST', '/v1/share', payload)) as Map<String, dynamic>)['url'] as String;

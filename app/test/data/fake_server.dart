@@ -12,6 +12,7 @@ class FakeServer {
   final Map<String, Map<String, dynamic>> profiles = {};
   final List<Map<String, dynamic>> shares = [];
   final List<String> kudos = [];
+  List<Map<String, dynamic>> musicTracks = [];
   int requests = 0;
 
   MockClient get client => MockClient((req) async {
@@ -79,6 +80,10 @@ class FakeServer {
         if (path.startsWith('/v1/activities/') && path.endsWith('/kudos')) {
           kudos.add(path.split('/')[3]);
           return ok({'ok': true});
+        }
+        if (path == '/v1/music/tracks') {
+          if (req.url.queryParameters['tier'] == 'free') return http.Response('{"error":"tier_not_eligible"}', 403);
+          return ok({'tracks': musicTracks});
         }
         if (path == '/v1/share') {
           shares.add(body());

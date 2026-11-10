@@ -1,0 +1,17 @@
+{
+  "_readme": "Copy to catalog.json and list tracks you have the rights to stream inside BookReel. NCS (NoCopyrightSounds) music is free for online videos and streams, but use in an app or paid feature needs a license from NCS. Every track needs a license note and the exact attribution text to show in the app. URLs must be https and directly playable (mp3/aac/ogg).",
+  "tracks": [
+    {
+      "id": "example-calm-1",
+      "title": "Example Calm Track",
+      "artist": "Example Artist",
+      "url": "https://cdn.example.com/music/example-calm-1.mp3",
+      "moods": ["calm", "reflective"],
+      "energy": 1,
+      "bpm": 70,
+      "license": "Licensed from <label> for in-app streaming, agreement #… (replace)",
+      "attribution": "Example Artist – Example Calm Track [Label]",
+      "source_url": "https://example.com/track"
+    }
+  ]
+}
