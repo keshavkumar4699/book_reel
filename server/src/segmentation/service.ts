@@ -49,7 +49,8 @@ export interface BatchJob {
   tier: Tier;
   length: CardLength;
   level: ReadingLevel;
-  chapters: Map<string, ChapterInput>;
+  /** Chapter inputs keyed by batch custom_id (`ch<index>`). */
+  chapters: Record<string, ChapterInput>;
   status: "pending" | "done" | "failed";
   result?: SegmentResponse;
   createdAt: Date;
@@ -57,8 +58,23 @@ export interface BatchJob {
 
 const MAX_REPAIR_RATE = 0.2;
 
-export class SegmentService {
+export interface JobStore {
+  get(id: string): Promise<BatchJob | undefined>;
+  save(job: BatchJob): Promise<void>;
+}
+
+export class MemoryJobStore implements JobStore {
   private readonly jobs = new Map<string, BatchJob>();
+  async get(id: string) {
+    return this.jobs.get(id);
+  }
+  async save(job: BatchJob) {
+    this.jobs.set(job.id, job);
+  }
+}
+
+export class SegmentService {
+  private readonly jobs: JobStore;
 
   constructor(
     private readonly deps: {
@@ -67,9 +83,12 @@ export class SegmentService {
       usage: UsageLog;
       model: ModelSegmenter;
       batch?: BatchClient;
+      jobs?: JobStore;
       now?: () => Date;
     },
-  ) {}
+  ) {
+    this.jobs = deps.jobs ?? new MemoryJobStore();
+  }
 
   private period(): string {
     return (this.deps.now?.() ?? new Date()).toISOString().slice(0, 7);
@@ -193,24 +212,24 @@ export class SegmentService {
       tier: req.tier,
       length: req.card_length,
       level: req.reading_level,
-      chapters: new Map(missing.map((c) => [`ch${c.index}`, c])),
+      chapters: Object.fromEntries(missing.map((c) => [`ch${c.index}`, c])),
       status: "pending",
       createdAt: new Date(),
     };
-    this.jobs.set(job.id, job);
+    await this.jobs.save(job);
     return { jobId: job.id };
   }
 
   /** Polls a background job; when the batch has ended, validates, caches and returns results. */
   async pollJob(jobId: string, caller: Caller): Promise<BatchJob | undefined> {
-    const job = this.jobs.get(jobId);
+    const job = await this.jobs.get(jobId);
     if (!job || job.userId !== caller.userId || !this.deps.batch) return undefined;
     if (job.status !== "pending") return job;
     if ((await this.deps.batch.status(job.batchId)) !== "ended") return job;
     const chapters: OutChapter[] = [];
     const fallback: number[] = [];
     for (const r of await this.deps.batch.results(job.batchId)) {
-      const input = job.chapters.get(r.customId);
+      const input = job.chapters[r.customId];
       if (!input) continue;
       if (!r.text) {
         fallback.push(input.index);
@@ -248,6 +267,7 @@ export class SegmentService {
       fallback,
       quota: { used: used.size, limit: quotaFor(job.tier, caller.region) },
     };
+    await this.jobs.save(job);
     return job;
   }
 }

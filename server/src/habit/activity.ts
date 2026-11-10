@@ -1,16 +1,15 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
+import type { Db } from "../db/db.js";
 import {
   DAILY_MINUTES_CAP,
-  DEFAULT_WPM,
   displayStreak,
   emptyStreak,
   evaluateDwell,
   localDateKey,
   recordGoalMet,
-  weekKey,
   type StreakState,
 } from "./engine.js";
 
@@ -30,177 +29,236 @@ export const ActivityBatchSchema = z.object({
 });
 export type ActivityBatch = z.infer<typeof ActivityBatchSchema>;
 
-export interface DayStat {
-  verifiedCards: number;
-  skimmedCards: number;
-  minutes: number;
-  goalMet: boolean;
-}
-
-export interface UserHabit {
-  userId: string;
-  displayName: string;
+export interface UserRow {
+  id: string;
+  display_name: string;
+  invite_code: string;
   wpm: number;
-  dailyGoalCards: number;
-  freezesPerWeek: number;
-  days: Map<string, DayStat>;
+  daily_goal_cards: number;
+  freezes_per_week: number;
   streak: StreakState;
-  seen: Set<string>;
   flagged: number;
-  following: Set<string>;
-  /** Hidden from public boards until reviewed (anomaly detection). */
   hidden: boolean;
 }
 
-export interface FeedItem {
-  id: string;
-  userId: string;
-  type: "goal_met" | "book_finished" | "streak_milestone";
-  text: string;
-  at: Date;
-  kudos: Set<string>;
-}
-
 const STREAK_MILESTONES = new Set([7, 30, 100, 365]);
+const INVITE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O/1/I/L
+
+export function newInviteCode(): string {
+  const bytes = randomBytes(8);
+  return Array.from(bytes, (b) => INVITE_ALPHABET[b % INVITE_ALPHABET.length]).join("");
+}
 
 /**
  * Re-verifies reading events, keeps daily stats and streaks, and produces
- * friend activity (IMPLEMENTATION_PLAN.md Phase 7). In-memory; production
- * persists to Postgres with the schema in DESIGN.md §7.
+ * friend activity (IMPLEMENTATION_PLAN.md Phase 7). Backed by Postgres.
  */
 export class ActivityService {
-  private readonly users = new Map<string, UserHabit>();
-  private readonly feed: FeedItem[] = [];
+  constructor(private readonly db: Db) {}
 
-  user(userId: string): UserHabit {
-    let u = this.users.get(userId);
-    if (!u) {
-      u = {
-        userId,
-        displayName: "Reader",
-        wpm: DEFAULT_WPM,
-        dailyGoalCards: 10,
-        freezesPerWeek: 1,
-        days: new Map(),
-        streak: emptyStreak(1),
-        seen: new Set(),
-        flagged: 0,
-        following: new Set(),
-        hidden: false,
-      };
-      this.users.set(userId, u);
+  /** Returns the user, creating it on first sight. */
+  async user(userId: string): Promise<UserRow> {
+    const found = await this.db.query<UserRow>("select * from users where id = $1", [userId]);
+    if (found[0]) return found[0];
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const rows = await this.db.query<UserRow>(
+        `insert into users (id, invite_code, streak) values ($1, $2, $3)
+         on conflict do nothing returning *`,
+        [userId, newInviteCode(), JSON.stringify(emptyStreak(1))],
+      );
+      if (rows[0]) return rows[0];
+      const again = await this.db.query<UserRow>("select * from users where id = $1", [userId]);
+      if (again[0]) return again[0]; // created concurrently
     }
-    return u;
+    throw new Error("could not allocate an invite code");
   }
 
-  allUsers(): UserHabit[] {
-    return [...this.users.values()];
+  async setProfile(userId: string, p: { displayName?: string; dailyGoalCards?: number; freezesPerWeek?: number }) {
+    await this.user(userId);
+    const rows = await this.db.query<UserRow>(
+      `update users set
+         display_name = coalesce($2, display_name),
+         daily_goal_cards = coalesce($3, daily_goal_cards),
+         freezes_per_week = coalesce($4, freezes_per_week)
+       where id = $1 returning *`,
+      [
+        userId,
+        p.displayName ? p.displayName.trim().slice(0, 40) || null : null,
+        p.dailyGoalCards ? Math.min(200, Math.max(1, Math.trunc(p.dailyGoalCards))) : null,
+        p.freezesPerWeek !== undefined ? Math.min(7, Math.max(0, Math.trunc(p.freezesPerWeek))) : null,
+      ],
+    );
+    return rows[0]!;
   }
 
-  setProfile(userId: string, p: { displayName?: string; dailyGoalCards?: number; freezesPerWeek?: number }) {
-    const u = this.user(userId);
-    if (p.displayName) u.displayName = p.displayName.slice(0, 40);
-    if (p.dailyGoalCards) u.dailyGoalCards = Math.min(200, Math.max(1, p.dailyGoalCards));
-    if (p.freezesPerWeek !== undefined) u.freezesPerWeek = Math.min(7, Math.max(0, p.freezesPerWeek));
-    return u;
-  }
-
-  ingest(userId: string, batch: ActivityBatch) {
-    const u = this.user(userId);
+  async ingest(userId: string, batch: ActivityBatch) {
+    const u = await this.user(userId);
+    let wpm = u.wpm;
+    let streak = u.streak;
+    let flagged = u.flagged;
     let accepted = 0;
     let verified = 0;
     let goalMetOn: string | undefined;
+    const days = new Map<string, { verified_cards: number; skimmed_cards: number; minutes: number; goal_met: boolean }>();
+
     for (const e of batch.events) {
       const dedupe = `${e.card_ref}|${e.ts}`;
-      if (u.seen.has(dedupe)) continue;
-      u.seen.add(dedupe);
+      const fresh = await this.db.query("insert into reading_events_seen (user_id, dedupe) values ($1, $2) on conflict do nothing returning 1", [
+        userId,
+        dedupe,
+      ]);
+      if (fresh.length === 0) continue;
       accepted++;
-      const r = evaluateDwell(e.words, e.dwell_ms, u.wpm);
-      u.wpm = r.updatedWpm;
-      if (r.implausible) {
-        u.flagged++;
-        if (u.flagged >= 20) u.hidden = true;
-      }
+      const r = evaluateDwell(e.words, e.dwell_ms, wpm);
+      wpm = r.updatedWpm;
+      if (r.implausible) flagged++;
       const day = localDateKey(new Date(e.ts), batch.tz_offset_min);
-      const stat = u.days.get(day) ?? { verifiedCards: 0, skimmedCards: 0, minutes: 0, goalMet: false };
+      let stat = days.get(day);
+      if (!stat) {
+        const rows = await this.db.query<{ verified_cards: number; skimmed_cards: number; minutes: number; goal_met: boolean }>(
+          "select verified_cards, skimmed_cards, minutes, goal_met from reading_days where user_id = $1 and day = $2",
+          [userId, day],
+        );
+        stat = rows[0] ?? { verified_cards: 0, skimmed_cards: 0, minutes: 0, goal_met: false };
+        days.set(day, stat);
+      }
       if (r.verified) {
-        stat.verifiedCards++;
+        stat.verified_cards++;
         stat.minutes = Math.min(DAILY_MINUTES_CAP, stat.minutes + r.minutes);
         verified++;
       } else {
-        stat.skimmedCards++;
+        stat.skimmed_cards++;
       }
-      if (!stat.goalMet && stat.verifiedCards >= u.dailyGoalCards) {
-        stat.goalMet = true;
-        u.streak = recordGoalMet(u.streak, day, u.freezesPerWeek);
+      if (!stat.goal_met && stat.verified_cards >= u.daily_goal_cards) {
+        stat.goal_met = true;
+        streak = recordGoalMet(streak, day, u.freezes_per_week);
         goalMetOn = day;
-        this.post(u.userId, "goal_met", `${u.displayName} hit today’s reading goal`);
-        if (STREAK_MILESTONES.has(u.streak.current)) {
-          this.post(u.userId, "streak_milestone", `${u.displayName} reached a ${u.streak.current}-day streak 🔥`);
+        await this.post(userId, "goal_met", `${u.display_name} hit today’s reading goal`);
+        if (STREAK_MILESTONES.has(streak.current)) {
+          await this.post(userId, "streak_milestone", `${u.display_name} reached a ${streak.current}-day streak 🔥`);
         }
       }
-      u.days.set(day, stat);
     }
-    return { accepted, verified, goalMetOn, streak: u.streak.current, wpm: Math.round(u.wpm) };
-  }
 
-  bookFinished(userId: string, title: string) {
-    const u = this.user(userId);
-    this.post(userId, "book_finished", `${u.displayName} finished ${title.slice(0, 120)} 📚`);
-  }
-
-  streakOf(userId: string, today: string) {
-    const u = this.user(userId);
-    return { current: displayStreak(u.streak, today, u.freezesPerWeek), best: u.streak.best, freezesLeft: u.streak.freezesLeft };
-  }
-
-  /** League/leaderboard score for a week: consistency first (active days), then capped minutes. */
-  weekScore(userId: string, week: string): { activeDays: number; minutes: number; score: number } {
-    const u = this.user(userId);
-    let activeDays = 0;
-    let minutes = 0;
-    for (const [day, stat] of u.days) {
-      if (weekKey(day) !== week) continue;
-      if (stat.goalMet) activeDays++;
-      minutes += stat.minutes;
+    for (const [day, s] of days) {
+      await this.db.query(
+        `insert into reading_days (user_id, day, verified_cards, skimmed_cards, minutes, goal_met) values ($1,$2,$3,$4,$5,$6)
+         on conflict (user_id, day) do update set verified_cards = excluded.verified_cards, skimmed_cards = excluded.skimmed_cards,
+           minutes = excluded.minutes, goal_met = excluded.goal_met`,
+        [userId, day, s.verified_cards, s.skimmed_cards, s.minutes, s.goal_met],
+      );
     }
-    return { activeDays, minutes: Math.round(minutes), score: activeDays * 1000 + Math.round(minutes) };
+    await this.db.query("update users set wpm = $2, streak = $3, flagged = $4, hidden = hidden or $4 >= 20 where id = $1", [
+      userId,
+      wpm,
+      JSON.stringify(streak),
+      flagged,
+    ]);
+    return { accepted, verified, goalMetOn, streak: streak.current, wpm: Math.round(wpm) };
   }
 
-  follow(userId: string, other: string) {
-    if (userId !== other) this.user(userId).following.add(other);
+  async bookFinished(userId: string, title: string) {
+    const u = await this.user(userId);
+    await this.post(userId, "book_finished", `${u.display_name} finished ${title.slice(0, 120)} 📚`);
   }
 
-  unfollow(userId: string, other: string) {
-    this.user(userId).following.delete(other);
+  async streakOf(userId: string, today: string) {
+    const u = await this.user(userId);
+    return { current: displayStreak(u.streak, today, u.freezes_per_week), best: u.streak.best, freezesLeft: u.streak.freezesLeft };
   }
 
-  friendsLeaderboard(userId: string, week: string) {
-    const ids = [userId, ...this.user(userId).following];
+  /** League/leaderboard score for a week: consistency first (goal days), then capped minutes. */
+  async weekScores(userIds: string[], week: string): Promise<Map<string, { activeDays: number; minutes: number; score: number }>> {
+    const out = new Map(userIds.map((id) => [id, { activeDays: 0, minutes: 0, score: 0 }]));
+    if (userIds.length === 0) return out;
+    const rows = await this.db.query<{ user_id: string; active: string | number; minutes: string | number }>(
+      `select user_id, count(*) filter (where goal_met) as active, coalesce(sum(minutes), 0) as minutes
+       from reading_days where user_id = any($1) and day >= $2::date and day < $2::date + 7
+       group by user_id`,
+      [userIds, week],
+    );
+    for (const r of rows) {
+      const activeDays = Number(r.active);
+      const minutes = Math.round(Number(r.minutes));
+      out.set(r.user_id, { activeDays, minutes, score: activeDays * 1000 + minutes });
+    }
+    return out;
+  }
+
+  async names(userIds: string[]): Promise<Map<string, string>> {
+    if (userIds.length === 0) return new Map();
+    const rows = await this.db.query<{ id: string; display_name: string }>("select id, display_name from users where id = any($1)", [userIds]);
+    return new Map(rows.map((r) => [r.id, r.display_name]));
+  }
+
+  /** Friends are mutual follows created from an invite code. */
+  async followByCode(userId: string, code: string): Promise<{ userId: string; name: string } | undefined> {
+    await this.user(userId);
+    const rows = await this.db.query<{ id: string; display_name: string }>(
+      "select id, display_name from users where invite_code = $1",
+      [code.trim().toUpperCase()],
+    );
+    const other = rows[0];
+    if (!other || other.id === userId) return undefined;
+    await this.db.query("insert into follows (follower, followee) values ($1, $2), ($2, $1) on conflict do nothing", [userId, other.id]);
+    return { userId: other.id, name: other.display_name };
+  }
+
+  async follow(userId: string, other: string) {
+    if (userId === other) return;
+    await this.user(userId);
+    await this.user(other);
+    await this.db.query("insert into follows (follower, followee) values ($1, $2) on conflict do nothing", [userId, other]);
+  }
+
+  async unfollow(userId: string, other: string) {
+    await this.db.query("delete from follows where follower = $1 and followee = $2", [userId, other]);
+  }
+
+  async following(userId: string): Promise<string[]> {
+    return (await this.db.query<{ followee: string }>("select followee from follows where follower = $1", [userId])).map((r) => r.followee);
+  }
+
+  async friendsLeaderboard(userId: string, week: string) {
+    await this.user(userId);
+    const ids = [userId, ...(await this.following(userId))];
+    const [scores, names] = await Promise.all([this.weekScores(ids, week), this.names(ids)]);
     return ids
-      .map((id) => ({ userId: id, name: this.user(id).displayName, ...this.weekScore(id, week) }))
+      .map((id) => ({ userId: id, name: names.get(id) ?? "Reader", me: id === userId, ...scores.get(id)! }))
       .sort((a, b) => b.score - a.score);
   }
 
-  feedFor(userId: string, limit = 50) {
-    const following = this.user(userId).following;
-    return this.feed
-      .filter((f) => following.has(f.userId) || f.userId === userId)
-      .slice(-limit)
-      .reverse()
-      .map((f) => ({ id: f.id, userId: f.userId, type: f.type, text: f.text, at: f.at.toISOString(), kudos: f.kudos.size, gaveKudos: f.kudos.has(userId) }));
+  async feedFor(userId: string, limit = 50) {
+    const rows = await this.db.query<{ id: string; user_id: string; type: string; text: string; at: string | Date; kudos: string | number; gave: boolean }>(
+      `select f.id, f.user_id, f.type, f.text, f.at,
+              (select count(*) from kudos k where k.activity_id = f.id) as kudos,
+              exists (select 1 from kudos k where k.activity_id = f.id and k.user_id = $1) as gave
+       from feed_items f
+       where f.user_id = $1 or f.user_id in (select followee from follows where follower = $1)
+       order by f.at desc limit $2`,
+      [userId, limit],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      type: r.type,
+      text: r.text,
+      at: new Date(r.at).toISOString(),
+      kudos: Number(r.kudos),
+      gaveKudos: r.gave,
+      mine: r.user_id === userId,
+    }));
   }
 
-  /** Kudos only (no dislikes); returns false for unknown or own activities. */
-  kudos(userId: string, activityId: string): boolean {
-    const item = this.feed.find((f) => f.id === activityId);
-    if (!item || item.userId === userId) return false;
-    item.kudos.add(userId);
+  /** Kudos only (no dislikes); false for unknown or own activities. */
+  async kudos(userId: string, activityId: string): Promise<boolean> {
+    const rows = await this.db.query<{ user_id: string }>("select user_id from feed_items where id = $1", [activityId]);
+    if (!rows[0] || rows[0].user_id === userId) return false;
+    await this.db.query("insert into kudos (activity_id, user_id) values ($1, $2) on conflict do nothing", [activityId, userId]);
     return true;
   }
 
-  private post(userId: string, type: FeedItem["type"], text: string) {
-    this.feed.push({ id: randomUUID(), userId, type, text, at: new Date(), kudos: new Set() });
-    if (this.feed.length > 10_000) this.feed.splice(0, this.feed.length - 10_000);
+  private async post(userId: string, type: string, text: string) {
+    await this.db.query("insert into feed_items (id, user_id, type, text) values ($1, $2, $3, $4)", [randomUUID(), userId, type, text]);
   }
 }

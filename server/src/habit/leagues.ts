@@ -1,85 +1,105 @@
+import type { Db } from "../db/db.js";
 import type { ActivityService } from "./activity.js";
 
 /**
  * Weekly leagues (UX_DESIGN.md §5.7): groups of up to 24 readers in the same
  * division, ranked by consistency (goal days) then verified minutes. Top 5
- * move up and bottom 5 move down when the week closes. Users who hide
- * comparisons or are flagged by anomaly detection are not placed.
+ * move up and bottom 5 move down when the week closes. Readers flagged by
+ * anomaly detection are not placed.
  */
 export const DIVISIONS = ["Bronze", "Silver", "Gold", "Sapphire", "Ruby", "Diamond"] as const;
 export const LEAGUE_SIZE = 24;
 export const PROMOTE = 5;
 export const DEMOTE = 5;
 
-interface Group {
-  id: string;
-  week: string;
-  division: number;
-  members: string[];
-}
-
 export class LeagueService {
-  private readonly division = new Map<string, number>();
-  private readonly groups = new Map<string, Group[]>(); // week -> groups
-  private readonly membership = new Map<string, string>(); // `${week}|${user}` -> group id
+  constructor(
+    private readonly db: Db,
+    private readonly activity: ActivityService,
+  ) {}
 
-  constructor(private readonly activity: ActivityService) {}
-
-  divisionOf(userId: string): number {
-    return this.division.get(userId) ?? 0;
+  async divisionOf(userId: string): Promise<number> {
+    const rows = await this.db.query<{ division: number }>("select division from league_divisions where user_id = $1", [userId]);
+    return rows[0]?.division ?? 0;
   }
 
-  /** Places a user into an open group of their division for [week]. */
-  join(userId: string, week: string): Group | undefined {
-    if (this.activity.user(userId).hidden) return undefined;
-    const existing = this.membership.get(`${week}|${userId}`);
-    const weekGroups = this.groups.get(week) ?? [];
-    if (existing) return weekGroups.find((g) => g.id === existing);
-    const div = this.divisionOf(userId);
-    let group = weekGroups.find((g) => g.division === div && g.members.length < LEAGUE_SIZE);
+  /** Places a user into an open group of their division for [week]; returns the group id. */
+  async join(userId: string, week: string): Promise<string | undefined> {
+    const u = await this.activity.user(userId);
+    if (u.hidden) return undefined;
+    const existing = await this.db.query<{ group_id: string }>(
+      "select group_id from league_members where week = $1 and user_id = $2",
+      [week, userId],
+    );
+    if (existing[0]) return existing[0].group_id;
+    const div = await this.divisionOf(userId);
+    let group = (
+      await this.db.query<{ id: string }>(
+        "select id from league_groups where week = $1 and division = $2 and members < $3 order by id limit 1",
+        [week, div, LEAGUE_SIZE],
+      )
+    )[0]?.id;
     if (!group) {
-      group = { id: `${week}-${div}-${weekGroups.filter((g) => g.division === div).length}`, week, division: div, members: [] };
-      weekGroups.push(group);
-      this.groups.set(week, weekGroups);
+      const n = (await this.db.query<{ n: string | number }>("select count(*) as n from league_groups where week = $1 and division = $2", [week, div]))[0]!.n;
+      group = `${week}-${div}-${n}`;
+      await this.db.query("insert into league_groups (id, week, division) values ($1, $2, $3) on conflict do nothing", [group, week, div]);
     }
-    group.members.push(userId);
-    this.membership.set(`${week}|${userId}`, group.id);
+    const inserted = await this.db.query(
+      "insert into league_members (week, user_id, group_id) values ($1, $2, $3) on conflict do nothing returning 1",
+      [week, userId, group],
+    );
+    if (inserted.length) await this.db.query("update league_groups set members = members + 1 where id = $1", [group]);
     return group;
   }
 
-  standings(userId: string, week: string) {
-    const group = this.join(userId, week);
-    if (!group) return undefined;
-    const rows = group.members
-      .map((id) => ({ userId: id, name: this.activity.user(id).displayName, ...this.activity.weekScore(id, week) }))
+  async standings(userId: string, week: string) {
+    const groupId = await this.join(userId, week);
+    if (!groupId) return undefined;
+    const group = (await this.db.query<{ division: number }>("select division from league_groups where id = $1", [groupId]))[0]!;
+    const members = (await this.db.query<{ user_id: string }>("select user_id from league_members where group_id = $1", [groupId])).map(
+      (r) => r.user_id,
+    );
+    const [scores, names] = await Promise.all([this.activity.weekScores(members, week), this.activity.names(members)]);
+    const rows = members
+      .map((id) => ({ userId: id, name: names.get(id) ?? "Reader", me: id === userId, ...scores.get(id)! }))
       .sort((a, b) => b.score - a.score)
       .map((r, i) => ({ ...r, rank: i + 1 }));
-    return { division: DIVISIONS[group.division], groupId: group.id, rows, promote: PROMOTE, demote: DEMOTE };
+    return { division: DIVISIONS[group.division], groupId, rows, promote: PROMOTE, demote: DEMOTE, size: LEAGUE_SIZE };
   }
 
   /** Applies promotions/demotions for [week]. Only readers with activity can move up. */
-  closeWeek(week: string): { promoted: string[]; demoted: string[] } {
+  async closeWeek(week: string): Promise<{ promoted: string[]; demoted: string[] }> {
     const promoted: string[] = [];
     const demoted: string[] = [];
-    for (const g of this.groups.get(week) ?? []) {
-      const ranked = g.members
-        .map((id) => ({ id, score: this.activity.weekScore(id, week).score }))
-        .sort((a, b) => b.score - a.score);
-      ranked.slice(0, PROMOTE).forEach((r) => {
+    const groups = await this.db.query<{ id: string; division: number }>("select id, division from league_groups where week = $1", [week]);
+    for (const g of groups) {
+      const members = (await this.db.query<{ user_id: string }>("select user_id from league_members where group_id = $1", [g.id])).map(
+        (r) => r.user_id,
+      );
+      const scores = await this.activity.weekScores(members, week);
+      const ranked = members.map((id) => ({ id, score: scores.get(id)!.score })).sort((a, b) => b.score - a.score);
+      for (const r of ranked.slice(0, PROMOTE)) {
         if (r.score > 0 && g.division < DIVISIONS.length - 1) {
-          this.division.set(r.id, g.division + 1);
+          await this.setDivision(r.id, g.division + 1);
           promoted.push(r.id);
         }
-      });
+      }
       if (ranked.length >= PROMOTE + DEMOTE) {
-        ranked.slice(-DEMOTE).forEach((r) => {
+        for (const r of ranked.slice(-DEMOTE)) {
           if (g.division > 0 && !promoted.includes(r.id)) {
-            this.division.set(r.id, g.division - 1);
+            await this.setDivision(r.id, g.division - 1);
             demoted.push(r.id);
           }
-        });
+        }
       }
     }
     return { promoted, demoted };
+  }
+
+  private async setDivision(userId: string, division: number) {
+    await this.db.query(
+      "insert into league_divisions (user_id, division) values ($1, $2) on conflict (user_id) do update set division = excluded.division",
+      [userId, division],
+    );
   }
 }
