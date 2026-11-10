@@ -33,6 +33,9 @@ const vibeStyles = <Vibe, VibeStyle>{
   Vibe.rain: VibeStyle(label: 'Rain', emoji: '🌧️', tagline: 'City lights through rain', accent: Color(0xFF8FC1FF)),
   Vibe.ocean: VibeStyle(label: 'Ocean', emoji: '🌅', tagline: 'Slow waves at sunset', accent: Color(0xFFFFB38A)),
   Vibe.night: VibeStyle(label: 'Night', emoji: '🌙', tagline: 'Stars over the mountains', accent: Color(0xFFC9B8FF)),
+  Vibe.meadow: VibeStyle(label: 'Meadow', emoji: '🌼', tagline: 'Sunny meadow, drifting clouds', accent: Color(0xFFFFD166)),
+  Vibe.snow: VibeStyle(label: 'Snow', emoji: '❄️', tagline: 'Quiet cabin, falling snow', accent: Color(0xFFA8D8FF)),
+  Vibe.city: VibeStyle(label: 'City', emoji: '🌃', tagline: 'Skyline lights at night', accent: Color(0xFFFF8FC7)),
   Vibe.paper: VibeStyle(label: 'Paper', emoji: '📄', tagline: 'Plain and focused', accent: ember, dark: false),
 };
 
@@ -144,6 +147,12 @@ class ScenePainter extends CustomPainter {
         _ocean(canvas, size, t, s);
       case Vibe.night:
         _night(canvas, size, t, s);
+      case Vibe.meadow:
+        _meadow(canvas, size, t, s);
+      case Vibe.snow:
+        _snow(canvas, size, t, s);
+      case Vibe.city:
+        _city(canvas, size, t, s);
       case Vibe.paper:
         canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFFBF8F1));
     }
@@ -494,11 +503,22 @@ void _night(Canvas c, Size size, double t, double scroll) {
 
 /// Horizontal row of scene thumbnails (static) for picking a vibe.
 class VibePickerRow extends StatelessWidget {
-  const VibePickerRow({super.key, required this.selected, required this.onSelected, this.height = 132});
+  const VibePickerRow({
+    super.key,
+    required this.selected,
+    required this.onSelected,
+    this.height = 132,
+    this.onAuto,
+    this.autoSelected = false,
+  });
 
   final Vibe selected;
   final ValueChanged<Vibe> onSelected;
   final double height;
+
+  /// When set, shows an "Auto" tile first (AI picks the scene).
+  final VoidCallback? onAuto;
+  final bool autoSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -507,12 +527,13 @@ class VibePickerRow extends StatelessWidget {
       height: height + 28,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: Vibe.values.length,
+        itemCount: Vibe.values.length + (onAuto == null ? 0 : 1),
         separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, i) {
-          final v = Vibe.values[i];
+        itemBuilder: (context, index) {
+          if (onAuto != null && index == 0) return _autoTile(context);
+          final v = Vibe.values[index - (onAuto == null ? 0 : 1)];
           final style = vibeStyles[v]!;
-          final isSelected = v == selected;
+          final isSelected = !autoSelected && v == selected;
           return Semantics(
             button: true,
             selected: isSelected,
@@ -550,6 +571,220 @@ class VibePickerRow extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+void _meadow(Canvas c, Size size, double t, double scroll) {
+  final w = size.width, h = size.height;
+  _gradient(c, size, const [Color(0xFF7FB8EA), Color(0xFFBFE1F5), Color(0xFFF7EFD6)], const [0, 0.42, 0.62]);
+  _glow(c, Offset(w * 0.22, h * 0.16), w * 0.6, const Color(0xB3FFF8E1));
+  c.drawCircle(Offset(w * 0.22, h * 0.16), 26, Paint()..color = const Color(0xFFFFF6D5));
+  // Fluffy clouds drifting right.
+  final cloud = Paint()..color = const Color(0xE6FFFFFF);
+  for (var i = 0; i < 5; i++) {
+    final sd = _seeds[i + 140];
+    final x = (sd[0] * w + t * (4 + sd[2] * 6) + scroll * 10) % (w + 220) - 110;
+    final y = h * (0.08 + sd[1] * 0.3);
+    final r = 18 + sd[3] * 16;
+    for (var k = 0; k < 5; k++) {
+      c.drawCircle(Offset(x + (k - 2) * r * 0.9, y + (k.isEven ? 0 : -r * 0.45)), r * (k == 2 ? 1.25 : 0.95), cloud);
+    }
+  }
+  // Rolling hills.
+  const hills = [(Color(0xFFB4D98F), 0.60, 22.0, 0.2), (Color(0xFF8CC271), 0.70, 28.0, 0.5), (Color(0xFF64A257), 0.82, 34.0, 1.0)];
+  for (var i = 0; i < hills.length; i++) {
+    final (color, base, amp, speed) = hills[i];
+    final path = _cached('meadow$i-${w.round()}x${h.round()}', () {
+      final p = Path()..moveTo(0, h);
+      for (var x = 0.0; x <= w + 1; x += 8) {
+        p.lineTo(x, h * base + math.sin(x / w * math.pi * 2 * (1 + i * 0.5) + i) * amp + math.sin(x / w * math.pi * 6 + i * 2) * amp * 0.25);
+      }
+      p.lineTo(w, h);
+      p.close();
+      return p;
+    });
+    _wrapped(c, path, w, scroll * 16 * speed, Paint()..color = color);
+  }
+  // Flowers on the near hill.
+  const petals = [Color(0xFFFFD166), Color(0xFFFF8FA3), Color(0xFFFFFFFF), Color(0xFFC3A6FF)];
+  for (var i = 0; i < 40; i++) {
+    final sd = _seeds[i + 60];
+    final x = (sd[0] * w - scroll * 16) % w;
+    final y = h * (0.86 + sd[1] * 0.13);
+    final sway = math.sin(t * 1.2 + sd[3] * 6) * 1.5;
+    c.drawCircle(Offset(x + sway, y), 2.2 + sd[2] * 2, Paint()..color = petals[i % petals.length]);
+  }
+  // Floating pollen.
+  for (var i = 0; i < 24; i++) {
+    final sd = _seeds[i + 90];
+    final x = (sd[0] * w + t * (8 + sd[2] * 10)) % w;
+    final y = h * (0.3 + sd[1] * 0.5) + math.sin(t * 0.7 + sd[3] * 7) * 14;
+    c.drawCircle(Offset(x, y), 1.6, Paint()..color = const Color(0xCCFFFBE6));
+  }
+}
+
+void _snow(Canvas c, Size size, double t, double scroll) {
+  final w = size.width, h = size.height;
+  _gradient(c, size, const [Color(0xFF263552), Color(0xFF4B5A7E), Color(0xFF9A93B8), Color(0xFFDCE5F1)], const [0, 0.38, 0.62, 0.78]);
+  _glow(c, Offset(w * 0.5, h * 0.62), w * 0.8, const Color(0x33F6B9C9));
+  final ridge = _cached('snowridge-${w.round()}x${h.round()}', () => _mountains(size, 51, h * 0.66, h * 0.14, 6));
+  _wrapped(c, ridge, w, scroll * 8, Paint()..color = const Color(0xFF6E7BA0));
+  final pines = _cached('snowpines-${w.round()}x${h.round()}', () => _pineRidge(size, 61, h * 0.76, h * 0.12, h * 0.22, w * 0.12));
+  _wrapped(c, pines, w, scroll * 16, Paint()..color = const Color(0xFF223049));
+  // Snowy ground.
+  final ground = Path()..moveTo(0, h);
+  for (var x = 0.0; x <= w + 1; x += 10) {
+    ground.lineTo(x, h * 0.8 + math.sin(x / w * math.pi * 2) * 10);
+  }
+  ground.lineTo(w, h);
+  ground.close();
+  c.drawPath(ground, Paint()..color = const Color(0xFFE8EFF8));
+  // Cabin with a warm window and chimney smoke.
+  final base = Offset(w * 0.68, h * 0.8);
+  c.drawRect(Rect.fromLTWH(base.dx - 40, base.dy - 46, 80, 46), Paint()..color = const Color(0xFF3B2F2B));
+  final roof = Path()
+    ..moveTo(base.dx - 52, base.dy - 44)
+    ..lineTo(base.dx, base.dy - 82)
+    ..lineTo(base.dx + 52, base.dy - 44)
+    ..close();
+  c.drawPath(roof, Paint()..color = const Color(0xFF2A2220));
+  final snowRoof = Path()
+    ..moveTo(base.dx - 54, base.dy - 44)
+    ..lineTo(base.dx, base.dy - 84)
+    ..lineTo(base.dx + 54, base.dy - 44)
+    ..lineTo(base.dx + 46, base.dy - 48)
+    ..lineTo(base.dx, base.dy - 76)
+    ..lineTo(base.dx - 46, base.dy - 48)
+    ..close();
+  c.drawPath(snowRoof, Paint()..color = const Color(0xFFF2F6FB));
+  final flicker = 0.85 + 0.15 * math.sin(t * 2.1);
+  _glow(c, Offset(base.dx - 12, base.dy - 24), 70, Color.fromRGBO(255, 200, 115, 0.45 * flicker));
+  c.drawRect(Rect.fromLTWH(base.dx - 22, base.dy - 34, 20, 18), Paint()..color = const Color(0xFFFFCE7A));
+  c.drawRect(Rect.fromLTWH(base.dx + 18, base.dy - 78, 10, 24), Paint()..color = const Color(0xFF2A2220));
+  // Chimney smoke: soft puffs that rise and fade.
+  for (var i = 0; i < 4; i++) {
+    final phase = (t * 0.12 + i / 4) % 1.0;
+    final y = base.dy - 82 - phase * 90;
+    final x = base.dx + 23 + math.sin(phase * 6 + t * 0.6) * 10 + phase * 18;
+    c.drawCircle(Offset(x, y), 6 + phase * 10, Paint()..color = Color.fromRGBO(230, 235, 245, 0.25 * (1 - phase)));
+  }
+  // Falling snow.
+  for (var i = 0; i < 130; i++) {
+    final sd = _seeds[i % 160];
+    final speed = 18 + sd[2] * 30;
+    final y = ((sd[1] * h + t * speed + i * 23) % (h + 20)) - 10;
+    final x = ((sd[0] * w + i * 17) % w) + math.sin(t * 0.8 + sd[3] * 10) * 12;
+    c.drawCircle(Offset(x, y), 0.9 + sd[3] * 2.2, Paint()..color = Color.fromRGBO(255, 255, 255, 0.55 + sd[2] * 0.4));
+  }
+}
+
+final Map<String, List<Rect>> _rectCache = {};
+
+List<Rect> _skyline(Size size, int seed, double baseY, double minH, double maxH) =>
+    _rectCache.putIfAbsent('sky$seed-${size.width.round()}x${size.height.round()}', () {
+      final r = math.Random(seed);
+      final out = <Rect>[];
+      var x = 0.0;
+      while (x < size.width + 40) {
+        final bw = 28 + r.nextDouble() * 46;
+        final bh = minH + r.nextDouble() * (maxH - minH);
+        out.add(Rect.fromLTWH(x, baseY - bh, bw, bh + size.height - baseY));
+        x += bw + r.nextDouble() * 6;
+      }
+      return out;
+    });
+
+void _city(Canvas c, Size size, double t, double scroll) {
+  final w = size.width, h = size.height;
+  _gradient(c, size, const [Color(0xFF0D0A28), Color(0xFF261443), Color(0xFF6A2C5E), Color(0xFF1A1030)], const [0, 0.42, 0.66, 0.9]);
+  for (var i = 0; i < 40; i++) {
+    final sd = _seeds[i + 20];
+    final a = 0.2 + 0.6 * (0.5 + 0.5 * math.sin(t * (0.7 + sd[2]) + sd[3] * 9));
+    c.drawCircle(Offset(sd[0] * w, sd[1] * h * 0.4), 0.6 + sd[2], Paint()..color = Color.fromRGBO(255, 255, 255, a));
+  }
+  _glow(c, Offset(w * 0.5, h * 0.7), w * 0.9, const Color(0x40FF7AB8));
+  void layer(List<Rect> rects, Color color, double dx, {bool windows = false}) {
+    final shift = -(dx % w);
+    for (final copy in [0.0, w]) {
+      for (var i = 0; i < rects.length; i++) {
+        final b = rects[i].shift(Offset(shift + copy, 0));
+        if (b.right < 0 || b.left > w) continue;
+        c.drawRect(b, Paint()..color = color);
+        if (!windows) continue;
+        final lit = Paint();
+        for (var wy = b.top + 8; wy < h * 0.92; wy += 12) {
+          for (var wx = b.left + 5; wx < b.right - 6; wx += 9) {
+            final key = (i * 131 + (wy - b.top).round() * 7 + (wx - b.left).round() * 3) % 97;
+            if (key % 3 != 0) continue;
+            final flick = math.sin(t * 0.5 + key) > 0.92 ? 0.25 : 0.85;
+            lit.color = (key % 7 == 0 ? const Color(0xFF9CC9FF) : const Color(0xFFFFD98A)).withValues(alpha: flick);
+            c.drawRect(Rect.fromLTWH(wx, wy, 4, 6), lit);
+          }
+        }
+      }
+    }
+  }
+
+  layer(_skyline(size, 71, h * 0.7, h * 0.12, h * 0.36), const Color(0xFF2E2756), scroll * 6);
+  layer(_skyline(size, 81, h * 0.8, h * 0.1, h * 0.42), const Color(0xFF141029), scroll * 14, windows: true);
+  // Street with moving car lights.
+  c.drawRect(Rect.fromLTWH(0, h * 0.93, w, h * 0.07), Paint()..color = const Color(0xFF0B0819));
+  for (var i = 0; i < 8; i++) {
+    final sd = _seeds[i + 110];
+    final dir = i.isEven ? 1 : -1;
+    final x = (sd[0] * w + dir * t * (40 + sd[2] * 40)) % (w + 40) - 20;
+    final y = h * (0.945 + (i.isEven ? 0 : 0.02));
+    final color = dir > 0 ? const Color(0xFFFF5A5A) : const Color(0xFFFFF4D6);
+    c.drawLine(Offset(x, y), Offset(x - dir * 14, y), Paint()
+      ..color = color.withValues(alpha: 0.8)
+      ..strokeWidth = 2
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5));
+  }
+}
+
+extension on VibePickerRow {
+  Widget _autoTile(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: autoSelected,
+      label: 'Auto vibe: the AI picks the scene for each chapter',
+      child: GestureDetector(
+        onTap: onAuto,
+        child: Column(children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: height * 0.62,
+            height: height,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: autoSelected ? const Color(0xFFFFC66B) : Colors.transparent, width: 3),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(fit: StackFit.expand, children: [
+                // A quartered preview of four scenes.
+                Column(children: [
+                  Expanded(child: Row(children: const [
+                    Expanded(child: VibeBackground(vibe: Vibe.forest, animate: false)),
+                    Expanded(child: VibeBackground(vibe: Vibe.city, animate: false)),
+                  ])),
+                  Expanded(child: Row(children: const [
+                    Expanded(child: VibeBackground(vibe: Vibe.ocean, animate: false)),
+                    Expanded(child: VibeBackground(vibe: Vibe.snow, animate: false)),
+                  ])),
+                ]),
+                const ColoredBox(color: Color(0x33000000)),
+                const Center(child: Text('✨', style: TextStyle(fontSize: 28))),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text('Auto', style: TextStyle(fontWeight: autoSelected ? FontWeight.w700 : FontWeight.w500, color: scheme.onSurface)),
+        ]),
       ),
     );
   }

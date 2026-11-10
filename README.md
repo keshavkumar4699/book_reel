@@ -71,9 +71,13 @@ Configuration (all optional locally):
 | `ANDROID_CERT_SHA256` | Signing-certificate fingerprints for Android App Links |
 | `MUSIC_CATALOG` | Soundtrack catalog JSON (default `./music/catalog.json`; see `music/catalog.example.json`) |
 
+### AI direction (paid tiers)
+
+Each chapter goes through two AI passes. The tier's model (Haiku, Sonnet or Opus) reads the chapter: where cards start, recaps, quick checks, the background **scene** (and scene changes), and **music cues** like a film score. Then Haiku art-directs every card: which phrases to show large (verified word-for-word against the text), the layout, mood and word meanings. The app renders cards full-screen in a lyric style and, in **Auto** mode, crossfades to the scene the AI chose.
+
 ### AI soundtrack (paid tiers)
 
-During segmentation Claude also tags each card with a **mood** (calm, reflective, hopeful, joyful, playful, romantic, mysterious, tense, sad, epic) and an **energy** (1–5). The app picks a matching track from the server's catalog, changes music only when a new mood holds for two cards (or a chapter starts) and at most every 30 seconds, crossfades, lowers the volume during read-aloud, and shows each track's credit when it starts.
+During segmentation Claude also plans **music cues** for each chapter (mood, energy, a description of the ideal music); an AI music supervisor (`POST /v1/music/plan`) picks the best licensed track for each cue. Cards also carry a **mood** (calm, reflective, hopeful, joyful, playful, romantic, mysterious, tense, sad, epic) and an **energy** (1–5). The app picks a matching track from the server's catalog, changes music only when a new mood holds for two cards (or a chapter starts) and at most every 30 seconds, crossfades, lowers the volume during read-aloud, and shows each track's credit when it starts.
 
 **Licensing:** the catalog ships empty. Only add tracks you have the rights to stream inside the app. NoCopyrightSounds (NCS) music is free for online videos and streams, but use in an app or a paid feature needs a license from NCS. Every catalog entry must include a license note and the attribution text; entries without them are rejected.
 

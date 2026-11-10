@@ -13,13 +13,37 @@ TextStyle _serif(AppSettings s, ReadingTheme t, {double scale = 1, FontWeight? w
     );
 
 class _CardFrame extends StatelessWidget {
-  const _CardFrame({required this.child, required this.theme});
+  const _CardFrame({required this.child, required this.theme, this.bare = false});
   final Widget child;
   final ReadingTheme theme;
+
+  /// Full-screen content straight on the scene (no panel), with a shade.
+  final bool bare;
 
   @override
   Widget build(BuildContext context) {
     final onScene = theme.glass.a > 0;
+    if (bare) {
+      final padding = MediaQuery.paddingOf(context);
+      return Stack(children: [
+        if (onScene)
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x4D000000), Color(0x80000000)],
+                ),
+              ),
+            ),
+          ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(28, padding.top + 90, 28, padding.bottom + 40),
+          child: Center(child: SingleChildScrollView(child: child)),
+        ),
+      ]);
+    }
     return Padding(
       padding: EdgeInsets.fromLTRB(14, MediaQuery.paddingOf(context).top + 96, 14, 24),
       child: Center(
@@ -65,20 +89,40 @@ class ChapterTitleCardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onScene = theme.glass.a > 0;
+    final shadows = onScene ? const [Shadow(color: Color(0x99000000), blurRadius: 16)] : null;
+    final accent = onScene ? theme.hardWordUnderline : const Color(0xFFA8551A);
+    // "CHAPTER I. Down the Rabbit-Hole" → "Down the Rabbit-Hole" (the label above says Chapter 1).
+    final stripped = title.replaceFirst(RegExp(r'^\s*chapter\s+[0-9ivxlcdm]+\s*[.:\-–—]?\s*', caseSensitive: false), '');
+    final heading = stripped.isEmpty ? title : stripped;
     return _CardFrame(
       theme: theme,
+      bare: true,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('CHAPTER $chapterNumber', style: _serif(settings, theme, scale: 0.7, weight: FontWeight.w600, color: theme.muted)),
-          const SizedBox(height: 12),
-          Semantics(header: true, child: Text(title, style: _serif(settings, theme, scale: 1.7, weight: FontWeight.w600))),
+          Text('CHAPTER $chapterNumber',
+              style: TextStyle(color: accent, fontWeight: FontWeight.w800, letterSpacing: 3, fontSize: 15, shadows: shadows)),
+          const SizedBox(height: 14),
+          Semantics(
+            header: true,
+            child: Text(heading,
+                style: TextStyle(
+                  fontFamily: 'AtkinsonHyperlegible',
+                  color: theme.text,
+                  fontSize: settings.fontSize * 2.1,
+                  fontWeight: FontWeight.w800,
+                  height: 1.05,
+                  letterSpacing: -0.5,
+                  shadows: shadows,
+                )),
+          ),
           const SizedBox(height: 20),
-          Text('$cards cards · ~$minutes min', style: _serif(settings, theme, scale: 0.8, color: theme.muted)),
+          Text('$cards cards · ~$minutes min', style: TextStyle(color: theme.muted, fontSize: 15, fontWeight: FontWeight.w600, shadows: shadows)),
           if (teaser != null) ...[
             const SizedBox(height: 24),
-            Text(teaser!, style: _serif(settings, theme, scale: 0.95).copyWith(fontStyle: FontStyle.italic)),
+            Text(teaser!, style: _serif(settings, theme, scale: 1.1).copyWith(fontStyle: FontStyle.italic, shadows: shadows)),
           ],
           const SizedBox(height: 40),
           Row(children: [
@@ -356,12 +400,22 @@ class MilestoneCardView extends StatelessWidget {
   Widget build(BuildContext context) {
     return _CardFrame(
       theme: theme,
+      bare: true,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('🎉', style: TextStyle(fontSize: 56)),
+        const Text('🎉', style: TextStyle(fontSize: 64)),
         const SizedBox(height: 16),
         Text('You finished', style: _serif(settings, theme, scale: 0.9, color: theme.muted)),
         const SizedBox(height: 8),
-        Text(bookTitle, textAlign: TextAlign.center, style: _serif(settings, theme, scale: 1.5, weight: FontWeight.w600)),
+        Text(bookTitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'AtkinsonHyperlegible',
+              color: theme.text,
+              fontSize: settings.fontSize * 1.9,
+              fontWeight: FontWeight.w800,
+              height: 1.1,
+              shadows: theme.glass.a > 0 ? const [Shadow(color: Color(0x99000000), blurRadius: 16)] : null,
+            )),
         const SizedBox(height: 32),
         FilledButton.icon(onPressed: onShare, icon: const Icon(Icons.ios_share), label: const Text('Share')),
         const SizedBox(height: 8),

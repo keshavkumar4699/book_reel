@@ -36,7 +36,8 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
       await tester.pump();
     }
-    expect(find.text('CHAPTER I. Down the Rabbit-Hole'), findsWidgets);
+    expect(find.text('CHAPTER 1'), findsOneWidget);
+    expect(find.text('Down the Rabbit-Hole'), findsOneWidget);
     expect(find.text('Swipe up to begin'), findsOneWidget);
 
     // First run shows the gesture guide once.

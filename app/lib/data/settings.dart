@@ -9,7 +9,7 @@ enum ReadingFont { literata, atkinson, system }
 enum KeyPointStyle { off, subtle, bold }
 
 /// Calm animated backgrounds for the reader and Today screen.
-enum Vibe { forest, cafe, rain, ocean, night, paper }
+enum Vibe { forest, cafe, rain, ocean, night, meadow, snow, city, paper }
 
 /// Bump when defaults change in a way existing users should get.
 const currentLayoutVersion = 2;
@@ -62,6 +62,7 @@ class AppSettings {
     this.layoutVersion = currentLayoutVersion,
     this.soundtrack = true,
     this.musicVolume = 0.35,
+    this.autoScene = true,
   });
 
   final ReadingThemeId theme;
@@ -103,6 +104,9 @@ class AppSettings {
   /// Mood-matched background music (paid tiers).
   final bool soundtrack;
   final double musicVolume;
+
+  /// Let the AI pick the background per chapter (paid tiers).
+  final bool autoScene;
 
   GoalConfig get goal => GoalConfig(
         unit: goalUnit,
@@ -147,6 +151,7 @@ class AppSettings {
     bool? gestureTutorialSeen,
     bool? soundtrack,
     double? musicVolume,
+    bool? autoScene,
   }) =>
       AppSettings(
         theme: theme ?? this.theme,
@@ -184,6 +189,7 @@ class AppSettings {
         layoutVersion: layoutVersion,
         soundtrack: soundtrack ?? this.soundtrack,
         musicVolume: musicVolume ?? this.musicVolume,
+        autoScene: autoScene ?? this.autoScene,
       );
 
   Map<String, dynamic> toJson() => {
@@ -222,6 +228,7 @@ class AppSettings {
         'layoutVersion': layoutVersion,
         'soundtrack': soundtrack,
         'musicVolume': musicVolume,
+        'autoScene': autoScene,
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> j) {
@@ -269,6 +276,7 @@ class AppSettings {
       gestureTutorialSeen: (j['gestureTutorialSeen'] as bool?) ?? d.gestureTutorialSeen,
       soundtrack: (j['soundtrack'] as bool?) ?? d.soundtrack,
       musicVolume: num_(j['musicVolume'], d.musicVolume),
+      autoScene: (j['autoScene'] as bool?) ?? d.autoScene,
     );
   }
 }

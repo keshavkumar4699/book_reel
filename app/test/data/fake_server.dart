@@ -13,6 +13,9 @@ class FakeServer {
   final List<Map<String, dynamic>> shares = [];
   final List<String> kudos = [];
   List<Map<String, dynamic>> musicTracks = [];
+  Map<String, String> planPicks = {};
+  bool failMusicPlan = false;
+  int musicPlanRequests = 0;
   int requests = 0;
 
   MockClient get client => MockClient((req) async {
@@ -84,6 +87,15 @@ class FakeServer {
         if (path == '/v1/music/tracks') {
           if (req.url.queryParameters['tier'] == 'free') return http.Response('{"error":"tier_not_eligible"}', 403);
           return ok({'tracks': musicTracks});
+        }
+        if (path == '/v1/music/plan') {
+          if (failMusicPlan) return http.Response('{"error":"down"}', 500);
+          final cues = (body()['cues'] as List).cast<Map<String, dynamic>>();
+          musicPlanRequests++;
+          return ok({
+            'picks': [for (final c in cues) {'at_card': c['at_card'], 'track_id': planPicks[c['mood']] ?? 'missing'}],
+            'source': 'ai',
+          });
         }
         if (path == '/v1/share') {
           shares.add(body());

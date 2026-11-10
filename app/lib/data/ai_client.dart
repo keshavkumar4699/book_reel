@@ -133,6 +133,11 @@ ChapterSegments? parseServerChapter(Chapter chapter, Map<String, dynamic> json) 
       ],
       mood: c['mood'] as String?,
       energy: (c['energy'] as num?)?.toInt(),
+      emphasis: [
+        for (final e in ((c['emphasis'] as List?) ?? const []).cast<Map<String, dynamic>>())
+          if (sids.contains(e['sid'])) Emphasis.fromJson(e),
+      ],
+      layout: c['layout'] as String?,
     ));
     expected = end + 1;
   }
@@ -142,6 +147,15 @@ ChapterSegments? parseServerChapter(Chapter chapter, Map<String, dynamic> json) 
     cards: cards,
     source: SegmentSource.ai,
     teaser: json['teaser'] as String?,
+    scene: json['scene'] as String?,
+    sceneCues: [
+      for (final c in ((json['scene_cues'] as List?) ?? const []).cast<Map<String, dynamic>>())
+        if ((c['at_card'] as num).toInt() < cards.length) SceneCue.fromJson(c),
+    ],
+    musicCues: [
+      for (final c in ((json['music_cues'] as List?) ?? const []).cast<Map<String, dynamic>>())
+        if ((c['at_card'] as num).toInt() < cards.length) MusicCue.fromJson(c),
+    ],
     recaps: {
       for (final r in ((json['recaps'] as List?) ?? const []).cast<Map<String, dynamic>>())
         r['after_card'] as int: (r['bullets'] as List).cast<String>(),

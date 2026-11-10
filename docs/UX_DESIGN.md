@@ -16,6 +16,8 @@
 > - **Calm study vibes**: hand-drawn animated scenes (forest, café, rain, ocean, night, paper) behind a tinted glass card, with gentle parallax while scrolling. Static under "Remove animations"; can be turned off.
 > The ethical guardrails in §8 still apply: finite sessions, the session-complete ending, no like counts or public comparisons on cards, calm notifications.
 
+> **Revision 3 (full-screen lyric cards + AI direction).** Cards now fill the whole screen with **lyric-style typography**: the text is split into lines at the AI's emphasised phrases and at clause breaks, the most important phrase is shown very large in the accent colour, supporting phrases in large serif italic, and lines animate in one after another. Text size is fitted to the screen (short cards get big text). Actions sit in a Reels-style right rail with the book shown bottom-left. On paid tiers the AI also picks the **scene** per chapter (Auto, crossfading when the setting changes) and plans the **soundtrack** like a film score.
+
 ## 0. The answer in one paragraph
 
 The best UI for BookReel is **not** a copy of TikTok or Instagram Reels. Copy the *ease* of reels: one thing on screen, one swipe to move on, no decisions. Do **not** copy their *business model*: endless, variable-reward scrolling built to maximise time spent. We call the right approach a **"calm feed"**:

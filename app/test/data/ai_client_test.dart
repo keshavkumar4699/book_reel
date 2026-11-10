@@ -34,6 +34,11 @@ void main() {
           ],
           'mood': 'mysterious',
           'energy': 2,
+          'layout': 'centered',
+          'emphasis': [
+            {'sid': sids[1], 'text': 'Alice', 'level': 3},
+            {'sid': 'c9.b9.s9', 'text': 'elsewhere', 'level': 2}, // not in this card: dropped
+          ],
         },
         {
           'start_sid': sids[mid],
@@ -51,6 +56,14 @@ void main() {
         {'after_card': 0, 'question': 'Why does Alice follow?', 'options': ['Curiosity', 'Fear', 'Hunger'], 'answer_index': 0},
       ],
       'teaser': 'A white rabbit with a pocket watch.',
+      'scene': 'meadow',
+      'scene_cues': [
+        {'at_card': 1, 'scene': 'night'},
+      ],
+      'music_cues': [
+        {'at_card': 0, 'mood': 'playful', 'energy': 2, 'description': 'light pizzicato'},
+        {'at_card': 1, 'mood': 'mysterious', 'energy': 3, 'description': 'soft synth pads'},
+      ],
     };
   }
 
@@ -64,6 +77,17 @@ void main() {
     expect(seg.cards.first.mood, 'mysterious');
     expect(seg.cards.first.energy, 2);
     expect(seg.cards.last.mood, isNull);
+    expect(seg.cards.first.layout, 'centered');
+    expect(seg.cards.first.emphasis.map((e) => (e.text, e.level)), [('Alice', 3)]);
+    expect(seg.scene, 'meadow');
+    expect(seg.sceneAt(0), 'meadow');
+    expect(seg.sceneAt(1), 'night');
+    expect(seg.musicCues.map((c) => (c.atCard, c.mood)), [(0, 'playful'), (1, 'mysterious')]);
+    // Survives the on-disk cache round trip.
+    final copy = ChapterSegments.fromJson(seg.toJson());
+    expect(copy.sceneAt(1), 'night');
+    expect(copy.musicCues.last.description, 'soft synth pads');
+    expect(copy.cards.first.emphasis.single.text, 'Alice');
     expect(seg.recalls[0]!.options.first, 'Curiosity');
     expect(seg.recaps[1], ['Alice follows the Rabbit.']);
   });

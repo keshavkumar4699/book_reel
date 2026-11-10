@@ -57,6 +57,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// card's reading time is still recorded.
   late final HabitNotifier _habit;
   late final SoundtrackNotifier _soundtrack;
+  Map<int, ChapterSegments>? _segments;
   bool _showNowPlaying = false;
   Timer? _nowPlayingTimer;
   final Set<int> _requestedAi = {};
@@ -76,9 +77,31 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// Lets the AI soundtrack follow the card on screen (paid tiers).
   void _cueMusicForCurrent({bool chapterStart = false}) {
     if (!mounted || _feed.isEmpty) return;
-    final item = _feed[_page.clamp(0, _feed.length - 1)];
+    _cueMusic(_feed[_page.clamp(0, _feed.length - 1)], chapterStart: chapterStart);
+  }
+
+  void _cueMusic(FeedItem item, {bool chapterStart = false}) {
+    final seg = _segments?[item.chapterIndex];
     final card = item.card;
-    if (card != null) _soundtrack.onCard(card.mood, card.energy, chapterStart: chapterStart);
+    _soundtrack.onPosition(
+      chapterKey: '${widget.bookId}:${item.chapterIndex}:${seg?.source.name}',
+      cues: seg?.musicCues ?? const [],
+      cardIndex: item.cardIndexInChapter ?? 0,
+      mood: card?.mood,
+      energy: card?.energy,
+      chapterStart: chapterStart,
+      teaser: seg?.teaser,
+      bookTitle: _sentencesFor?.title,
+    );
+  }
+
+  /// The scene behind the card on screen: the AI's choice for this part of
+  /// the chapter when Auto is on (paid tiers), otherwise the reader's vibe.
+  Vibe _sceneFor(AppSettings s) {
+    if (!s.autoScene || !isPaidTier(s.tier) || s.vibe == Vibe.paper || _feed.isEmpty) return s.vibe;
+    final item = _feed[_page.clamp(0, _feed.length - 1)];
+    final name = _segments?[item.chapterIndex]?.sceneAt(item.cardIndexInChapter ?? 0);
+    return Vibe.values.where((v) => v.name == name && v != Vibe.paper).firstOrNull ?? s.vibe;
   }
 
   Future<void> _onMusic() async {
@@ -263,7 +286,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       }
       if (_tts) _speak(item);
       final previous = index > 0 ? _feed[index - 1] : null;
-      _soundtrack.onCard(item.card!.mood, item.card!.energy, chapterStart: previous?.chapterIndex != item.chapterIndex);
+      _cueMusic(item, chapterStart: previous?.chapterIndex != item.chapterIndex);
     }
     if (item.kind == CardKind.milestone) {
       if (ref.read(libraryProvider.notifier).markFinished(widget.bookId)) {
@@ -571,7 +594,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final paperTheme = ReadingTheme.of(effectiveReadingTheme(settings, MediaQuery.platformBrightnessOf(context)));
-    final readingTheme = readingThemeForVibe(settings.vibe, paperTheme);
+    _segments = ref.watch(segmentsProvider((bookId: widget.bookId, length: settings.cardLength))).value ?? _segments;
+    final scene = _sceneFor(settings);
+    final readingTheme = readingThemeForVibe(scene, paperTheme);
     final meta = ref.watch(libraryProvider).where((b) => b.id == widget.bookId).firstOrNull;
     final contentAsync = ref.watch(bookContentProvider(widget.bookId));
     final segmentsAsync = ref.watch(segmentsProvider((bookId: widget.bookId, length: settings.cardLength)));
@@ -595,12 +620,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       child: Scaffold(
         backgroundColor: paperTheme.background,
         body: Stack(children: [
+          // AI-picked (or chosen) scene; crossfades when the story moves.
           Positioned.fill(
-            child: VibeBackground(
-              vibe: settings.vibe,
-              animate: settings.animatedBackground,
-              pager: _pager,
-              paperColor: paperTheme.background,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 1400),
+              child: VibeBackground(
+                key: ValueKey(scene),
+                vibe: scene,
+                animate: settings.animatedBackground,
+                pager: _pager,
+                paperColor: paperTheme.background,
+              ),
             ),
           ),
           Positioned.fill(child: body),
@@ -615,8 +645,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final today = habit.today(DateTime.now());
     final goal = s.goal;
     final padding = MediaQuery.paddingOf(context);
-    final style = vibeStyles[s.vibe]!;
-    final onScene = s.vibe != Vibe.paper;
+    final scene = _sceneFor(s);
+    final style = vibeStyles[scene]!;
+    final onScene = scene != Vibe.paper;
+    final auto = s.autoScene && isPaidTier(s.tier) && s.vibe != Vibe.paper;
     final chromeColor = onScene ? Colors.white : t.text;
     final soundtrack = ref.watch(soundtrackProvider);
     ref.listen(soundtrackProvider.select((x) => x.playing?.id), (prev, next) {
@@ -662,7 +694,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
               ? '${today.verifiedCards}/${goal.dailyTarget}'
               : '${today.minutes.floor()}/${goal.dailyTarget} min',
           goalDone: today.meets(goal),
-          vibeEmoji: style.emoji,
+          vibeEmoji: auto ? '✨' : style.emoji,
           music: !isPaidTier(s.tier)
               ? _MusicButton.locked
               : (s.soundtrack && soundtrack.playing != null)
@@ -711,8 +743,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   }
 
   Future<void> _pickVibe() async {
-    final current = ref.read(settingsProvider).vibe;
-    final picked = await showModalBottomSheet<Vibe>(
+    final s = ref.read(settingsProvider);
+    final paid = isPaidTier(s.tier);
+    // null = Auto (the AI picks the scene for each part of the book).
+    final picked = await showModalBottomSheet<(Vibe?,)>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -720,16 +754,26 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Pick your vibe', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              paid ? 'Auto lets the AI choose the scene that fits each chapter.' : 'Auto (AI-picked scenes) is part of Plus, Pro and Scholar.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 12),
-            VibePickerRow(selected: current, onSelected: (v) => Navigator.pop(context, v)),
+            VibePickerRow(
+              selected: s.vibe,
+              autoSelected: paid && s.autoScene && s.vibe != Vibe.paper,
+              onAuto: paid ? () => Navigator.pop(context, (null,)) : null,
+              onSelected: (v) => Navigator.pop(context, (v,)),
+            ),
           ]),
         ),
       ),
     );
-    if (picked != null) {
-      HapticFeedback.selectionClick();
-      ref.read(settingsProvider.notifier).update((x) => x.copyWith(vibe: picked));
-    }
+    if (picked == null) return;
+    HapticFeedback.selectionClick();
+    final vibe = picked.$1;
+    ref.read(settingsProvider.notifier).update((x) => vibe == null ? x.copyWith(autoScene: true) : x.copyWith(vibe: vibe, autoScene: false));
   }
 
   Widget _buildItem(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, VibeStyle style, Lexicon lexicon,
@@ -753,8 +797,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           liked: notebook.liked.contains('${widget.bookId}|${card.startSid}'),
           saved: notebook.isSaved(widget.bookId, card.startSid),
           listening: _tts,
-          topPadding: padding.top + 72,
-          bottomPadding: padding.bottom + 20,
           highlightFor: (sid) => notebook.highlightFor(widget.bookId, sid),
           onToggleHighlight: (sentence) => _toggleHighlight(book, sentence),
           onLongPressWord: (word, sentence) {

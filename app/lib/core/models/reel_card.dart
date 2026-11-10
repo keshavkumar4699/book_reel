@@ -24,6 +24,51 @@ class HardWord {
       );
 }
 
+/// A phrase the AI chose to show large (lyric-style typography).
+class Emphasis {
+  const Emphasis({required this.sid, required this.text, required this.level});
+
+  final String sid;
+
+  /// Exact substring of the sentence.
+  final String text;
+
+  /// 2 = large, 3 = hero.
+  final int level;
+
+  Map<String, dynamic> toJson() => {'sid': sid, 'text': text, 'level': level};
+
+  factory Emphasis.fromJson(Map<String, dynamic> j) =>
+      Emphasis(sid: j['sid'] as String, text: j['text'] as String, level: (j['level'] as num).toInt());
+}
+
+/// The background scene from a given card onwards.
+class SceneCue {
+  const SceneCue({required this.atCard, required this.scene});
+  final int atCard;
+  final String scene;
+
+  Map<String, dynamic> toJson() => {'at_card': atCard, 'scene': scene};
+  factory SceneCue.fromJson(Map<String, dynamic> j) => SceneCue(atCard: (j['at_card'] as num).toInt(), scene: j['scene'] as String);
+}
+
+/// A film-score style music cue chosen by the AI for part of a chapter.
+class MusicCue {
+  const MusicCue({required this.atCard, required this.mood, required this.energy, this.description = ''});
+  final int atCard;
+  final String mood;
+  final int energy;
+  final String description;
+
+  Map<String, dynamic> toJson() => {'at_card': atCard, 'mood': mood, 'energy': energy, 'description': description};
+  factory MusicCue.fromJson(Map<String, dynamic> j) => MusicCue(
+        atCard: (j['at_card'] as num).toInt(),
+        mood: j['mood'] as String,
+        energy: (j['energy'] as num).toInt(),
+        description: (j['description'] as String?) ?? '',
+      );
+}
+
 class RecallQuestion {
   const RecallQuestion({required this.question, required this.options, required this.answerIndex});
 
@@ -56,6 +101,8 @@ class SegmentCard {
     this.hardWords = const [],
     this.mood,
     this.energy,
+    this.emphasis = const [],
+    this.layout,
   });
 
   final int chapterIndex;
@@ -76,6 +123,12 @@ class SegmentCard {
   /// 1 (very quiet) – 5 (intense).
   final int? energy;
 
+  /// AI-chosen phrases to show large; empty for rule-based cards.
+  final List<Emphasis> emphasis;
+
+  /// "centered", "left" or "staggered"; null lets the app decide.
+  final String? layout;
+
   Map<String, dynamic> toJson() => {
         'ch': chapterIndex,
         'start_sid': startSid,
@@ -90,6 +143,8 @@ class SegmentCard {
         'hard_words': hardWords.map((h) => h.toJson()).toList(),
         if (mood != null) 'mood': mood,
         if (energy != null) 'energy': energy,
+        if (emphasis.isNotEmpty) 'emphasis': emphasis.map((e) => e.toJson()).toList(),
+        if (layout != null) 'layout': layout,
       };
 
   factory SegmentCard.fromJson(Map<String, dynamic> json) => SegmentCard(
@@ -108,6 +163,10 @@ class SegmentCard {
             .toList(),
         mood: json['mood'] as String?,
         energy: (json['energy'] as num?)?.toInt(),
+        emphasis: ((json['emphasis'] as List?) ?? const [])
+            .map((e) => Emphasis.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        layout: json['layout'] as String?,
       );
 }
 
@@ -120,6 +179,9 @@ class ChapterSegments {
     this.recaps = const {},
     this.recalls = const {},
     this.teaser,
+    this.scene,
+    this.sceneCues = const [],
+    this.musicCues = const [],
   });
 
   final int chapterIndex;
@@ -133,6 +195,22 @@ class ChapterSegments {
   final Map<int, RecallQuestion> recalls;
   final String? teaser;
 
+  /// AI-chosen default background for the chapter.
+  final String? scene;
+  final List<SceneCue> sceneCues;
+
+  /// AI soundtrack plan for the chapter (paid tiers).
+  final List<MusicCue> musicCues;
+
+  /// Scene for card [i]: the last cue at or before it, else the chapter scene.
+  String? sceneAt(int i) {
+    String? s = scene;
+    for (final c in sceneCues) {
+      if (c.atCard <= i) s = c.scene;
+    }
+    return s;
+  }
+
   Map<String, dynamic> toJson() => {
         'ch': chapterIndex,
         'source': source.name,
@@ -140,6 +218,9 @@ class ChapterSegments {
         'recaps': recaps.map((k, v) => MapEntry('$k', v)),
         'recalls': recalls.map((k, v) => MapEntry('$k', v.toJson())),
         if (teaser != null) 'teaser': teaser,
+        if (scene != null) 'scene': scene,
+        'scene_cues': sceneCues.map((c) => c.toJson()).toList(),
+        'music_cues': musicCues.map((c) => c.toJson()).toList(),
       };
 
   factory ChapterSegments.fromJson(Map<String, dynamic> json) => ChapterSegments(
@@ -153,6 +234,13 @@ class ChapterSegments {
         recalls: ((json['recalls'] as Map?) ?? const {}).map(
             (k, v) => MapEntry(int.parse(k as String), RecallQuestion.fromJson(v as Map<String, dynamic>))),
         teaser: json['teaser'] as String?,
+        scene: json['scene'] as String?,
+        sceneCues: ((json['scene_cues'] as List?) ?? const [])
+            .map((e) => SceneCue.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        musicCues: ((json['music_cues'] as List?) ?? const [])
+            .map((e) => MusicCue.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 }
 
