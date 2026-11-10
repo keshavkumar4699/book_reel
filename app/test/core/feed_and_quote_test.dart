@@ -126,9 +126,21 @@ void main() {
         expect(cardWords['${c.chapterIndex}:${c.startSid}'], closeTo(expected, dashes), reason: c.startSid);
       }
     }
-    // A reading position inside a continued reel finds that reel again.
-    final target = continued[continued.length ~/ 2];
-    expect(feed[feedIndexForSid(feed, target.anchorSid)].shownSids, contains(target.anchorSid));
+    // Every reel's reading position (sentence + offset inside it) leads back to that reel,
+    // even when one long sentence runs over several reels.
+    var shared = 0;
+    for (var i = 0; i < feed.length; i++) {
+      final f = feed[i];
+      if (f.kind != CardKind.text) continue;
+      expect(feedIndexForSid(feed, f.anchorSid, offset: f.offset ?? 0), i, reason: '${f.anchorSid}@${f.offset}');
+      if (i > 0 && feed[i - 1].kind == CardKind.text && feed[i - 1].anchorSid == f.anchorSid) shared++;
+    }
+    expect(shared, greaterThan(0), reason: 'Alice has sentences spanning several reels');
+    // A plain sentence position (from a highlight or an older save) opens where the sentence starts.
+    final target = continued.firstWhere((f) => (f.offset ?? 0) > 0);
+    final at = feedIndexForSid(feed, target.anchorSid);
+    expect(feed[at].shownSids, contains(target.anchorSid));
+    expect(at, lessThan(feed.indexOf(target)));
     // No budget, no continuation.
     expect(buildFeed(book, segments, const FeedOptions()).any((f) => f.lines != null), isFalse);
   });

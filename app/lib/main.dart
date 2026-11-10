@@ -6,9 +6,11 @@ import 'app.dart';
 import 'data/json_store.dart';
 import 'data/store_provider.dart';
 import 'services/notifications.dart';
+import 'ui/typography.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerFontLicenses();
   final dir = await getApplicationSupportDirectory();
   final store = await JsonStore.open(dir);
   await ReminderService.instance.init();

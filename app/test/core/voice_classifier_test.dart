@@ -73,7 +73,8 @@ void main() {
     for (final m in RegExp(r'asset: (assets/fonts/[\w\-]+\.ttf)').allMatches(pubspec)) {
       expect(File(m.group(1)!).existsSync(), isTrue, reason: m.group(1));
     }
-    // Every bundled family ships its OFL text and lists it as an asset.
+    // Every bundled family is named for the licences page, ships its OFL text and lists it as an asset.
+    expect(bundledFonts.keys.toSet(), declared);
     for (final family in declared) {
       final licence = 'assets/fonts/OFL-$family.txt';
       expect(File(licence).existsSync(), isTrue, reason: licence);

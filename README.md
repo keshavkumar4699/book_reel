@@ -37,6 +37,13 @@ Then pick Plus, Pro or Scholar under **Settings → AI plan**. Billing is not li
 
 With a server configured the app also syncs your notebook and reading position, uploads reading activity, and turns on the Friends tab (league, friends board, feed with kudos, invite codes) and share links.
 
+How a reel looks (details and sources in `docs/UX_DESIGN.md`, Revision 4):
+
+- **Colours come from the scene.** Each of the 8 scenes has its own text palette and a shade in its own darkest hue. Text keeps at least 7:1 contrast where it sits; `test/ui/scene_palette_test.dart` measures this on the rendered scenes.
+- **One text size per reel.** A card's most quotable short sentence gets a **spotlight reel** of its own in large display type; emphasis inside a reel is colour and weight only.
+- **Room around the text.** Text sits in the middle of the screen at your chosen size; text too long for one reel continues on the next.
+- **Fonts fit the book.** Seven voices (classic, romance, fantasy, sci-fi, suspense, modern, playful) pair a body and a display font. The app picks one from the book's genre tags, title and opening pages; on paid plans the AI picks. **Settings → Font** can use one font for every book instead.
+
 What's in the app: library and EPUB/PDF import, a starter public-domain book, the reel reader (chapter, text, recap, recall, reflect and milestone cards), page mode, themes and typography, read-aloud, highlights and notes, saved cards, an offline dictionary with hard-word underlines, a word list with spaced review, a notebook with Markdown export, daily or weekly goals with streak freezes, a session-complete screen, gentle daily reminders, share images (quotes and progress), onboarding, settings and a progress profile.
 
 ## Server
@@ -59,6 +66,8 @@ ANTHROPIC_API_KEY=... npm run dev     # http://localhost:8787
 | `POST /v1/social/follow-code`, `DELETE /v1/social/follow/:userId`, `GET /v1/feed`, `POST /v1/activities/:id/kudos` | Friends, feed and kudos |
 | `GET /v1/sync?since=`, `PUT /v1/sync` | Notebook and reading-position sync |
 | `POST /v1/share`, `GET /c/:id`, `GET /i/:code`, `GET /.well-known/assetlinks.json` | Share links, preview pages, invites, App Links |
+| `GET /v1/music/tracks`, `POST /v1/music/plan` | Soundtrack catalog and the AI's track picks (paid plans) |
+| `POST /v1/book/profile` | The AI's choice of fonts for a book (paid plans) |
 
 Configuration (all optional locally):
 
@@ -73,7 +82,7 @@ Configuration (all optional locally):
 
 ### AI direction (paid tiers)
 
-Each chapter goes through two AI passes. The tier's model (Haiku, Sonnet or Opus) reads the chapter: where cards start, recaps, quick checks, the background **scene** (and scene changes), and **music cues** like a film score. Then Haiku art-directs every card: which phrases to show large (verified word-for-word against the text), the layout, mood and word meanings. The app renders cards full-screen in a lyric style and, in **Auto** mode, crossfades to the scene the AI chose.
+Each chapter goes through two AI passes. The tier's model (Haiku, Sonnet or Opus) reads the chapter: where cards start, recaps, quick checks, the background **scene** (and scene changes), and **music cues** like a film score. Then Haiku art-directs every card: which phrases to stress and which short sentence deserves a spotlight reel (verified word-for-word against the text), the layout, mood and word meanings. One more small request per book picks its fonts (`POST /v1/book/profile`; only the title, author, genre tags and about 900 words of the opening pages are sent). In **Auto** mode the app crossfades to the scene the AI chose, with that scene's text colours.
 
 ### AI soundtrack (paid tiers)
 
@@ -85,4 +94,4 @@ Models by tier: Plus → `claude-haiku-5-5`, Pro → `claude-sonnet-5-5`, Schola
 
 ## Licenses of bundled data
 
-Fonts: Literata and Atkinson Hyperlegible (SIL OFL). Dictionary: WordNet 3.0 (WordNet License). Word frequencies: wordfreq (CC BY-SA 4.0). Starter book: *Alice's Adventures in Wonderland* (public domain). See `app/assets/lexicon/README.md`.
+Fonts (all SIL Open Font License, unmodified, licence texts in `app/assets/fonts/`): Literata, Atkinson Hyperlegible, DM Serif Display, Lora, Playfair Display, Alegreya, Cinzel, Exo 2, Orbitron, Libre Baskerville, Oswald, Outfit, Nunito and Fredoka. Dictionary: WordNet 3.0 (WordNet License). Word frequencies: wordfreq (CC BY-SA 4.0). Starter book: *Alice's Adventures in Wonderland* (public domain). See `app/assets/lexicon/README.md`.

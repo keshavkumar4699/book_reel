@@ -171,7 +171,8 @@ void main() {
     final pieces = buildLyricPieces([s('a', text)]);
     expect(pieces.length, greaterThanOrEqualTo(3));
     expect(pieces.first.text, 'And the moral of that is--');
-    expect(pieces.map((p) => p.text).join(), text.replaceAll(' ', '').isEmpty ? '' : pieces.map((p) => p.text).join());
+    // Nothing is lost or repeated at the breaks.
+    expect(pieces.map((p) => p.text).join().replaceAll(' ', ''), text.replaceAll(' ', ''));
     for (final p in pieces) {
       expect(text.substring(p.start, p.end), p.text);
     }

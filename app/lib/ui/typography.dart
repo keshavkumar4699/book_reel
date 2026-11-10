@@ -1,7 +1,38 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/settings.dart';
 import 'theme.dart';
+
+/// Bundled font families and their names. All are unmodified Google Fonts
+/// under the SIL Open Font License; each ships its licence text as
+/// `assets/fonts/OFL-<family>.txt`.
+const bundledFonts = <String, String>{
+  'Literata': 'Literata',
+  'AtkinsonHyperlegible': 'Atkinson Hyperlegible',
+  'DMSerifDisplay': 'DM Serif Display',
+  'Lora': 'Lora',
+  'PlayfairDisplay': 'Playfair Display',
+  'Alegreya': 'Alegreya',
+  'Cinzel': 'Cinzel',
+  'Exo2': 'Exo 2',
+  'Orbitron': 'Orbitron',
+  'LibreBaskerville': 'Libre Baskerville',
+  'Oswald': 'Oswald',
+  'Outfit': 'Outfit',
+  'Nunito': 'Nunito',
+  'Fredoka': 'Fredoka',
+};
+
+/// Adds the font licences to the app's licences page (Settings → About).
+void registerFontLicenses() {
+  LicenseRegistry.addLicense(() async* {
+    for (final font in bundledFonts.entries) {
+      yield LicenseEntryWithLineBreaks(['${font.value} (font)'], await rootBundle.loadString('assets/fonts/OFL-${font.key}.txt'));
+    }
+  });
+}
 
 /// The typographic "voice" of a book: a body face for reading and a display
 /// face for spotlight lines and chapter titles, matched to what the book is

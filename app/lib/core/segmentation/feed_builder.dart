@@ -98,7 +98,7 @@ List<FeedItem> buildFeed(BookContent book, Map<int, ChapterSegments> segments, F
       final reels = <FeedItem>[];
       for (final (sids, spotlight) in parts) {
         final basis = sids ?? card.sentenceIds;
-        FeedItem reel({({int from, int to})? lines, List<String>? lineSids, String? anchor, int? words}) => FeedItem(
+        FeedItem reel({({int from, int to})? lines, List<String>? lineSids, String? anchor, int? offset, int? words}) => FeedItem(
               kind: CardKind.text,
               chapterIndex: chapter.index,
               card: card,
@@ -108,6 +108,7 @@ List<FeedItem> buildFeed(BookContent book, Map<int, ChapterSegments> segments, F
               lines: lines,
               lineSids: lineSids,
               anchor: anchor,
+              offset: offset,
               words: words ?? (sids == null ? null : wordsOf(basis)),
               spotlight: spotlight,
               lastPart: false,
@@ -131,8 +132,8 @@ List<FeedItem> buildFeed(BookContent book, Map<int, ChapterSegments> segments, F
           reels.add(reel(
             lines: r,
             lineSids: {for (final p in shown) p.sid}.toList(),
-            // Anchor on a sentence that starts here, so each reel has its own.
-            anchor: shown.where((p) => p.start == 0).map((p) => p.sid).firstOrNull ?? shown.first.sid,
+            anchor: shown.first.sid,
+            offset: shown.first.start,
             words: lyricWords(shown),
           ));
         }
@@ -151,6 +152,7 @@ List<FeedItem> buildFeed(BookContent book, Map<int, ChapterSegments> segments, F
                 lines: r.lines,
                 lineSids: r.lineSids,
                 anchor: r.anchor,
+                offset: r.offset,
                 words: r.words,
                 spotlight: r.spotlight,
               ));
@@ -187,23 +189,29 @@ List<FeedItem> buildFeed(BookContent book, Map<int, ChapterSegments> segments, F
   return feed;
 }
 
-/// Index of the feed item that contains [sid], or the closest earlier text card.
-int feedIndexForSid(List<FeedItem> feed, String? sid) {
+/// Index of the reel showing [sid] at character [offset] (a long sentence can
+/// continue over several reels), or the closest earlier text reel.
+int feedIndexForSid(List<FeedItem> feed, String? sid, {int offset = 0}) {
   if (sid == null) return 0;
   final target = parseSid(sid);
   if (target == null) return 0;
   var best = 0;
-  final anchored = feed.indexWhere((f) => f.card != null && f.anchorSid == sid);
-  if (anchored >= 0) return anchored;
+  int? showing;
   for (var i = 0; i < feed.length; i++) {
     final card = feed[i].card;
     if (card == null) continue;
-    if (feed[i].shownSids.contains(sid)) return i;
+    if (feed[i].shownSids.contains(sid)) {
+      // Where this reel starts within the sentence.
+      final from = feed[i].anchorSid == sid ? (feed[i].offset ?? 0) : 0;
+      if (showing == null || from <= offset) showing = i;
+      continue;
+    }
+    if (showing != null) break;
     final start = parseSid(feed[i].anchorSid ?? card.startSid)!;
     final before = start.chapter < target.chapter ||
         (start.chapter == target.chapter &&
             (start.block < target.block || (start.block == target.block && start.sentence <= target.sentence)));
     if (before) best = i;
   }
-  return best;
+  return showing ?? best;
 }

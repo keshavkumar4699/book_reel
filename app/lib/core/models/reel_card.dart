@@ -266,6 +266,7 @@ class FeedItem {
     this.lines,
     this.lineSids,
     this.anchor,
+    this.offset,
     this.words,
     this.spotlight = false,
     this.lastPart = true,
@@ -294,9 +295,11 @@ class FeedItem {
   /// The sentences those lines belong to (some may continue on the next reel).
   final List<String>? lineSids;
 
-  /// For a continued reel: the first sentence that starts on it (or the
-  /// sentence it continues, when none does).
+  /// For a continued reel: the sentence of its first line, and where in that
+  /// sentence the line starts (0 when the sentence starts here). Together
+  /// they are the reel's reading position.
   final String? anchor;
+  final int? offset;
 
   /// Words on this reel when it shows only part of its card.
   final int? words;
@@ -316,7 +319,7 @@ class FeedItem {
   /// True when this reel shows only part of its card.
   bool get isPart => sids != null || lines != null;
 
-  /// The sentence that anchors this reel to a reading position, and keys its
-  /// like and save.
+  /// The sentence that anchors this reel to a reading position (with
+  /// [offset]) and keys its like and save.
   String? get anchorSid => anchor ?? (shownSids.isEmpty ? card?.startSid : shownSids.first);
 }

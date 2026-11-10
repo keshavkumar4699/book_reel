@@ -208,7 +208,13 @@ class SyncService {
       if (book == null || data == null) continue;
       final remoteAt = DateTime.fromMillisecondsSinceEpoch(p['updated_at'] as int);
       if (book.lastReadAt == null || remoteAt.isAfter(book.lastReadAt!)) {
-        library.updatePosition(book.id, sid: data['sid'] as String, progress: (data['progress'] as num).toDouble(), at: remoteAt);
+        library.updatePosition(
+          book.id,
+          sid: data['sid'] as String,
+          offset: ((data['offset'] as num?) ?? 0).toInt(),
+          progress: (data['progress'] as num).toDouble(),
+          at: remoteAt,
+        );
       }
     }
     _pendingPositions = const [];
@@ -219,7 +225,13 @@ class SyncService {
     for (final b in ref.read(libraryProvider)) {
       final at = b.lastReadAt?.millisecondsSinceEpoch;
       if (at == null || b.positionSid == null || (pushedAt[b.id] ?? 0) >= at) continue;
-      out.add({'kind': 'position', 'id': b.id, 'updated_at': at, 'deleted': false, 'data': {'sid': b.positionSid, 'progress': b.progress}});
+      out.add({
+        'kind': 'position',
+        'id': b.id,
+        'updated_at': at,
+        'deleted': false,
+        'data': {'sid': b.positionSid, if (b.positionOffset > 0) 'offset': b.positionOffset, 'progress': b.progress},
+      });
       pushedAt[b.id] = at;
     }
     if (out.isNotEmpty) await _api.pushSync(out);

@@ -475,8 +475,9 @@ void _cafe(Canvas c, Size size, double t, double scroll) {
   c.drawLine(Offset(win.center.dx, win.top), Offset(win.center.dx, win.bottom), frame..strokeWidth = 6);
   // Pendant lights with a soft flicker.
   for (var i = 0; i < 3; i++) {
+    // Bulbs hang below the reader's top bar, cords between its controls.
     final x = w * const [0.165, 0.64, 0.895][i];
-    final y = h * (0.07 + (i.isEven ? 0.02 : 0));
+    final y = h * (0.118 + (i.isEven ? 0.018 : 0));
     c.drawLine(Offset(x, 0), Offset(x, y), Paint()
       ..color = const Color(0xFF120C08)
       ..strokeWidth = 2);
@@ -578,6 +579,17 @@ void _ocean(Canvas c, Size size, double t, double scroll) {
         end: Alignment.bottomCenter,
         colors: [Color(0xFF5E4A78), Color(0xFF2B3461), Color(0xFF121A35)],
       ).createShader(sea),
+  );
+  // Haze over the horizon, so no hard line runs behind the text.
+  final haze = Rect.fromLTWH(0, horizon - h * 0.03, w, h * 0.06);
+  c.drawRect(
+    haze,
+    Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0x008A4A68), Color(0x998A4A68), Color(0x007A4668)],
+      ).createShader(haze),
   );
   // Shimmer on the sun's path.
   final shimmer = Paint()

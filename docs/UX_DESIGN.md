@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Companion to** | [`DESIGN.md`](./DESIGN.md) |
-| **Status** | Draft v1.0 |
+| **Status** | Draft v1.0 (Revision 4) |
 | **Date** | 2026-11-09 |
 | **Lenses** | Behavioural psychology · Interaction & visual design · Flutter engineering |
 
@@ -17,6 +17,20 @@
 > The ethical guardrails in §8 still apply: finite sessions, the session-complete ending, no like counts or public comparisons on cards, calm notifications.
 
 > **Revision 3 (full-screen lyric cards + AI direction).** Cards now fill the whole screen with **lyric-style typography**: the text is split into lines at the AI's emphasised phrases and at clause breaks, the most important phrase is shown very large in the accent colour, supporting phrases in large serif italic, and lines animate in one after another. Text size is fitted to the screen (short cards get big text). Actions sit in a Reels-style right rail with the book shown bottom-left. On paid tiers the AI also picks the **scene** per chapter (Auto, crossfading when the setting changes) and plans the **soundtrack** like a film score.
+
+> **Revision 4 (calm reels: colour, type and space).** Device feedback on Revision 3: text colours sometimes clashed with the scene, large and small type on one card did not sit well together, and text filled the screen. What changed, and why:
+>
+> | Change | What the reader sees | Basis |
+> |---|---|---|
+> | **Colours come from the scene** | Each scene has its own palette: a tinted off-white for text (parchment on the forest, latte on the café, moonlight on the night sky), one warmer or brighter tone for emphasis, and a shade over the scene in the scene's own darkest hue. The bright meadow gets dark ink on a light veil instead. No pure white, no grey overlay. | Pure white on dark "vibrates" and blooms (halation), worse for the roughly 30% of people with astigmatism; Material's dark-theme text is white at 87%, not 100%. A scrim that is darker where text sits is the standard fix for text over images. [1][2][3][4] |
+> | **Measured contrast** | Body text has at least **7:1** contrast (WCAG AAA) wherever it sits; every colour and control has at least **4.5:1** (AA) everywhere. | WCAG 1.4.3 / 1.4.6. The numbers are checked on the *rendered* scenes at their brightest spots (`app/test/ui/scene_palette_test.dart`), not estimated. [5][6] |
+> | **One size per reel** | Every line on a reel has the same size. The one line worth making big gets a **spotlight reel of its own**, in the book's display font. Emphasis inside a reel is colour and weight only, and never more than 40% of the reel. | Mixed sizes on one screen compete for attention; separating them keeps both readable. Spotlights are rare (at least 4 reels apart with AI direction, 7 without) so they stay special. |
+> | **Room to breathe** | Text sits in the middle of the screen at the reader's own size, never enlarged to fill. Text that would not sit comfortably (long sentences are common in classics) **continues on the next reel**, split where a clause or sentence ends. | Line length and white space matter more for comfortable reading than raw size. The split follows the screen, the font size and the chosen card length. |
+> | **Fonts fit the book** | Each book gets a body and a display face that suit what it is: seven voices (classic, romance, fantasy, sci-fi, suspense, modern, playful). The AI chooses on paid tiers; on-device rules use genre tags, the title and the opening pages. One font for everything (for example Atkinson Hyperlegible for low vision) is still a setting. | Genre conventions in book typography: readable serifs for fiction, clean sans for non-fiction and sci-fi, with the genre signal carried by the display face. Body faces were chosen for reading first. [7] |
+>
+> Sources: [1] [UX Design Institute, designing for dark mode](https://www.uxdesigninstitute.com/blog/dark-mode/) · [2] [Material Design, text legibility](https://m2.material.io/design/color/text-legibility.html) and the [dark theme codelab](https://codelabs.developers.google.com/codelabs/design-material-darktheme) · [3] [Nielsen Norman Group, text over images](https://www.nngroup.com/articles/text-over-images/) · [4] [Smashing Magazine, accessible text over images](https://smashingmagazine.com/2023/08/designing-accessible-text-over-images-part1) · [5] [W3C, Understanding Contrast (Enhanced)](https://w3c.github.io/wcag/understanding/contrast-enhanced) · [6] [MDN, colour contrast](https://developer.mozilla.org/en-US/docs/Web/Accessibility/Understanding_WCAG/Perceivable/Color_contrast) · [7] [Lulu, which font for my book](https://blog.lulu.com/which-font-should-i-use-for-my-book/) and [Kindlepreneur, typography by genre](https://kindlepreneur.com/book-cover-typography-font/). The dark-mode and genre sources are design guidance rather than controlled studies; the contrast targets are the WCAG standard.
+>
+> Revision 3's "text fitted to the screen" and "very large phrase on the same card" are superseded. Everything else stands: full-screen reels, the right-hand action rail, gestures, AI scenes and soundtrack.
 
 ## 0. The answer in one paragraph
 

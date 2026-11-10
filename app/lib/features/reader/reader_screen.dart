@@ -215,7 +215,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     );
     final key = (segments, s.recallCards, s.reflectCards, maxReelWords);
     if (_feedKey == key) return;
-    final anchor = _feed.isEmpty ? (widget.startSid ?? meta?.positionSid) : _currentAnchorSid();
+    // Where the reader is: an explicit start, the saved position, or (when
+    // the feed is rebuilt) the reel on screen.
+    final (String? anchor, int anchorOffset) = _feed.isNotEmpty
+        ? _currentAnchor()
+        : widget.startSid != null
+            ? (widget.startSid, 0)
+            : (meta?.positionSid, meta?.positionOffset ?? 0);
     _feed = buildFeed(
       book,
       segments,
@@ -229,7 +235,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     );
     _feedKey = key;
     _partDwell.clear();
-    var index = feedIndexForSid(_feed, anchor);
+    var index = feedIndexForSid(_feed, anchor, offset: anchorOffset);
     if (anchor == null) index = 0;
     _page = index;
     if (_pager == null) {
@@ -243,12 +249,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeRequestAi(book));
   }
 
-  String? _currentAnchorSid() {
+  (String?, int) _currentAnchor() {
     for (var i = _page; i >= 0 && i < _feed.length; i--) {
       final sid = _feed[i].anchorSid;
-      if (sid != null) return sid;
+      if (sid != null) return (sid, _feed[i].offset ?? 0);
     }
-    return null;
+    return (null, 0);
   }
 
   void _maybeRequestAi(BookContent book) async {
@@ -328,6 +334,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       ref.read(libraryProvider.notifier).updatePosition(
             widget.bookId,
             sid: anchor,
+            offset: item.offset ?? 0,
             progress: progressAt(book, anchor),
           );
       _textCardsThisSession++;
@@ -606,7 +613,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       builder: (_) => PageModeView(
         book: book,
         chapterIndex: item.chapterIndex,
-        anchorSid: _currentAnchorSid(),
+        anchorSid: _currentAnchor().$1,
         settings: s,
         theme: theme,
       ),

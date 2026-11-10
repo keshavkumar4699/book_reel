@@ -68,6 +68,8 @@ Each book becomes a vertical feed of cards. Each card holds one segment of the b
 └──────────────────────────────┘
 ```
 
+> **Current reel design (UX_DESIGN.md, Revision 4).** The sketch above is the original v1 card. A reel today is full-screen over a calm scene: the author's words in one comfortable size, a phrase per line, in the middle of the screen with space above and below; colours come from the scene (≥ 7:1 contrast for text); fonts come from the book (a body and a display face per genre "voice"). The card's most quotable short sentence can get a **spotlight reel** of its own in large display type, and text too long for one screen **continues on the next reel**. Likes, saves and notes belong to the reel on screen; a card shown as several reels counts once towards the daily goal.
+
 **Reels-style interactions**
 | Gesture | Action |
 |---|---|
@@ -283,7 +285,10 @@ POST   /v1/share                       {type: card|progress, payload}       → 
 GET/PUT /v1/sync/{highlights|notes|saved|positions}?since=
 POST   /v1/billing/verify              {purchase_token, product_id}
 GET    /v1/me/ai-usage                 → {tier, books_used, books_limit, resets_at}
+POST   /v1/music/plan                  {tier, cues[], teaser?}              → {picks:[{at_card, track_id}]}   (paid)
+POST   /v1/book/profile                {tier, book, subjects[], sample}     → {voice, genre, source}         (paid)
 ```
+`/v1/book/profile` receives only the title, author, genre tags and about 900 words of the opening pages, once per book.
 
 ---
 
@@ -351,13 +356,15 @@ Output: structured JSON (Claude structured outputs, `output_config.format` with 
 ### 4.3 Model routing by tier (v2: two passes)
 Each chapter goes through two AI passes (`server/src/segmentation`):
 1. **Structure & direction** on the tier's model: where each card starts, recaps, quick checks, the chapter teaser, the chapter's **scene** (and up to 3 scene changes) and **music cues** (1–4, like a film score: mood, energy, a few words on the ideal music).
-2. **Art direction** per card on the fast model, in batches of 60 cards: 0–3 **emphasis** phrases (one "hero" ≤ 6 words), the **layout** (centred / left / staggered), key sentences, mood and energy, and hard-word meanings. Every phrase must appear verbatim in its sentence or it is dropped.
+2. **Art direction** per card on the fast model, in batches of 60 cards: 0–3 **emphasis** phrases, the **layout** (centred / left / staggered), key sentences, mood and energy, and hard-word meanings. At most one phrase per card is a **spotlight** (level 3): it must sit in a complete sentence of 3–18 words, which the app shows on a reel of its own; the others are stressed inline. Every phrase must appear verbatim in its sentence or it is dropped.
 
-A third, tiny step, the **music supervisor**, picks the best licensed track for each music cue from the catalog (track IDs constrained to the catalog; falls back to mood matching).
+Two more tiny steps run on the fast model:
+- The **music supervisor** picks the best licensed track for each music cue from the catalog (track IDs constrained to the catalog; falls back to mood matching).
+- The **book designer** picks the book's typographic **voice** (classic, romance, fantasy, sci-fi, suspense, modern or playful: a body and a display font each) from its title, genre tags and opening pages. One request per book, cached by content hash; the app's on-device rules are the fallback and the free-tier choice.
 
 | Tier | Pass 1: structure & direction | Pass 2: art direction | Music supervisor |
 |---|---|---|---|
-| **Free** | Rules on device | Rules on device (key sentences and short lines larger) | — |
+| **Free** | Rules on device | Rules on device (a short key sentence is stressed, or gets a spotlight reel) | — |
 | **Plus** | `claude-haiku-5-5`, effort `low` | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
 | **Pro** | `claude-sonnet-5-5`, effort `medium` | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
 | **Scholar** | `claude-opus-5-5`, effort `medium` (`high` for dense non-fiction) | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
@@ -397,6 +404,7 @@ Assumptions: an average book is ~100k words ≈ **135k input tokens**. With snac
 - **Pass 1** returns only where cards start (~10 tokens per card ≈ 33k) plus recaps, quick checks, teasers, scenes and music cues (~12k), plus thinking (~20% on Haiku `low`, ~50% on Sonnet/Opus `medium`).
 - **Pass 2** returns ~45 tokens of art direction per card (≈ 150k) plus thinking (~20%), on Haiku for every tier.
 - The **music supervisor** costs about $0.01 per book.
+- The **book designer** is one request of about 1.5k input tokens per book: well under $0.001, so it does not change the totals below.
 
 | | Pass 1 (tier model) | Pass 2 (Haiku) | Music | **Per book, real time** | **Per book, typical** (70% of pass 1 via Batch) |
 |---|---|---|---|---|---|
@@ -421,7 +429,7 @@ Cloud Run + Cloud SQL + Storage + CDN ≈ $600–1,200/month → **≈ $0.02/MAU
 ## 6. Pricing
 
 Principles:
-- The free tier is genuinely useful: on-device cards, lyric typography using built-in rules, and every scene.
+- The free tier is genuinely useful: on-device cards, calm reels with rule-based emphasis and book fonts, and every scene.
 - Paid tiers add the AI's direction (emphasis, scenes, soundtrack) and better models up the ladder.
 - Quotas count **"AI books" per month**. A book counts once its first AI chapter is processed; re-reading and cached books are free.
 - Every tier keeps a positive margin even in the **absolute worst case** (every quota book fully processed in real time).
@@ -434,7 +442,8 @@ Google Play keeps **15%** of subscription revenue.
 | Price (US) | $0 | **$3.99/mo** · $29.99/yr | **$8.99/mo** · $69.99/yr | **$19.99/mo** · $159.99/yr |
 | Price (India, regional) | ₹0 | **₹149/mo** · ₹1,199/yr | **₹399/mo** · ₹3,199/yr | **₹899/mo** · ₹7,199/yr |
 | Reading the book (cuts, recaps, scenes, music cues) | Rules on device | Claude Haiku 5.5 | Claude Sonnet 5.5 | Claude Opus 5.5 |
-| Lyric typography | Rule-based emphasis | AI art direction on every card | AI art direction | AI art direction |
+| Emphasis and spotlight lines | Rule-based | AI art direction on every card | AI art direction | AI art direction |
+| Fonts that fit the book | On-device rules (genre tags, title, opening pages) | Chosen by the AI | Chosen by the AI | Chosen by the AI |
 | Scenes | Pick any of 8 | + **Auto**: AI picks the scene per chapter | + Auto | + Auto |
 | AI soundtrack | — | ✓ | ✓ | ✓ |
 | AI books / month | Unlimited (on device) | 12 (India 8) | 6 (India 4) | 6 (India 4) |

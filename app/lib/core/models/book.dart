@@ -119,6 +119,7 @@ class BookMeta {
     this.coverPath,
     this.lastReadAt,
     this.positionSid,
+    this.positionOffset = 0,
     this.progress = 0,
     this.finishedAt,
     this.subjects = const [],
@@ -138,6 +139,10 @@ class BookMeta {
   final DateTime? lastReadAt;
   final String? positionSid;
 
+  /// Character offset inside [positionSid], when a long sentence continues
+  /// over several reels and the reader stopped part-way through it.
+  final int positionOffset;
+
   /// 0.0 – 1.0, by words read before the current position.
   final double progress;
   final DateTime? finishedAt;
@@ -153,6 +158,7 @@ class BookMeta {
   BookMeta copyWith({
     DateTime? lastReadAt,
     String? positionSid,
+    int? positionOffset,
     double? progress,
     DateTime? finishedAt,
     String? coverPath,
@@ -171,6 +177,7 @@ class BookMeta {
         coverPath: coverPath ?? this.coverPath,
         lastReadAt: lastReadAt ?? this.lastReadAt,
         positionSid: positionSid ?? this.positionSid,
+        positionOffset: positionOffset ?? this.positionOffset,
         progress: progress ?? this.progress,
         finishedAt: finishedAt ?? this.finishedAt,
         subjects: subjects,
@@ -190,6 +197,7 @@ class BookMeta {
         'cover': coverPath,
         'lastReadAt': lastReadAt?.toIso8601String(),
         'pos': positionSid,
+        if (positionOffset > 0) 'posOffset': positionOffset,
         'progress': progress,
         'finishedAt': finishedAt?.toIso8601String(),
         if (subjects.isNotEmpty) 'subjects': subjects,
@@ -209,6 +217,7 @@ class BookMeta {
         coverPath: json['cover'] as String?,
         lastReadAt: json['lastReadAt'] == null ? null : DateTime.parse(json['lastReadAt'] as String),
         positionSid: json['pos'] as String?,
+        positionOffset: ((json['posOffset'] as num?) ?? 0).toInt(),
         progress: ((json['progress'] as num?) ?? 0).toDouble(),
         finishedAt: json['finishedAt'] == null ? null : DateTime.parse(json['finishedAt'] as String),
         subjects: ((json['subjects'] as List?) ?? const []).cast<String>(),

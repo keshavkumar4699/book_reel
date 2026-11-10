@@ -59,15 +59,25 @@ void main() {
     final meta = (await library.ensureStarterBook())!;
     final content = await container.read(bookContentProvider(meta.id).future);
     final sid = content.chapters[5].blocks[0].sentences[0].id;
-    library.updatePosition(meta.id, sid: sid, progress: progressAt(content, sid));
+    library.updatePosition(meta.id, sid: sid, offset: 187, progress: progressAt(content, sid));
     await store.flush();
 
-    final reopened = ProviderContainer(overrides: [storeProvider.overrideWithValue(await JsonStore.open(dir))]);
+    final store2 = await JsonStore.open(dir);
+    final reopened = ProviderContainer(overrides: [storeProvider.overrideWithValue(store2)]);
     final again = reopened.read(libraryProvider).single;
     expect(again.positionSid, sid);
+    // Part-way through a long sentence that continues over several reels.
+    expect(again.positionOffset, 187);
     expect(again.progress, greaterThan(0.3));
     expect(again.progress, lessThan(0.7));
+    // The book's fonts chosen on import survive too.
+    expect(again.voice, meta.voice);
+    expect(again.voiceSource, 'rules');
+    // Moving on to the start of a sentence clears the offset.
+    reopened.read(libraryProvider.notifier).updatePosition(meta.id, sid: sid, progress: 0.5);
+    expect(reopened.read(libraryProvider).single.positionOffset, 0);
     reopened.dispose();
+    await store2.flush();
   });
 
   test('habit: verified cards complete the goal once and start a streak', () {

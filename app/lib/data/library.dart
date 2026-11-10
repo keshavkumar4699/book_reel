@@ -121,12 +121,14 @@ class LibraryNotifier extends Notifier<List<BookMeta>> {
     _set([for (final x in state) x.id == bookId ? x.copyWith(voice: voice, voiceSource: source) : x]);
   }
 
-  void updatePosition(String bookId, {required String sid, required double progress, DateTime? at}) {
+  void updatePosition(String bookId, {required String sid, int offset = 0, required double progress, DateTime? at}) {
     final b = byId(bookId);
     if (b == null) return;
     _set([
       for (final x in state)
-        x.id == bookId ? x.copyWith(positionSid: sid, progress: progress, lastReadAt: at ?? DateTime.now()) : x,
+        x.id == bookId
+            ? x.copyWith(positionSid: sid, positionOffset: offset, progress: progress, lastReadAt: at ?? DateTime.now())
+            : x,
     ]);
   }
 
