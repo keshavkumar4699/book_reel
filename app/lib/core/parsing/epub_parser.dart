@@ -17,9 +17,22 @@ class ParseException implements Exception {
 }
 
 class ParsedBook {
-  const ParsedBook({required this.content, this.coverBytes, this.coverExtension, this.isPublicDomain = false});
+  const ParsedBook({
+    required this.content,
+    this.coverBytes,
+    this.coverExtension,
+    this.isPublicDomain = false,
+    this.subjects = const [],
+    this.description = '',
+  });
 
   final BookContent content;
+
+  /// `dc:subject` tags (genre hints for the book's typographic voice).
+  final List<String> subjects;
+
+  /// `dc:description`, with markup removed.
+  final String description;
 
   /// From `dc:rights`; enables unlimited quote sharing (DESIGN.md §2.6).
   final bool isPublicDomain;
@@ -61,6 +74,19 @@ class EpubParser {
     final author = meta('creator') ?? 'Unknown author';
     final language = meta('language') ?? 'en';
     final rights = (meta('rights') ?? '').toLowerCase();
+    final subjects = opf.descendants
+        .whereType<XmlElement>()
+        .where((e) => e.localName == 'subject')
+        .map((e) => e.innerText.trim())
+        .where((t) => t.isNotEmpty && t.length < 200)
+        .take(20)
+        .toList();
+    // Descriptions often carry markup; keep the words only.
+    final description = (meta('description') ?? '')
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAllMapped(RegExp(r' ([,.;:!?])'), (m) => m[1]!)
+        .trim();
 
     final manifest = <String, _Item>{};
     for (final item in opf.descendants.whereType<XmlElement>().where((e) => e.localName == 'item')) {
@@ -114,6 +140,8 @@ class EpubParser {
       coverBytes: cover?.$1,
       coverExtension: cover?.$2,
       isPublicDomain: rights.contains('public domain'),
+      subjects: subjects,
+      description: description.length > 600 ? description.substring(0, 600) : description,
     );
   }
 

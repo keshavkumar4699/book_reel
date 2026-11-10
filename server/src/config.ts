@@ -61,7 +61,7 @@ export function quotaFor(tier: Tier, region: string | undefined): number {
 }
 
 /** Bump when prompts or validation change so cached segment maps are rebuilt. */
-export const SEGMENTER_VERSION = "seg-v3"; // v3: two-pass (structure + art direction), scenes, music cues
+export const SEGMENTER_VERSION = "seg-v4"; // v4: spotlight lines (level 3 = a sentence that gets its own reel)
 
 /** The "soul" of a card, used to pick matching music (paid tiers). */
 export const MOODS = ["calm", "reflective", "hopeful", "joyful", "playful", "romantic", "mysterious", "tense", "sad", "epic"] as const;
@@ -83,6 +83,13 @@ export const PRESENTATION_ROUTE: TierRoute = { model: MODELS.haiku, effort: "low
 
 /** Music supervisor (picks catalog tracks for the AI's music cues). */
 export const MUSIC_PICK_ROUTE: TierRoute = { model: MODELS.haiku, effort: "low", serverFallback: false };
+
+/** Book typography: one small classification per book (cached by content hash). */
+export const PROFILE_ROUTE: TierRoute = { model: MODELS.haiku, effort: "low", serverFallback: false };
+
+/** Typographic voices the app can render (app/lib/ui/typography.dart). */
+export const VOICES = ["classic", "romance", "fantasy", "scifi", "suspense", "modern", "playful"] as const;
+export type Voice = (typeof VOICES)[number];
 
 export const LIMITS = {
   maxChaptersPerRequest: 3,

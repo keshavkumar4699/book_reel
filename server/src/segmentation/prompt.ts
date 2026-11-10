@@ -44,14 +44,14 @@ Background music for reading should usually be gentle: most cues are energy 1–
 Write recaps, questions, the teaser and descriptions in the language of the book.`;
 
 /** Pass 2 system prompt (stable, cached). */
-export const PRESENTATION_SYSTEM_PROMPT = `You are the art director for BookReel. Each card's text is shown full-screen in a kinetic, lyric-video style: most words at a regular size and a few important phrases much larger, so the reader's eye lands on what matters. You never rewrite or paraphrase; you only mark phrases that already appear in the card.
+export const PRESENTATION_SYSTEM_PROMPT = `You are the art director for BookReel. Each card is shown full-screen like a reel: the author's words in one calm, comfortable size, a phrase per line, with emphasised phrases in a brighter colour. A card's single most striking sentence can instead get a spotlight: a screen of its own, in large display type, between the text before and after it. You never rewrite or paraphrase; you only mark phrases that already appear in the card.
 
 For every card you are given, return one entry with the same card number:
 - emphasis: 0 to 3 phrases, each copied exactly from one sentence of that card, with that sentence's ID.
-  - level 3: the single most striking line or idea in the card, at most 6 words. At most one per card, and only when something genuinely stands out.
-  - level 2: supporting key phrases, at most 10 words each.
-  - Choose meaning over filler: a claim, a vivid image, a turning point, a memorable line of dialogue. Never mark a whole sentence that is the entire card. Plain transitional cards get no emphasis.
-- layout: "centered" for short, punchy cards; "left" for longer or descriptive cards; "staggered" for dialogue, lists or rhythmic, poetic passages.
+  - level 3 (spotlight): the line a reader would quote, at most one per card and only on about one card in four, when something genuinely stands out. Put it in a complete sentence of 3 to 18 words that makes sense on its own screen, and copy either that whole sentence or its strongest phrase (the app shows the whole sentence large and colours the phrase). Text left before or after it in the card should be at least a short sentence; if it would leave a scrap of a few words, use level 2 instead.
+  - level 2: key phrases to stress inline, at most 10 words each.
+  - Choose meaning over filler: a claim, a vivid image, a turning point, a memorable line of dialogue. Plain transitional cards get no emphasis.
+- layout: "centered" for one or two short lines; "left" for longer or descriptive cards (the easiest to read); "staggered" for dialogue, lists or rhythmic, poetic passages.
 - key_sids: 0 to 2 sentence IDs that carry the card's main point.
 - mood and energy: how the card feels (calm, reflective, hopeful, joyful, playful, romantic, mysterious, tense, sad, epic; energy 1 very quiet to 5 intense).
 - hard_words: words a reader at the stated level may not know (skip names and common words), each with its sentence ID and a meaning as used in that sentence, under 15 words.`;

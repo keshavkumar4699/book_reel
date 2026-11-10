@@ -3,14 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../core/models/reel_card.dart';
 import '../../../data/settings.dart';
 import '../../../ui/theme.dart';
+import '../../../ui/typography.dart';
 
-TextStyle _serif(AppSettings s, ReadingTheme t, {double scale = 1, FontWeight? weight, Color? color}) => TextStyle(
-      fontFamily: fontFamilyFor(s.font),
-      fontSize: s.fontSize * scale,
-      fontWeight: weight,
-      color: color ?? t.text,
-      height: 1.3,
-    );
+/// Text in the book's own body font (the quiz, recap and reflect cards
+/// belong to the book too).
+TextStyle _serif(BookType type, ReadingTheme t, {double scale = 1, FontWeight? weight, Color? color}) =>
+    type.body(color: color ?? t.text, scale: scale).copyWith(fontWeight: weight, height: 1.3);
 
 class _CardFrame extends StatelessWidget {
   const _CardFrame({required this.child, required this.theme, this.bare = false});
@@ -22,27 +20,14 @@ class _CardFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onScene = theme.glass.a > 0;
+    final onScene = theme.onScene;
     if (bare) {
+      // The reader draws the scene's calibrated shade behind every reel.
       final padding = MediaQuery.paddingOf(context);
-      return Stack(children: [
-        if (onScene)
-          const Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0x4D000000), Color(0x80000000)],
-                ),
-              ),
-            ),
-          ),
-        Padding(
-          padding: EdgeInsets.fromLTRB(28, padding.top + 90, 28, padding.bottom + 40),
-          child: Center(child: SingleChildScrollView(child: child)),
-        ),
-      ]);
+      return Padding(
+        padding: EdgeInsets.fromLTRB(32, padding.top + 96, 32, padding.bottom + 48),
+        child: Center(child: SingleChildScrollView(child: child)),
+      );
     }
     return Padding(
       padding: EdgeInsets.fromLTRB(14, MediaQuery.paddingOf(context).top + 96, 14, 24),
@@ -55,8 +40,14 @@ class _CardFrame extends StatelessWidget {
             decoration: BoxDecoration(
               color: onScene ? theme.glass : theme.background,
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: onScene ? const Color(0x24FFFFFF) : theme.muted.withValues(alpha: 0.18)),
-              boxShadow: onScene ? const [BoxShadow(color: Color(0x40000000), blurRadius: 30, offset: Offset(0, 12))] : null,
+              border: Border.all(
+                color: !onScene
+                    ? theme.muted.withValues(alpha: 0.18)
+                    : theme.isDark
+                        ? const Color(0x24FFFFFF)
+                        : const Color(0x1A000000),
+              ),
+              boxShadow: onScene ? const [BoxShadow(color: Color(0x33000000), blurRadius: 30, offset: Offset(0, 12))] : null,
             ),
             child: SingleChildScrollView(child: child),
           ),
@@ -76,6 +67,7 @@ class ChapterTitleCardView extends StatelessWidget {
     required this.minutes,
     required this.settings,
     required this.theme,
+    required this.type,
     this.teaser,
   });
 
@@ -86,12 +78,12 @@ class ChapterTitleCardView extends StatelessWidget {
   final String? teaser;
   final AppSettings settings;
   final ReadingTheme theme;
+  final BookType type;
 
   @override
   Widget build(BuildContext context) {
-    final onScene = theme.glass.a > 0;
-    final shadows = onScene ? const [Shadow(color: Color(0x99000000), blurRadius: 16)] : null;
-    final accent = onScene ? theme.hardWordUnderline : const Color(0xFFA8551A);
+    final shadows = theme.textShadows;
+    final accent = theme.accent;
     // "CHAPTER I. Down the Rabbit-Hole" → "Down the Rabbit-Hole" (the label above says Chapter 1).
     final stripped = title.replaceFirst(RegExp(r'^\s*chapter\s+[0-9ivxlcdm]+\s*[.:\-–—]?\s*', caseSensitive: false), '');
     final heading = stripped.isEmpty ? title : stripped;
@@ -108,21 +100,13 @@ class ChapterTitleCardView extends StatelessWidget {
           Semantics(
             header: true,
             child: Text(heading,
-                style: TextStyle(
-                  fontFamily: 'AtkinsonHyperlegible',
-                  color: theme.text,
-                  fontSize: settings.fontSize * 2.1,
-                  fontWeight: FontWeight.w800,
-                  height: 1.05,
-                  letterSpacing: -0.5,
-                  shadows: shadows,
-                )),
+                style: type.display(color: theme.spot, size: (settings.fontSize * 1.9).clamp(30.0, 52.0), shadows: shadows)),
           ),
           const SizedBox(height: 20),
           Text('$cards cards · ~$minutes min', style: TextStyle(color: theme.muted, fontSize: 15, fontWeight: FontWeight.w600, shadows: shadows)),
           if (teaser != null) ...[
             const SizedBox(height: 24),
-            Text(teaser!, style: _serif(settings, theme, scale: 1.1).copyWith(fontStyle: FontStyle.italic, shadows: shadows)),
+            Text(teaser!, style: type.body(color: theme.text, scale: 1.02, shadows: shadows)),
           ],
           const SizedBox(height: 40),
           Row(children: [
@@ -151,10 +135,11 @@ class _AiChip extends StatelessWidget {
 
 /// AI recap, clearly marked so it is never confused with the author's text.
 class RecapCardView extends StatelessWidget {
-  const RecapCardView({super.key, required this.bullets, required this.settings, required this.theme});
+  const RecapCardView({super.key, required this.bullets, required this.settings, required this.theme, required this.type});
   final List<String> bullets;
   final AppSettings settings;
   final ReadingTheme theme;
+  final BookType type;
 
   @override
   Widget build(BuildContext context) {
@@ -163,14 +148,14 @@ class RecapCardView extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         _AiChip(label: 'AI SUMMARY', theme: theme),
         const SizedBox(height: 16),
-        Text('So far', style: _serif(settings, theme, scale: 1.3, weight: FontWeight.w600)),
+        Text('So far', style: _serif(type, theme, scale: 1.3, weight: FontWeight.w600)),
         const SizedBox(height: 16),
         for (final b in bullets)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('•  ', style: _serif(settings, theme)),
-              Expanded(child: Text(b, style: _serif(settings, theme, scale: 0.95))),
+              Text('•  ', style: _serif(type, theme)),
+              Expanded(child: Text(b, style: _serif(type, theme, scale: 0.95))),
             ]),
           ),
       ]),
@@ -184,6 +169,7 @@ class RecallCardView extends StatefulWidget {
     super.key,
     required this.settings,
     required this.theme,
+    required this.type,
     this.question,
     this.revealSentences = const [],
     required this.onAnswered,
@@ -191,6 +177,7 @@ class RecallCardView extends StatefulWidget {
 
   final AppSettings settings;
   final ReadingTheme theme;
+  final BookType type;
   final RecallQuestion? question;
   final List<String> revealSentences;
   final void Function(bool correct) onAnswered;
@@ -205,7 +192,7 @@ class _RecallCardViewState extends State<RecallCardView> {
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.settings;
+    final s = widget.type;
     final t = widget.theme;
     final q = widget.question;
     return _CardFrame(
@@ -307,9 +294,10 @@ class _OptionTile extends StatelessWidget {
 /// Chapter-end reflection (generation + self-reference effects). Skip is as
 /// prominent as Save.
 class ReflectCardView extends StatefulWidget {
-  const ReflectCardView({super.key, required this.settings, required this.theme, required this.onSave});
+  const ReflectCardView({super.key, required this.settings, required this.theme, required this.type, required this.onSave});
   final AppSettings settings;
   final ReadingTheme theme;
+  final BookType type;
   final void Function(String text) onSave;
 
   @override
@@ -335,7 +323,7 @@ class _ReflectCardViewState extends State<ReflectCardView> {
         _AiChip(label: 'REFLECT', theme: t),
         const SizedBox(height: 16),
         Text('One idea from this chapter you’ll carry with you?',
-            style: _serif(widget.settings, t, scale: 1.15, weight: FontWeight.w600)),
+            style: _serif(widget.type, t, scale: 1.15, weight: FontWeight.w600)),
         const SizedBox(height: 20),
         if (_saved)
           Row(children: [
@@ -386,6 +374,7 @@ class MilestoneCardView extends StatelessWidget {
     required this.bookTitle,
     required this.settings,
     required this.theme,
+    required this.type,
     required this.onShare,
     required this.onDone,
   });
@@ -393,6 +382,7 @@ class MilestoneCardView extends StatelessWidget {
   final String bookTitle;
   final AppSettings settings;
   final ReadingTheme theme;
+  final BookType type;
   final VoidCallback onShare;
   final VoidCallback onDone;
 
@@ -404,18 +394,11 @@ class MilestoneCardView extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('🎉', style: TextStyle(fontSize: 64)),
         const SizedBox(height: 16),
-        Text('You finished', style: _serif(settings, theme, scale: 0.9, color: theme.muted)),
+        Text('You finished', style: _serif(type, theme, scale: 0.9, color: theme.muted)),
         const SizedBox(height: 8),
         Text(bookTitle,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'AtkinsonHyperlegible',
-              color: theme.text,
-              fontSize: settings.fontSize * 1.9,
-              fontWeight: FontWeight.w800,
-              height: 1.1,
-              shadows: theme.glass.a > 0 ? const [Shadow(color: Color(0x99000000), blurRadius: 16)] : null,
-            )),
+            style: type.display(color: theme.spot, size: (settings.fontSize * 1.8).clamp(28.0, 48.0), shadows: theme.textShadows)),
         const SizedBox(height: 32),
         FilledButton.icon(onPressed: onShare, icon: const Icon(Icons.ios_share), label: const Text('Share')),
         const SizedBox(height: 8),

@@ -24,14 +24,23 @@ Future<SessionChoice?> showSessionComplete(
     barrierDismissible: false,
     transitionDuration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 280),
     pageBuilder: (context, a1, a2) {
-      final theme = vibe == Vibe.paper ? Theme.of(context) : buildAppTheme(brightness: Brightness.dark);
+      final palette = scenePalettes[vibe];
+      final theme = palette == null ? Theme.of(context) : buildAppTheme(brightness: palette.lightInk ? Brightness.dark : Brightness.light);
       return Theme(
         data: theme,
         child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Stack(children: [
           Positioned.fill(child: VibeBackground(vibe: vibe, paperColor: theme.colorScheme.surface)),
-          if (vibe != Vibe.paper) const Positioned.fill(child: ColoredBox(color: Color(0x66000000))),
+          if (palette != null)
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  // A fuller shade than in the reader: this screen is all text.
+                  color: palette.tint.withValues(alpha: palette.lightInk ? 0.5 : 0.55),
+                ),
+              ),
+            ),
           SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(28),

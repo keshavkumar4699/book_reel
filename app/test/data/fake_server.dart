@@ -16,6 +16,10 @@ class FakeServer {
   Map<String, String> planPicks = {};
   bool failMusicPlan = false;
   int musicPlanRequests = 0;
+
+  /// Voice returned by /v1/book/profile; null makes the endpoint fail.
+  String? profileVoice = 'suspense';
+  final List<Map<String, dynamic>> profileRequests = [];
   int requests = 0;
 
   MockClient get client => MockClient((req) async {
@@ -96,6 +100,13 @@ class FakeServer {
             'picks': [for (final c in cues) {'at_card': c['at_card'], 'track_id': planPicks[c['mood']] ?? 'missing'}],
             'source': 'ai',
           });
+        }
+        if (path == '/v1/book/profile') {
+          final b = body();
+          if (b['tier'] == 'free') return http.Response('{"error":"tier_not_eligible"}', 403);
+          profileRequests.add(b);
+          if (profileVoice == null) return http.Response('{"error":"down"}', 500);
+          return ok({'voice': profileVoice, 'genre': 'test genre', 'source': 'ai'});
         }
         if (path == '/v1/share') {
           shares.add(body());

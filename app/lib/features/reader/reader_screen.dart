@@ -10,8 +10,10 @@ import '../../core/models/book.dart';
 import '../../core/models/reel_card.dart';
 import '../../core/segmentation/feed_builder.dart';
 import '../../core/segmentation/rule_segmenter.dart';
+import '../../core/text/lyric_layout.dart';
 import '../../core/text/lexicon.dart';
 import '../../data/api_client.dart';
+import '../../data/book_voice.dart';
 import '../../data/habit.dart';
 import '../../data/lexicon_loader.dart';
 import '../../data/library.dart';
@@ -23,6 +25,7 @@ import '../../services/notifications.dart';
 import '../../services/soundtrack.dart';
 import '../../services/tts.dart';
 import '../../ui/theme.dart';
+import '../../ui/typography.dart';
 import '../../ui/vibes.dart';
 import '../share/share_sheet.dart';
 import 'cards/special_cards.dart';
@@ -61,6 +64,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   bool _showNowPlaying = false;
   Timer? _nowPlayingTimer;
   final Set<int> _requestedAi = {};
+
+  /// Dwell on the earlier reels of a split card, by feed index (the card is
+  /// credited once, on its last reel).
+  final Map<int, int> _partDwell = {};
+  bool _voiceChecked = false;
 
   @override
   void initState() {
@@ -194,7 +202,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   }
 
   void _ensureFeed(BookContent book, Map<int, ChapterSegments> segments, AppSettings s, BookMeta? meta) {
-    final key = (segments, s.recallCards, s.reflectCards);
+    // A reel holds only as much text as sits comfortably on this screen at
+    // the reader's size; longer text continues on the next reel.
+    final padding = MediaQuery.paddingOf(context);
+    final maxReelWords = reelWordBudget(
+      screen: MediaQuery.sizeOf(context),
+      topInset: padding.top,
+      bottomInset: padding.bottom,
+      fontSize: s.fontSize,
+      length: s.cardLength,
+      textScale: MediaQuery.textScalerOf(context).scale(1),
+    );
+    final key = (segments, s.recallCards, s.reflectCards, maxReelWords);
     if (_feedKey == key) return;
     final anchor = _feed.isEmpty ? (widget.startSid ?? meta?.positionSid) : _currentAnchorSid();
     _feed = buildFeed(
@@ -205,9 +224,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         reflectCards: s.reflectCards,
         // Short cards: a quick check every ~15 cards instead of ~10.
         recallEvery: s.cardLength == CardLength.snack ? 15 : 10,
+        maxReelWords: maxReelWords,
       ),
     );
     _feedKey = key;
+    _partDwell.clear();
     var index = feedIndexForSid(_feed, anchor);
     if (anchor == null) index = 0;
     _page = index;
@@ -244,18 +265,48 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
 
   // ---------------------------------------------------------------- tracking
 
-  /// Records dwell time for the card currently on screen.
+  int _wordsOf(FeedItem item) => item.words ?? item.card!.wordCount;
+
+  /// The exact text on a reel (a reel may show only some lines of its sentences).
+  String _reelText(FeedItem item) {
+    final lines = item.lines;
+    if (lines == null) return item.shownSids.map((sid) => _sentences[sid]?.sentence.text ?? '').join(' ');
+    final pieces = piecesForCard(item.card!, [
+      for (final sid in item.layoutSids)
+        if (_sentences[sid] != null)
+          (sid: sid, text: _sentences[sid]!.sentence.text, block: _sentences[sid]!.block.index, type: _sentences[sid]!.block.type),
+    ]);
+    return pieces.sublist(lines.from.clamp(0, pieces.length), lines.to.clamp(0, pieces.length)).map((p) => p.text).join(' ');
+  }
+
+  /// Records dwell time for the card currently on screen. A card shown as
+  /// several reels (text · spotlight · text) counts once, when its last reel
+  /// is left, for the reels read in this session.
   CardRecord? _recordCurrent({bool deferred = false}) {
     if (_feed.isEmpty || _page >= _feed.length) return null;
     final item = _feed[_page];
     final dwell = DateTime.now().difference(_shownAt).inMilliseconds;
     _shownAt = DateTime.now();
-    if (item.kind != CardKind.text || item.card == null || dwell < 300) return null;
+    if (item.kind != CardKind.text || item.card == null) return null;
+    final card = item.card!;
+    if (!item.lastPart) {
+      _partDwell[_page] = (_partDwell[_page] ?? 0) + dwell;
+      return null;
+    }
+    var total = dwell;
+    var words = _wordsOf(item);
+    for (var i = _page - 1; i >= 0 && identical(_feed[i].card, card); i--) {
+      final earlier = _partDwell.remove(i);
+      if (earlier == null) continue; // not read in this session
+      total += earlier;
+      words += _wordsOf(_feed[i]);
+    }
+    if (total < 300) return null;
     CardRecord record() => _habit.recordCard(
-          words: item.card!.wordCount,
-          dwellMs: dwell,
+          words: words,
+          dwellMs: total,
           bookId: widget.bookId,
-          cardRef: '${widget.bookId.substring(0, 12)}:${item.card!.startSid}',
+          cardRef: '${widget.bookId.substring(0, 12)}:${card.startSid}',
         );
     if (deferred) {
       scheduleMicrotask(record);
@@ -273,10 +324,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final settings = ref.read(settingsProvider);
 
     if (item.kind == CardKind.text && item.card != null) {
+      final anchor = item.anchorSid ?? item.card!.startSid;
       ref.read(libraryProvider.notifier).updatePosition(
             widget.bookId,
-            sid: item.card!.startSid,
-            progress: progressAt(book, item.card!.startSid),
+            sid: anchor,
+            progress: progressAt(book, anchor),
           );
       _textCardsThisSession++;
       if (!settings.goalSetupDone && _textCardsThisSession == 4) {
@@ -351,7 +403,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   }
 
   void _speak(FeedItem item) {
-    final text = item.card!.sentenceIds.map((sid) => _sentences[sid]?.sentence.text ?? '').join(' ');
+    final text = _reelText(item);
     _soundtrack.duck(true);
     Tts.instance.speak(text, onDone: () {
       _soundtrack.duck(false);
@@ -363,20 +415,24 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
 
   // ---------------------------------------------------------------- actions
 
-  List<String> _cardTexts(SegmentCard card) => [for (final sid in card.sentenceIds) _sentences[sid]?.sentence.text ?? ''];
-
   void _share(BookContent book, BookMeta? meta, FeedItem item) {
     final card = item.card;
     if (card == null) return;
     final notebook = ref.read(notebookProvider);
+    final shown = item.shownSids;
     final highlighted = [
-      for (final sid in card.sentenceIds)
+      for (final sid in shown)
         if (notebook.highlightFor(widget.bookId, sid) != null || card.keySids.contains(sid)) _sentences[sid]!.sentence.text,
     ];
     showShareSheet(
       context,
       QuoteShare(
-        sentences: highlighted.isNotEmpty ? highlighted : _cardTexts(card),
+        // A spotlight reel shares its line; other reels their highlights or text.
+        sentences: item.spotlight
+            ? [for (final sid in shown) _sentences[sid]?.sentence.text ?? '']
+            : highlighted.isNotEmpty
+                ? highlighted
+                : [for (final sid in shown) _sentences[sid]?.sentence.text ?? ''],
         bookTitle: book.title,
         author: book.author,
         publicDomain: meta?.isPublicDomain ?? false,
@@ -395,8 +451,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       bookTitle: book.title,
       author: book.author,
       chapterTitle: book.chapters[card.chapterIndex].title,
-      startSid: card.startSid,
-      text: _cardTexts(card).join(' '),
+      startSid: item.anchorSid!,
+      text: [for (final sid in item.shownSids) _sentences[sid]?.sentence.text ?? ''].join(' '),
       createdAt: DateTime.now(),
     ));
     HapticFeedback.lightImpact();
@@ -453,7 +509,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (note != null) ref.read(notebookProvider.notifier).updateHighlight(h.copyWith(note: note));
   }
 
-  Future<void> _highlightSheet(BookContent book, SegmentCard card) async {
+  Future<void> _highlightSheet(BookContent book, List<String> sids) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -469,7 +525,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
             children: [
               Text('Tap sentences to highlight', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
-              for (final sid in card.sentenceIds)
+              for (final sid in sids)
                 if (_sentences[sid] != null)
                   Builder(builder: (context) {
                     final h = notebook.highlightFor(widget.bookId, sid);
@@ -612,7 +668,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       final book = contentAsync.value!;
       _ensureSentences(book);
       _ensureFeed(book, segmentsAsync.value!, settings, meta);
-      body = _buildReader(book, meta, settings, readingTheme, lexicon);
+      if (!_voiceChecked) {
+        _voiceChecked = true;
+        // The book's fonts: on-device guess now, the AI's choice on paid tiers.
+        WidgetsBinding.instance.addPostFrameCallback((_) => ref.read(bookVoiceProvider).ensure(widget.bookId, book));
+      }
+      final type = BookType(voiceByName(meta?.voice), settings);
+      body = _buildReader(book, meta, settings, readingTheme, type, lexicon);
     }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -624,13 +686,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           Positioned.fill(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 1400),
-              child: VibeBackground(
-                key: ValueKey(scene),
-                vibe: scene,
-                animate: settings.animatedBackground,
-                pager: _pager,
-                paperColor: paperTheme.background,
-              ),
+              child: Stack(key: ValueKey(scene), fit: StackFit.expand, children: [
+                VibeBackground(
+                  vibe: scene,
+                  animate: settings.animatedBackground,
+                  pager: _pager,
+                  paperColor: paperTheme.background,
+                ),
+                // The scene's calibrated shade: stays put while reels move.
+                if (readingTheme.scrim != null)
+                  IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: readingTheme.scrim))),
+              ]),
             ),
           ),
           Positioned.fill(child: body),
@@ -639,7 +705,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     );
   }
 
-  Widget _buildReader(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, Lexicon lexicon) {
+  Widget _buildReader(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, BookType type, Lexicon lexicon) {
     final notebook = ref.watch(notebookProvider);
     final habit = ref.watch(habitProvider);
     final today = habit.today(DateTime.now());
@@ -647,9 +713,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final padding = MediaQuery.paddingOf(context);
     final scene = _sceneFor(s);
     final style = vibeStyles[scene]!;
-    final onScene = scene != Vibe.paper;
     final auto = s.autoScene && isPaidTier(s.tier) && s.vibe != Vibe.paper;
-    final chromeColor = onScene ? Colors.white : t.text;
+    final chromeColor = t.text;
     final soundtrack = ref.watch(soundtrackProvider);
     ref.listen(soundtrackProvider.select((x) => x.playing?.id), (prev, next) {
       if (next == null || next == prev) return;
@@ -667,7 +732,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         physics: const _ReelPagePhysics(),
         itemCount: _feed.length,
         onPageChanged: (i) => _onPageChanged(i, book, meta),
-        itemBuilder: (context, i) => _buildItem(book, meta, s, t, style, lexicon, notebook, _feed[i], i == _page, padding),
+        itemBuilder: (context, i) => _buildItem(book, meta, s, t, type, lexicon, notebook, _feed[i], i == _page, padding),
       ),
       // Segmented goal bar (Stories style): always visible, very thin.
       Positioned(
@@ -678,7 +743,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           segments: goal.unit == GoalUnit.cards && goal.dailyTarget <= 40 ? goal.dailyTarget : 0,
           done: goal.unit == GoalUnit.cards ? today.verifiedCards : 0,
           progress: today.progress(goal),
-          color: style.accent,
+          color: t.accent,
           track: chromeColor.withValues(alpha: 0.25),
         ),
       ),
@@ -688,7 +753,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         right: 4,
         child: _TopBar(
           color: chromeColor,
-          accent: style.accent,
+          accent: t.accent,
+          // Frosted pills on bright scenes, tinted ones elsewhere.
+          pill: t.isDark
+              ? (t.onScene ? const Color(0x33000000) : const Color(0x1FFFFFFF))
+              : (t.onScene ? const Color(0x80FFFFFF) : const Color(0x14000000)),
+          shadows: t.textShadows,
           streak: ref.read(habitProvider.notifier).displayStreak(),
           goalLabel: goal.unit == GoalUnit.cards
               ? '${today.verifiedCards}/${goal.dailyTarget}'
@@ -735,7 +805,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       if (!s.gestureTutorialSeen && _feed.isNotEmpty)
         Positioned.fill(
           child: _GestureGuide(
-            accent: style.accent,
+            accent: t.accent,
             onDone: () => ref.read(settingsProvider.notifier).update((x) => x.copyWith(gestureTutorialSeen: true)),
           ),
         ),
@@ -776,26 +846,29 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     ref.read(settingsProvider.notifier).update((x) => vibe == null ? x.copyWith(autoScene: true) : x.copyWith(vibe: vibe, autoScene: false));
   }
 
-  Widget _buildItem(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, VibeStyle style, Lexicon lexicon,
+  Widget _buildItem(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, BookType type, Lexicon lexicon,
       NotebookState notebook, FeedItem item, bool active, EdgeInsets padding) {
     switch (item.kind) {
       case CardKind.text:
         final card = item.card!;
         return PostCard(
-          key: ValueKey('${card.startSid}-${s.cardLength.name}'),
+          key: ValueKey('${item.anchorSid}-${item.lines?.from}-${item.spotlight}-${s.cardLength.name}'),
           card: card,
-          sentences: [for (final sid in card.sentenceIds) if (_sentences[sid] != null) _sentences[sid]!],
+          sentences: [for (final sid in item.layoutSids) if (_sentences[sid] != null) _sentences[sid]!],
+          lines: item.lines,
+          spotlight: item.spotlight,
+          type: type,
           bookTitle: book.title,
           chapterTitle: book.chapters[card.chapterIndex].title,
           position: '${(item.cardIndexInChapter ?? 0) + 1} / ${item.cardsInChapter ?? 0}',
           coverPath: meta?.coverPath,
           settings: s,
           theme: t,
-          accent: style.accent,
           lexicon: lexicon,
           active: active,
-          liked: notebook.liked.contains('${widget.bookId}|${card.startSid}'),
-          saved: notebook.isSaved(widget.bookId, card.startSid),
+          // Likes and saves belong to the reel on screen (the card, or one part of it).
+          liked: notebook.liked.contains('${widget.bookId}|${item.anchorSid}'),
+          saved: notebook.isSaved(widget.bookId, item.anchorSid!),
           listening: _tts,
           highlightFor: (sid) => notebook.highlightFor(widget.bookId, sid),
           onToggleHighlight: (sentence) => _toggleHighlight(book, sentence),
@@ -807,10 +880,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
             showWordSheet(context,
                 word: word, sentence: sentence.text, bookTitle: book.title, lexicon: lexicon, contextMeaning: meaning);
           },
-          onLike: () => ref.read(notebookProvider.notifier).toggleLike(widget.bookId, card.startSid),
+          onLike: () => ref.read(notebookProvider.notifier).toggleLike(widget.bookId, item.anchorSid!),
           onSave: () => _toggleSave(book, item),
           onShare: () => _share(book, meta, item),
-          onNote: () => _highlightSheet(book, card),
+          onNote: () => _highlightSheet(book, item.shownSids),
           onListen: _toggleTts,
           onOverscroll: (dir) {
             if (dir > 0) {
@@ -830,13 +903,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           teaser: item.teaser,
           settings: s,
           theme: t,
+          type: type,
         );
       case CardKind.recap:
-        return RecapCardView(bullets: item.recapBullets!, settings: s, theme: t);
+        return RecapCardView(bullets: item.recapBullets!, settings: s, theme: t, type: type);
       case CardKind.recall:
         return RecallCardView(
           settings: s,
           theme: t,
+          type: type,
           question: item.recall,
           revealSentences: [for (final sid in item.recallSids ?? const <String>[]) _sentences[sid]?.sentence.text ?? ''],
           onAnswered: (_) => HapticFeedback.selectionClick(),
@@ -845,6 +920,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         return ReflectCardView(
           settings: s,
           theme: t,
+          type: type,
           onSave: (text) => ref.read(notebookProvider.notifier).addReflection(
                 bookTitle: book.title,
                 chapterTitle: book.chapters[item.chapterIndex].title,
@@ -856,6 +932,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           bookTitle: book.title,
           settings: s,
           theme: t,
+          type: type,
           onShare: () => showShareSheet(
             context,
             ProgressShare(
@@ -927,6 +1004,8 @@ class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.color,
     required this.accent,
+    required this.pill,
+    required this.shadows,
     required this.streak,
     required this.goalLabel,
     required this.goalDone,
@@ -940,6 +1019,12 @@ class _TopBar extends StatelessWidget {
 
   final Color color;
   final Color accent;
+
+  /// Background of the streak and goal pills.
+  final Color pill;
+
+  /// Soft shadows that lift icons off a scene (null on paper).
+  final List<Shadow>? shadows;
   final int streak;
   final String goalLabel;
   final bool goalDone;
@@ -952,10 +1037,10 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const shadow = [Shadow(color: Color(0x66000000), blurRadius: 8)];
+    final shadow = shadows;
     Widget pill(Widget child) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(color: const Color(0x33000000), borderRadius: BorderRadius.circular(20)),
+          decoration: BoxDecoration(color: this.pill, borderRadius: BorderRadius.circular(20)),
           child: child,
         );
     return Row(children: [

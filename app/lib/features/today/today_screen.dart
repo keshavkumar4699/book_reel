@@ -7,7 +7,6 @@ import '../../data/habit.dart';
 import '../../data/library.dart';
 import '../../data/notebook.dart';
 import '../../data/settings_provider.dart';
-import '../../data/settings.dart';
 import '../../ui/theme.dart';
 import '../../ui/vibes.dart';
 import '../../ui/widgets.dart';
@@ -52,8 +51,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final value = goal.unit == GoalUnit.cards ? '${today.verifiedCards}' : today.minutes.floor().toString();
 
     final style = vibeStyles[settings.vibe]!;
-    final onScene = settings.vibe != Vibe.paper;
-    final heroTheme = onScene ? buildAppTheme(brightness: Brightness.dark) : theme;
+    final palette = scenePalettes[settings.vibe];
+    final heroTheme = palette == null ? theme : buildAppTheme(brightness: palette.lightInk ? Brightness.dark : Brightness.light);
     final top = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
@@ -65,16 +64,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             height: top + 300,
             child: Stack(fit: StackFit.expand, children: [
               VibeBackground(vibe: settings.vibe, animate: settings.animatedBackground, paperColor: theme.colorScheme.surface),
-              if (onScene)
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0x66000000), Color(0x40000000), Color(0x73000000)],
-                    ),
-                  ),
-                ),
+              if (palette != null) DecoratedBox(decoration: BoxDecoration(gradient: palette.scrim)),
               Theme(
                 data: heroTheme,
                 child: Padding(
@@ -86,7 +76,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           '${_greeting()}${settings.displayName == 'Reader' ? '' : ', ${settings.displayName}'}',
                           style: heroTheme.textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.w700,
-                            shadows: onScene ? const [Shadow(color: Color(0x66000000), blurRadius: 10)] : null,
+                            color: palette?.ink,
+                            shadows: palette?.textShadows,
                           ),
                         ),
                       ),

@@ -212,6 +212,9 @@ export interface PresentationResult {
  * to that card and not overlap; at most one hero (level 3) and three
  * phrases per card. Anything that fails is dropped, never guessed.
  */
+/** Longest sentence that can be shown as a spotlight (app: feed_builder.dart). */
+export const SPOTLIGHT_MAX_WORDS = 18;
+
 export function applyPresentation(chapter: OutChapter, sentences: Sentence[], out: PresentationOutput): PresentationResult {
   const perCard = cardSentences(chapter, sentences);
   const text = new Map(sentences.map((s) => [s.sid, s.text]));
@@ -230,13 +233,13 @@ export function applyPresentation(chapter: OutChapter, sentences: Sentence[], ou
       const sentence = text.get(e.sid);
       const phrase = e.text.trim();
       const wordCount = countWords(phrase);
-      if (!sentence || !sids.has(e.sid) || (e.level !== 2 && e.level !== 3) || wordCount === 0 || wordCount > 14) {
+      if (!sentence || !sids.has(e.sid) || (e.level !== 2 && e.level !== 3) || wordCount === 0 || wordCount > SPOTLIGHT_MAX_WORDS) {
         dropped++;
         continue;
       }
       const at = sentence.toLowerCase().indexOf(phrase.toLowerCase());
-      if (at < 0 || phrase.length >= sentence.length * 0.95) {
-        dropped++; // not in the text, or the whole sentence
+      if (at < 0) {
+        dropped++; // not in the text
         continue;
       }
       const end = at + phrase.length;
@@ -244,8 +247,15 @@ export function applyPresentation(chapter: OutChapter, sentences: Sentence[], ou
         dropped++;
         continue;
       }
+      // A spotlight (level 3) shows its whole sentence on a reel of its own,
+      // so the sentence must be short enough to read at display size.
+      const sentenceWords = countWords(sentence);
       let level = e.level;
-      if (level === 3 && (hero || wordCount > 8)) level = 2;
+      if (level === 3 && (hero || sentenceWords < 3 || sentenceWords > SPOTLIGHT_MAX_WORDS)) level = 2;
+      if (level === 2 && (wordCount > 14 || phrase.length >= sentence.length * 0.95)) {
+        dropped++; // inline emphasis of a whole sentence (or a long one) stresses nothing
+        continue;
+      }
       if (level === 3) hero = true;
       emphasis.push({ sid: e.sid, text: sentence.slice(at, end), level, start: at, end });
     }

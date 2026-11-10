@@ -110,16 +110,34 @@ class SettingsScreen extends ConsumerWidget {
         ),
         ListTile(
           title: const Text('Font'),
-          subtitle: Wrap(spacing: 8, children: [
-            for (final f in ReadingFont.values)
-              ChoiceChip(
-                label: Text(switch (f) {
-                  ReadingFont.literata => 'Literata',
-                  ReadingFont.atkinson => 'Atkinson Hyperlegible',
-                  ReadingFont.system => 'System',
-                }),
-                selected: s.font == f,
-                onSelected: (_) => n.update((x) => x.copyWith(font: f)),
+          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(spacing: 8, children: [
+              for (final f in ReadingFont.values)
+                ChoiceChip(
+                  label: Text(switch (f) {
+                    ReadingFont.book => "Book's own",
+                    ReadingFont.literata => 'Literata',
+                    ReadingFont.atkinson => 'Atkinson Hyperlegible',
+                    ReadingFont.system => 'System',
+                  }),
+                  selected: s.font == f,
+                  onSelected: (_) => n.update((x) => x.copyWith(font: f)),
+                ),
+            ]),
+            if (s.font == ReadingFont.book)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  isPaidTier(s.tier)
+                      ? 'Each book gets fonts that fit it, chosen by the AI from its genre and opening pages.'
+                      : 'Each book gets fonts that fit its genre (fantasy, mystery, sci-fi, romance, non-fiction…).',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              )
+            else if (s.font == ReadingFont.atkinson)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text('Designed for low vision; used for every book.', style: Theme.of(context).textTheme.bodySmall),
               ),
           ]),
         ),

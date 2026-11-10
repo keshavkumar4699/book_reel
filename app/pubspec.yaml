@@ -80,6 +80,21 @@ flutter:
     - assets/books/
     - assets/lexicon/zipf.tsv.gz
     - assets/lexicon/wordnet.json.gz
+    # Font licences, shown on the app's licences page.
+    - assets/fonts/OFL-Literata.txt
+    - assets/fonts/OFL-AtkinsonHyperlegible.txt
+    - assets/fonts/OFL-DMSerifDisplay.txt
+    - assets/fonts/OFL-Lora.txt
+    - assets/fonts/OFL-PlayfairDisplay.txt
+    - assets/fonts/OFL-Alegreya.txt
+    - assets/fonts/OFL-Cinzel.txt
+    - assets/fonts/OFL-Exo2.txt
+    - assets/fonts/OFL-Orbitron.txt
+    - assets/fonts/OFL-LibreBaskerville.txt
+    - assets/fonts/OFL-Oswald.txt
+    - assets/fonts/OFL-Outfit.txt
+    - assets/fonts/OFL-Nunito.txt
+    - assets/fonts/OFL-Fredoka.txt
 
   fonts:
     - family: Literata
@@ -94,6 +109,45 @@ flutter:
           weight: 700
         - asset: assets/fonts/AtkinsonHyperlegible-Italic.ttf
           style: italic
+    # Book voices (lib/ui/typography.dart): unmodified Google Fonts (OFL),
+    # variable weight where available.
+    - family: DMSerifDisplay
+      fonts:
+        - asset: assets/fonts/DMSerifDisplay-Regular.ttf
+    - family: Lora
+      fonts:
+        - asset: assets/fonts/Lora.ttf
+    - family: PlayfairDisplay
+      fonts:
+        - asset: assets/fonts/PlayfairDisplay-Italic.ttf
+          style: italic
+    - family: Alegreya
+      fonts:
+        - asset: assets/fonts/Alegreya.ttf
+    - family: Cinzel
+      fonts:
+        - asset: assets/fonts/Cinzel.ttf
+    - family: Exo2
+      fonts:
+        - asset: assets/fonts/Exo2.ttf
+    - family: Orbitron
+      fonts:
+        - asset: assets/fonts/Orbitron.ttf
+    - family: LibreBaskerville
+      fonts:
+        - asset: assets/fonts/LibreBaskerville.ttf
+    - family: Oswald
+      fonts:
+        - asset: assets/fonts/Oswald.ttf
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit.ttf
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito.ttf
+    - family: Fredoka
+      fonts:
+        - asset: assets/fonts/Fredoka.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

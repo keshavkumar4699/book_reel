@@ -33,6 +33,32 @@ void main() {
     expect(copy.chapters[5].blocks[2].text, book.chapters[5].blocks[2].text);
   });
 
+  test('reads genre tags and the description from the package metadata', () {
+    const opf = '''<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:title>The Quiet Case</dc:title><dc:creator>A. Writer</dc:creator><dc:language>en</dc:language>
+<dc:subject>Detective and mystery stories</dc:subject><dc:subject>  </dc:subject><dc:subject>England -- Fiction</dc:subject>
+<dc:description>&lt;p&gt;A village, a &lt;b&gt;body&lt;/b&gt;,   and no witnesses.&lt;/p&gt;</dc:description>
+</metadata>
+<manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/></manifest>
+<spine><itemref idref="c1"/></spine>
+</package>''';
+    final archive = Archive()
+      ..addFile(ArchiveFile.string('mimetype', 'application/epub+zip'))
+      ..addFile(ArchiveFile.string('META-INF/container.xml',
+          '<container><rootfiles><rootfile full-path="content.opf"/></rootfiles></container>'))
+      ..addFile(ArchiveFile.string('content.opf', opf))
+      ..addFile(ArchiveFile.string('c1.xhtml',
+          '<html><body><h1>One</h1><p>The inspector arrived at dawn. Nobody in the village would speak to him, '
+              'and the only inn had closed its shutters before he had even crossed the bridge into the square.</p></body></html>'));
+    final parsed = const EpubParser().parse(Uint8List.fromList(ZipEncoder().encode(archive)));
+    expect(parsed.subjects, ['Detective and mystery stories', 'England -- Fiction']);
+    expect(parsed.description, 'A village, a body, and no witnesses.');
+    // The starter book carries no tags.
+    expect(const EpubParser().parse(File('assets/books/alice.epub').readAsBytesSync()).subjects, isEmpty);
+  });
+
   test('rejects non-EPUB data and DRM-encrypted books', () {
     expect(() => const EpubParser().parse(Uint8List.fromList([1, 2, 3])), throwsA(isA<ParseException>()));
 

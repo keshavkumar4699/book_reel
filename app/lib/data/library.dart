@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/book.dart';
 import '../core/parsing/epub_parser.dart';
 import '../core/parsing/pdf_extractor.dart';
+import '../core/text/voice_classifier.dart';
 import 'store_provider.dart';
 
 const starterBookAsset = 'assets/books/alice.epub';
@@ -63,11 +64,15 @@ class LibraryNotifier extends Notifier<List<BookMeta>> {
     BookFormat format;
     var publicDomain = false;
     String? coverPath;
+    var subjects = const <String>[];
+    var description = '';
     if (lower.endsWith('.epub')) {
       format = BookFormat.epub;
       final parsed = await compute(_parseEpub, bytes);
       content = parsed.content;
       publicDomain = parsed.isPublicDomain;
+      subjects = parsed.subjects;
+      description = parsed.description;
       if (parsed.coverBytes != null) {
         final name = '$id.cover.${parsed.coverExtension ?? 'jpg'}';
         await store.writeBytes(name, parsed.coverBytes!);
@@ -83,6 +88,14 @@ class LibraryNotifier extends Notifier<List<BookMeta>> {
     }
 
     await store.writeBlob('$id.content.json', await compute(_encode, content));
+    // First guess at the book's fonts; the AI refines it on paid tiers.
+    final voice = classifyVoice(
+      title: content.title,
+      author: content.author,
+      subjects: subjects,
+      description: description,
+      sample: voiceSample(content),
+    ).voice;
     final meta = BookMeta(
       id: id,
       title: content.title,
@@ -93,9 +106,19 @@ class LibraryNotifier extends Notifier<List<BookMeta>> {
       chapterCount: content.chapters.length,
       isPublicDomain: publicDomain,
       coverPath: coverPath,
+      subjects: subjects,
+      voice: voice.name,
+      voiceSource: 'rules',
     );
     _set([...state, meta]);
     return meta;
+  }
+
+  /// Stores the book's typographic voice ("rules" or "ai").
+  void setVoice(String bookId, String voice, String source) {
+    final b = byId(bookId);
+    if (b == null || (b.voice == voice && b.voiceSource == source)) return;
+    _set([for (final x in state) x.id == bookId ? x.copyWith(voice: voice, voiceSource: source) : x]);
   }
 
   void updatePosition(String bookId, {required String sid, required double progress, DateTime? at}) {

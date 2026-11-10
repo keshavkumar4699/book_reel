@@ -245,6 +245,12 @@ class ChapterSegments {
 }
 
 /// An item in the reader feed.
+///
+/// A text card can be shown as more than one reel: its spotlight line (the
+/// hero phrase, large) gets a reel of its own, and text too long to sit
+/// comfortably on one screen continues on the next reel. Big and small type
+/// never share a screen, and text never fills it. [sids] and [lines] say what
+/// this reel shows; reading credit stays per card.
 class FeedItem {
   const FeedItem({
     required this.kind,
@@ -256,6 +262,13 @@ class FeedItem {
     this.recall,
     this.recallSids,
     this.teaser,
+    this.sids,
+    this.lines,
+    this.lineSids,
+    this.anchor,
+    this.words,
+    this.spotlight = false,
+    this.lastPart = true,
   });
 
   final CardKind kind;
@@ -270,6 +283,40 @@ class FeedItem {
   final List<String>? recallSids;
   final String? teaser;
 
-  /// The sentence that anchors this feed item to a reading position.
-  String? get anchorSid => card?.startSid;
+  /// Sentences this reel is laid out from when the card is split around a
+  /// spotlight; null = all of the card's sentences.
+  final List<String>? sids;
+
+  /// When the laid-out text continues over several reels: the range of
+  /// display lines (`piecesForCard` of [layoutSids]) on this one.
+  final ({int from, int to})? lines;
+
+  /// The sentences those lines belong to (some may continue on the next reel).
+  final List<String>? lineSids;
+
+  /// For a continued reel: the first sentence that starts on it (or the
+  /// sentence it continues, when none does).
+  final String? anchor;
+
+  /// Words on this reel when it shows only part of its card.
+  final int? words;
+
+  /// This reel shows the card's spotlight line.
+  final bool spotlight;
+
+  /// The last reel of its card (reading credit is recorded once per card).
+  final bool lastPart;
+
+  /// Sentences the reel's lines are built from.
+  List<String> get layoutSids => sids ?? card?.sentenceIds ?? const [];
+
+  /// Sentences that appear on this reel.
+  List<String> get shownSids => lineSids ?? layoutSids;
+
+  /// True when this reel shows only part of its card.
+  bool get isPart => sids != null || lines != null;
+
+  /// The sentence that anchors this reel to a reading position, and keys its
+  /// like and save.
+  String? get anchorSid => anchor ?? (shownSids.isEmpty ? card?.startSid : shownSids.first);
 }

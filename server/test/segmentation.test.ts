@@ -141,6 +141,27 @@ describe("pass 2: art direction", () => {
     expect(r.dropped).toBe(4);
   });
 
+  it("spotlights: a whole short sentence is allowed; long sentences are demoted to inline", () => {
+    const long = "This sentence keeps going for quite a while so that it is far too long to be shown as a large spotlight line on its own.";
+    const sentences = [
+      { sid: "c0.b0.s0", text: "Small habits compound quietly.", block: "paragraph" as const },
+      { sid: "c0.b0.s1", text: long, block: "paragraph" as const },
+      { sid: "c0.b0.s2", text: "Another ordinary sentence closes the card for now.", block: "paragraph" as const },
+    ];
+    const single = validateStructure(0, sentences, { ...structureOutput({ index: 0, title: "T", context_before: "", sentences }), cards: [{ start_sid: "c0.b0.s0" }] }, "standard").chapter;
+    const base = presentationOutput([{ index: 0, sentences }]);
+    base.cards[0]!.emphasis = [
+      { sid: "c0.b0.s0", text: "Small habits compound quietly.", level: 3 }, // whole short sentence: spotlight
+      { sid: "c0.b0.s1", text: "far too long", level: 3 }, // second hero, long sentence → inline
+    ];
+    expect(applyPresentation(single, sentences, base).chapter.cards[0]!.emphasis).toEqual([
+      { sid: "c0.b0.s0", text: "Small habits compound quietly.", level: 3 },
+      { sid: "c0.b0.s1", text: "far too long", level: 2 },
+    ]);
+    base.cards[0]!.emphasis = [{ sid: "c0.b0.s1", text: "far too long", level: 3 }];
+    expect(applyPresentation(single, sentences, base).chapter.cards[0]!.emphasis).toEqual([{ sid: "c0.b0.s1", text: "far too long", level: 2 }]);
+  });
+
   it("ignores unknown card numbers and invalid layouts", () => {
     const out = presentationOutput(cards.slice(0, 1));
     out.cards.push({ ...out.cards[0]!, card: 99 });

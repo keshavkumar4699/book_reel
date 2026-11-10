@@ -11,7 +11,8 @@ import '../../../core/text/lexicon.dart';
 import '../../../data/notebook.dart';
 import '../../../data/settings.dart';
 import '../../../ui/theme.dart';
-import 'lyric_layout.dart';
+import '../../../ui/typography.dart';
+import '../../../core/text/lyric_layout.dart';
 
 /// A sentence resolved for rendering.
 class CardSentence {
@@ -21,9 +22,10 @@ class CardSentence {
   final bool firstInBlock;
 }
 
-/// A text card shown full-screen like a reel with lyric-style typography:
-/// the author's words split into lines, important phrases (chosen by the AI
-/// on paid tiers) much larger, lines animating in one after another.
+/// A text reel, full screen: the author's words in the book's own body font,
+/// one comfortable size for every line, a phrase per line, with generous
+/// space around them. A spotlight reel shows one hero line on its own, large,
+/// in the book's display font — big and small type never share a screen.
 ///
 /// Gestures: double-tap = like (heart burst) · tap a line = highlight its
 /// sentence · swipe left = save · swipe right = share · long-press a word =
@@ -38,7 +40,7 @@ class PostCard extends StatefulWidget {
     required this.position,
     required this.settings,
     required this.theme,
-    required this.accent,
+    required this.type,
     required this.lexicon,
     required this.active,
     required this.liked,
@@ -53,11 +55,18 @@ class PostCard extends StatefulWidget {
     required this.onNote,
     required this.onListen,
     required this.onOverscroll,
+    this.spotlight = false,
+    this.lines,
     this.coverPath,
   });
 
   final SegmentCard card;
+
+  /// The sentences this reel is laid out from (all of the card, or one part).
   final List<CardSentence> sentences;
+
+  /// When the text continues over several reels: the display lines on this one.
+  final ({int from, int to})? lines;
   final String bookTitle;
   final String chapterTitle;
 
@@ -65,7 +74,9 @@ class PostCard extends StatefulWidget {
   final String position;
   final AppSettings settings;
   final ReadingTheme theme;
-  final Color accent;
+
+  /// The book's fonts (its typographic voice, or the reader's chosen font).
+  final BookType type;
   final Lexicon lexicon;
 
   /// True when this card is the one on screen (plays the entrance animation).
@@ -82,6 +93,9 @@ class PostCard extends StatefulWidget {
   final VoidCallback onNote;
   final VoidCallback onListen;
   final void Function(int direction) onOverscroll;
+
+  /// Show the (single) sentence as a spotlight line.
+  final bool spotlight;
   final String? coverPath;
 
   @override
@@ -89,8 +103,9 @@ class PostCard extends StatefulWidget {
 }
 
 class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
-  final _lyricKey = GlobalKey<_LyricTextState>();
-  late final AnimationController _reveal = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
+  final _textKey = GlobalKey<_ReelTextState>();
+  late final AnimationController _reveal =
+      AnimationController(vsync: this, duration: Duration(milliseconds: widget.spotlight ? 900 : 1100));
   late final AnimationController _flash = AnimationController(vsync: this, duration: const Duration(milliseconds: 380));
   String? _flashSid;
   final List<_Burst> _bursts = [];
@@ -99,6 +114,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   bool _revealed = false;
   late List<LyricPiece> _pieces;
   late LyricAlign _align;
+  ({int start, int end})? _focus;
 
   @override
   void initState() {
@@ -117,19 +133,32 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(PostCard old) {
     super.didUpdateWidget(old);
-    if (!identical(old.card, widget.card) || old.sentences.length != widget.sentences.length) _buildPieces();
+    if (!identical(old.card, widget.card) ||
+        old.sentences.length != widget.sentences.length ||
+        old.spotlight != widget.spotlight ||
+        old.lines != widget.lines) {
+      _buildPieces();
+    }
     if (widget.active && !_revealed) _startReveal();
   }
 
   void _buildPieces() {
-    _pieces = buildLyricPieces(
-      [for (final s in widget.sentences) (sid: s.sentence.id, text: s.sentence.text, block: s.block.index, type: s.block.type)],
-      emphasis: widget.card.emphasis,
-      keySids: widget.card.keySids.toSet(),
-      // Cards that went through AI art direction always carry a layout.
-      aiDirected: widget.card.layout != null,
-    );
-    _align = lyricAlignFor(widget.card.layout, _pieces);
+    if (widget.spotlight && widget.sentences.isNotEmpty) {
+      final s = widget.sentences.first;
+      final text = s.sentence.text;
+      _pieces = [LyricPiece(text: text, sid: s.sentence.id, level: 3, start: 0, end: text.length, blockType: s.block.type)];
+      _focus = spotlightFocus(text, widget.card.emphasis, s.sentence.id);
+      _align = LyricAlign.centered;
+      return;
+    }
+    _focus = null;
+    final all = piecesForCard(widget.card, [
+      for (final s in widget.sentences) (sid: s.sentence.id, text: s.sentence.text, block: s.block.index, type: s.block.type),
+    ]);
+    // One alignment for every reel of the same text.
+    _align = lyricAlignFor(widget.card.layout, all);
+    final r = widget.lines;
+    _pieces = limitEmphasis(r == null ? all : all.sublist(r.from.clamp(0, all.length), r.to.clamp(0, all.length)));
   }
 
   void _startReveal() {
@@ -156,7 +185,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   // ------------------------------------------------------------- gestures
 
   void _onTapUp(TapUpDetails d) {
-    final hit = _lyricKey.currentState?.hitTest(d.globalPosition);
+    final hit = _textKey.currentState?.hitTest(d.globalPosition);
     if (hit == null) return;
     final sentence = _sentence(hit.piece.sid);
     if (sentence == null || sentence.text == sceneBreakMarker) return;
@@ -189,7 +218,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   }
 
   void _onLongPress(LongPressStartDetails d) {
-    final hit = _lyricKey.currentState?.hitTest(d.globalPosition);
+    final hit = _textKey.currentState?.hitTest(d.globalPosition);
     if (hit == null) return;
     final sentence = _sentence(hit.piece.sid);
     if (sentence == null) return;
@@ -221,7 +250,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   // ------------------------------------------------------------- build
 
   Set<String> get _hardWordsLower {
-    if (!widget.settings.underlineHardWords) return const {};
+    if (!widget.settings.underlineHardWords || widget.spotlight) return const {};
     if (widget.card.hardWords.isNotEmpty) return widget.card.hardWords.map((h) => h.word.toLowerCase()).toSet();
     if (widget.lexicon.isEmpty) return const {};
     return {
@@ -234,26 +263,24 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
-    final onScene = t.glass.a > 0;
     final padding = MediaQuery.paddingOf(context);
+    final screen = MediaQuery.sizeOf(context);
     final leftHanded = widget.settings.leftHanded;
     const railWidth = 72.0;
     final reveal = (_dragDx.abs() / _swipeTrigger).clamp(0.0, 1.0);
-    final ink = onScene ? Colors.white : t.text;
-    // On paper the accent must stay readable as text.
-    final accent = onScene ? widget.accent : const Color(0xFFA8551A);
+    // The text never fills the screen: the scene shows above and below it.
+    final zone = reelTextInsets(screen: screen, topInset: padding.top, bottomInset: padding.bottom);
 
-    final lyric = LyricText(
-      key: _lyricKey,
+    final text = ReelText(
+      key: _textKey,
       pieces: _pieces,
       align: _align,
+      spotlight: widget.spotlight,
+      focus: _focus,
       progress: _reveal.value,
-      settings: widget.settings,
-      textColor: onScene ? const Color(0xF2FFFFFF) : t.text,
-      accent: accent,
-      shadows: onScene,
+      type: widget.type,
+      theme: t,
       hardWords: _hardWordsLower,
-      underlineColor: t.hardWordUnderline,
       highlightColor: (sid) {
         final h = widget.highlightFor(sid);
         if (h == null) return null;
@@ -273,22 +300,6 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       onHorizontalDragUpdate: (d) => setState(() => _dragDx = (_dragDx + d.delta.dx).clamp(-120.0, 120.0)),
       onHorizontalDragEnd: _onDragEnd,
       child: Stack(children: [
-        // Legibility: a soft shade over the scene, darker where the text is.
-        if (onScene)
-          const Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0x59000000), Color(0x73000000), Color(0x80000000), Color(0xA6000000)],
-                    stops: [0, 0.35, 0.7, 1],
-                  ),
-                ),
-              ),
-            ),
-          ),
         if (_dragDx != 0)
           Positioned.fill(
             child: Align(
@@ -300,20 +311,25 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
                   child: _SwipeHint(
                     icon: _dragDx < 0 ? (widget.saved ? Icons.bookmark_remove : Icons.bookmark_add) : Icons.ios_share,
                     label: _dragDx < 0 ? (widget.saved ? 'Unsave' : 'Save') : 'Share',
-                    color: widget.accent,
+                    color: t.accent,
                     armed: reveal >= 1,
                   ),
                 ),
               ),
             ),
           ),
-        // The text fills the screen between the top bar and the book row.
+        // The text sits in a calm column well inside the screen.
         Positioned(
-          top: padding.top + 70,
-          bottom: padding.bottom + 86,
-          left: leftHanded ? railWidth : 22,
-          right: leftHanded ? 22 : railWidth,
-          child: Transform.translate(offset: Offset(_dragDx * 0.6, 0), child: lyric),
+          top: zone.top,
+          bottom: zone.bottom,
+          left: leftHanded ? reelRailMargin : reelSideMargin,
+          right: leftHanded ? reelSideMargin : reelRailMargin,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: reelMaxTextWidth),
+              child: Transform.translate(offset: Offset(_dragDx * 0.6, 0), child: text),
+            ),
+          ),
         ),
         // Book row (bottom-left, like the account line on a reel).
         Positioned(
@@ -324,9 +340,9 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
             title: widget.bookTitle,
             subtitle: '${widget.chapterTitle} · ${widget.position}',
             coverPath: widget.coverPath,
-            ink: ink,
-            accent: widget.accent,
-            shadows: onScene,
+            ink: t.text,
+            accent: t.accent,
+            shadows: t.textShadows,
           ),
         ),
         // Action rail (bottom-right; mirrored for left-handed readers).
@@ -336,9 +352,9 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
           bottom: padding.bottom + 16,
           width: railWidth - 8,
           child: _ActionRail(
-            ink: ink,
-            accent: widget.accent,
-            shadows: onScene,
+            ink: t.text,
+            accent: t.accent,
+            shadows: t.textShadows,
             liked: widget.liked,
             saved: widget.saved,
             listening: widget.listening,
@@ -361,42 +377,6 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   }
 }
 
-/// Lays out lyric pieces to fill the available box: a size search finds the
-/// largest base size at which every line fits, so short cards get big text.
-class LyricText extends StatefulWidget {
-  const LyricText({
-    super.key,
-    required this.pieces,
-    required this.align,
-    required this.progress,
-    required this.settings,
-    required this.textColor,
-    required this.accent,
-    required this.shadows,
-    required this.hardWords,
-    required this.underlineColor,
-    required this.highlightColor,
-    required this.onOverscroll,
-  });
-
-  final List<LyricPiece> pieces;
-  final LyricAlign align;
-
-  /// Entrance animation progress, 0–1.
-  final double progress;
-  final AppSettings settings;
-  final Color textColor;
-  final Color accent;
-  final bool shadows;
-  final Set<String> hardWords;
-  final Color underlineColor;
-  final Color? Function(String sid) highlightColor;
-  final void Function(int direction) onOverscroll;
-
-  @override
-  State<LyricText> createState() => _LyricTextState();
-}
-
 class LyricHit {
   const LyricHit(this.piece, this.offset);
   final LyricPiece piece;
@@ -405,17 +385,51 @@ class LyricHit {
   final int offset;
 }
 
-class _LyricTextState extends State<LyricText> {
+/// Lays out a reel's lines. Regular reels use the reader's size (shrinking
+/// only when the text would not fit, never growing to fill the screen);
+/// spotlight reels size one line in the display face within a calm range.
+class ReelText extends StatefulWidget {
+  const ReelText({
+    super.key,
+    required this.pieces,
+    required this.align,
+    required this.progress,
+    required this.type,
+    required this.theme,
+    required this.hardWords,
+    required this.highlightColor,
+    required this.onOverscroll,
+    this.spotlight = false,
+    this.focus,
+  });
+
+  final List<LyricPiece> pieces;
+  final LyricAlign align;
+
+  /// Entrance animation progress, 0–1.
+  final double progress;
+  final BookType type;
+  final ReadingTheme theme;
+  final Set<String> hardWords;
+  final Color? Function(String sid) highlightColor;
+  final void Function(int direction) onOverscroll;
+  final bool spotlight;
+
+  /// Part of the spotlight line drawn in the spotlight colour.
+  final ({int start, int end})? focus;
+
+  @override
+  State<ReelText> createState() => _ReelTextState();
+}
+
+class _ReelTextState extends State<ReelText> {
   final List<GlobalKey> _keys = [];
   double _overscroll = 0;
-  (double, double, double, TextScaler)? _fitKey;
-  double _fitBase = 22;
-  bool _overflows = false;
+  Object? _fitKey;
 
-  static const _shadows = [
-    Shadow(color: Color(0x8C000000), blurRadius: 18),
-    Shadow(color: Color(0x66000000), blurRadius: 3, offset: Offset(0, 1)),
-  ];
+  /// Regular reels: scale of the body size. Spotlights: the font size.
+  double _fit = 1;
+  bool _overflows = false;
 
   /// Finds the piece and character under [global], for tap and long-press.
   LyricHit? hitTest(Offset global) {
@@ -429,45 +443,14 @@ class _LyricTextState extends State<LyricText> {
     return null;
   }
 
-  TextStyle _style(LyricPiece p, double base) {
-    final s = widget.settings;
-    final shadows = widget.shadows ? _shadows : null;
-    switch (p.level) {
-      case 3:
-        return TextStyle(
-          fontFamily: 'AtkinsonHyperlegible',
-          fontSize: base * levelScale(3),
-          fontWeight: FontWeight.w800,
-          height: 1.06,
-          letterSpacing: -0.4,
-          color: widget.accent,
-          shadows: shadows,
-        );
-      case 2:
-        return TextStyle(
-          fontFamily: 'Literata',
-          fontStyle: FontStyle.italic,
-          fontSize: base * levelScale(2),
-          fontWeight: FontWeight.w600,
-          height: 1.16,
-          color: widget.textColor,
-          shadows: shadows,
-        );
-      default:
-        return TextStyle(
-          fontFamily: fontFamilyFor(s.font),
-          fontSize: base,
-          fontWeight: FontWeight.w500,
-          height: 1.3,
-          letterSpacing: s.letterSpacing,
-          wordSpacing: s.wordSpacing,
-          color: widget.textColor.withValues(alpha: widget.textColor.a * 0.94),
-          shadows: shadows,
-        );
-    }
-  }
+  static FontWeight _heavier(FontWeight w) => FontWeight.values.firstWhere((x) => x.value >= (w.value + 200).clamp(100, 900));
 
-  String _display(LyricPiece p) => p.level == 3 && p.text.split(RegExp(r'\s+')).length <= 4 ? p.text.toUpperCase() : p.text;
+  TextStyle _style(LyricPiece p, double scale) {
+    final body = widget.type.body(color: widget.theme.text, scale: scale, shadows: widget.theme.textShadows);
+    if (p.level <= 1) return body;
+    // Emphasis: same size, a warmer/brighter tone and a heavier weight.
+    return body.copyWith(color: widget.theme.emphasis, fontWeight: _heavier(body.fontWeight ?? FontWeight.w400));
+  }
 
   TextAlign _textAlign(int i) => switch (widget.align) {
         LyricAlign.centered => TextAlign.center,
@@ -475,57 +458,10 @@ class _LyricTextState extends State<LyricText> {
         LyricAlign.staggered => i.isEven ? TextAlign.start : TextAlign.end,
       };
 
-  double _gap(LyricPiece p, double base) => p.newBlock ? base * 0.75 : base * 0.3;
-
-  /// Largest base size (within the reader's limits) at which all lines fit.
-  void _fit(double maxW, double maxH, TextScaler scaler) {
-    final key = (maxW, maxH, widget.settings.fontSize, scaler);
-    if (_fitKey == key) return;
-    _fitKey = key;
-    final cap = (widget.settings.fontSize * 1.9).clamp(26.0, 56.0);
-    const floor = 15.0;
-    double height(double base) {
-      var total = 0.0;
-      for (var i = 0; i < widget.pieces.length; i++) {
-        final p = widget.pieces[i];
-        final tp = TextPainter(
-          text: TextSpan(text: _display(p), style: _style(p, base)),
-          textAlign: _textAlign(i),
-          textDirection: TextDirection.ltr,
-          textScaler: scaler,
-        )..layout(maxWidth: maxW);
-        total += tp.height + (i == 0 ? 0 : _gap(p, base));
-        tp.dispose();
-      }
-      return total;
-    }
-
-    if (height(cap) <= maxH) {
-      _fitBase = cap;
-      _overflows = false;
-      return;
-    }
-    var lo = floor, hi = cap;
-    for (var k = 0; k < 9; k++) {
-      final mid = (lo + hi) / 2;
-      if (height(mid) <= maxH) {
-        lo = mid;
-      } else {
-        hi = mid;
-      }
-    }
-    _fitBase = lo;
-    _overflows = height(lo) > maxH;
-  }
-
-  @override
-  void didUpdateWidget(LyricText old) {
-    super.didUpdateWidget(old);
-    if (!identical(old.pieces, widget.pieces) || old.settings.font != widget.settings.font) _fitKey = null;
-  }
+  double _gap(LyricPiece p, double fontSize) => p.newBlock ? fontSize * 0.9 : fontSize * 0.34;
 
   InlineSpan _span(LyricPiece p, TextStyle style) {
-    final text = _display(p);
+    final text = p.text;
     final highlight = widget.highlightColor(p.sid);
     final base = highlight == null ? style : style.copyWith(backgroundColor: highlight);
     if (widget.hardWords.isEmpty) return TextSpan(text: text, style: base);
@@ -539,7 +475,7 @@ class _LyricTextState extends State<LyricText> {
         style: TextStyle(
           decoration: TextDecoration.underline,
           decorationStyle: TextDecorationStyle.dotted,
-          decorationColor: widget.underlineColor,
+          decorationColor: widget.theme.hardWordUnderline,
           decorationThickness: 2,
         ),
       ));
@@ -549,73 +485,167 @@ class _LyricTextState extends State<LyricText> {
     return TextSpan(style: base, children: parts);
   }
 
+  InlineSpan _spotSpan(double size) {
+    final p = widget.pieces.first;
+    final text = p.text;
+    final f = widget.focus ?? (start: 0, end: text.length);
+    final focus = widget.type.display(color: widget.theme.spot, size: size, shadows: widget.theme.textShadows);
+    final rest = focus.copyWith(color: widget.theme.text.withValues(alpha: 0.84));
+    final highlight = widget.highlightColor(p.sid);
+    TextStyle bg(TextStyle s) => highlight == null ? s : s.copyWith(backgroundColor: highlight);
+    return TextSpan(children: [
+      if (f.start > 0) TextSpan(text: text.substring(0, f.start), style: bg(rest)),
+      TextSpan(text: text.substring(f.start, f.end), style: bg(focus)),
+      if (f.end < text.length) TextSpan(text: text.substring(f.end), style: bg(rest)),
+    ]);
+  }
+
+  double _measure(InlineSpan span, TextAlign align, double maxW, TextScaler scaler) {
+    final tp = TextPainter(text: span, textAlign: align, textDirection: TextDirection.ltr, textScaler: scaler)..layout(maxWidth: maxW);
+    final h = tp.height;
+    tp.dispose();
+    return h;
+  }
+
+  void _fitRegular(double maxW, double maxH, TextScaler scaler) {
+    double height(double scale) {
+      var total = 0.0;
+      for (var i = 0; i < widget.pieces.length; i++) {
+        final p = widget.pieces[i];
+        final style = _style(p, scale);
+        total += _measure(TextSpan(text: p.text, style: style), _textAlign(i), maxW, scaler) + (i == 0 ? 0 : _gap(p, style.fontSize!));
+      }
+      return total;
+    }
+
+    for (final scale in const [1.0, 0.94, 0.88, 0.82]) {
+      if (height(scale) <= maxH) {
+        _fit = scale;
+        _overflows = false;
+        return;
+      }
+    }
+    _fit = 0.82;
+    _overflows = true;
+  }
+
+  void _fitSpotlight(double maxW, double maxH, TextScaler scaler) {
+    final base = widget.type.settings.fontSize;
+    final cap = (base * 1.75).clamp(28.0, 44.0);
+    final floor = (base * 1.15).clamp(20.0, 30.0);
+    // Keep air around the line: it should float, not fill.
+    final room = maxH * 0.72;
+    double height(double size) => _measure(_spotSpan(size), TextAlign.center, maxW, scaler);
+    if (height(cap) <= room) {
+      _fit = cap;
+      _overflows = false;
+      return;
+    }
+    var lo = floor, hi = cap;
+    for (var k = 0; k < 8; k++) {
+      final mid = (lo + hi) / 2;
+      if (height(mid) <= room) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    _fit = lo;
+    _overflows = height(lo) > maxH;
+  }
+
+  @override
+  void didUpdateWidget(ReelText old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.pieces, widget.pieces) || old.type.bodyFamily != widget.type.bodyFamily || old.spotlight != widget.spotlight) {
+      _fitKey = null;
+    }
+  }
+
+  Widget _scrollable(Widget column) => NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (n is OverscrollNotification) {
+            _overscroll += n.overscroll;
+            if (_overscroll.abs() > 48) {
+              widget.onOverscroll(_overscroll > 0 ? 1 : -1);
+              _overscroll = 0;
+            }
+          } else if (n is ScrollEndNotification) {
+            _overscroll = 0;
+          }
+          return false;
+        },
+        child: SingleChildScrollView(physics: const ClampingScrollPhysics(), child: column),
+      );
+
   @override
   Widget build(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
     final fullText = widget.pieces.map((p) => p.text).join(' ');
     return LayoutBuilder(builder: (context, constraints) {
-      _fit(constraints.maxWidth, constraints.maxHeight, scaler);
+      final key = (constraints.maxWidth, constraints.maxHeight, scaler, widget.type.settings.fontSize, widget.spotlight);
+      if (_fitKey != key) {
+        _fitKey = key;
+        widget.spotlight
+            ? _fitSpotlight(constraints.maxWidth, constraints.maxHeight, scaler)
+            : _fitRegular(constraints.maxWidth, constraints.maxHeight, scaler);
+      }
       while (_keys.length < widget.pieces.length) {
         _keys.add(GlobalKey());
       }
-      final base = _fitBase;
-      final n = widget.pieces.length;
-      final stagger = n <= 1 ? 0.0 : (0.55 / (n - 1)).clamp(0.0, 0.12);
-      final lines = <Widget>[];
-      for (var i = 0; i < n; i++) {
-        final p = widget.pieces[i];
-        final style = _style(p, base);
-        final local = ((widget.progress - i * stagger) / 0.45).clamp(0.0, 1.0);
-        final eased = Curves.easeOutCubic.transform(local);
-        final scale = p.level == 3 ? 1.0 + (1 - Curves.easeOutBack.transform(local)) * 0.18 : 1.0;
-        if (i > 0) lines.add(SizedBox(height: _gap(p, base)));
-        lines.add(Opacity(
-          opacity: eased,
-          child: Transform.translate(
-            offset: Offset(0, (1 - eased) * 18),
-            child: Transform.scale(
-              scale: scale,
-              alignment: switch (_textAlign(i)) {
-                TextAlign.center => Alignment.center,
-                TextAlign.end => Alignment.centerRight,
-                _ => Alignment.centerLeft,
-              },
-              child: SizedBox(
-                width: double.infinity,
-                child: Text.rich(_span(p, style), key: _keys[i], textAlign: _textAlign(i), textScaler: scaler),
-              ),
-            ),
-          ),
-        ));
-      }
-      final column = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: lines,
-      );
+      final Widget column = widget.spotlight ? _spotlight(scaler) : _lines(scaler);
       return Semantics(
         label: fullText,
-        child: ExcludeSemantics(
-          child: _overflows
-              ? NotificationListener<ScrollNotification>(
-                  onNotification: (n) {
-                    if (n is OverscrollNotification) {
-                      _overscroll += n.overscroll;
-                      if (_overscroll.abs() > 48) {
-                        widget.onOverscroll(_overscroll > 0 ? 1 : -1);
-                        _overscroll = 0;
-                      }
-                    } else if (n is ScrollEndNotification) {
-                      _overscroll = 0;
-                    }
-                    return false;
-                  },
-                  child: SingleChildScrollView(physics: const ClampingScrollPhysics(), child: column),
-                )
-              : Center(child: column),
-        ),
+        child: ExcludeSemantics(child: _overflows ? _scrollable(column) : Center(child: column)),
       );
     });
+  }
+
+  Widget _lines(TextScaler scaler) {
+    final n = widget.pieces.length;
+    final stagger = n <= 1 ? 0.0 : (0.5 / (n - 1)).clamp(0.0, 0.1);
+    final lines = <Widget>[];
+    for (var i = 0; i < n; i++) {
+      final p = widget.pieces[i];
+      final style = _style(p, _fit);
+      final local = ((widget.progress - i * stagger) / 0.5).clamp(0.0, 1.0);
+      final eased = Curves.easeOutCubic.transform(local);
+      if (i > 0) lines.add(SizedBox(height: _gap(p, style.fontSize!)));
+      lines.add(Opacity(
+        opacity: eased,
+        child: Transform.translate(
+          offset: Offset(0, (1 - eased) * 12),
+          child: SizedBox(
+            width: double.infinity,
+            child: Text.rich(_span(p, style), key: _keys[i], textAlign: _textAlign(i), textScaler: scaler),
+          ),
+        ),
+      ));
+    }
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: lines);
+  }
+
+  Widget _spotlight(TextScaler scaler) {
+    final e = Curves.easeOutCubic.transform(widget.progress.clamp(0.0, 1.0));
+    final bar = Curves.easeOutCubic.transform(((widget.progress - 0.3) / 0.7).clamp(0.0, 1.0));
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 34 * bar,
+        height: 3,
+        decoration: BoxDecoration(color: widget.theme.accent, borderRadius: BorderRadius.circular(2)),
+      ),
+      SizedBox(height: _fit * 0.75),
+      Opacity(
+        opacity: e,
+        child: Transform.scale(
+          scale: 0.95 + 0.05 * e,
+          child: SizedBox(
+            width: double.infinity,
+            child: Text.rich(_spotSpan(_fit), key: _keys[0], textAlign: TextAlign.center, textScaler: scaler),
+          ),
+        ),
+      ),
+    ]);
   }
 }
 
@@ -633,14 +663,14 @@ class _BookRow extends StatelessWidget {
   final String subtitle;
   final Color ink;
   final Color accent;
-  final bool shadows;
+  final List<Shadow>? shadows;
   final String? coverPath;
 
   @override
   Widget build(BuildContext context) {
     final cover = coverPath != null && File(coverPath!).existsSync() ? FileImage(File(coverPath!)) : null;
     final initials = title.trim().isEmpty ? '📖' : title.trim()[0].toUpperCase();
-    final shadow = shadows ? const [Shadow(color: Color(0x99000000), blurRadius: 8)] : null;
+    final shadow = shadows;
     return Row(children: [
       Container(
         padding: const EdgeInsets.all(2),
@@ -682,7 +712,7 @@ class _ActionRail extends StatelessWidget {
 
   final Color ink;
   final Color accent;
-  final bool shadows;
+  final List<Shadow>? shadows;
   final bool liked;
   final bool saved;
   final bool listening;
@@ -733,13 +763,13 @@ class _RailButton extends StatelessWidget {
   final String label;
   final String tooltip;
   final Color color;
-  final bool shadows;
+  final List<Shadow>? shadows;
   final VoidCallback onTap;
   final bool active;
 
   @override
   Widget build(BuildContext context) {
-    final shadow = shadows ? const [Shadow(color: Color(0x99000000), blurRadius: 10)] : null;
+    final shadow = shadows;
     return Tooltip(
       message: tooltip,
       child: InkResponse(

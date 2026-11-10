@@ -4,7 +4,8 @@ import '../core/text/lexicon.dart';
 
 enum ReadingThemeId { paper, white, sepia, dark, black }
 
-enum ReadingFont { literata, atkinson, system }
+/// [book] uses each book's own typographic voice (lib/ui/typography.dart).
+enum ReadingFont { book, literata, atkinson, system }
 
 enum KeyPointStyle { off, subtle, bold }
 
@@ -12,7 +13,7 @@ enum KeyPointStyle { off, subtle, bold }
 enum Vibe { forest, cafe, rain, ocean, night, meadow, snow, city, paper }
 
 /// Bump when defaults change in a way existing users should get.
-const currentLayoutVersion = 2;
+const currentLayoutVersion = 3;
 
 /// Subscription tiers (DESIGN.md §6). Free uses on-device rules only.
 enum Tier {
@@ -29,7 +30,7 @@ class AppSettings {
   const AppSettings({
     this.theme = ReadingThemeId.paper,
     this.followSystemDark = true,
-    this.font = ReadingFont.atkinson,
+    this.font = ReadingFont.book,
     this.fontSize = 22,
     this.lineHeight = 1.55,
     this.letterSpacing = 0,
@@ -238,13 +239,19 @@ class AppSettings {
     double num_(Object? v, double f) => (v as num?)?.toDouble() ?? f;
     final version = (j['layoutVersion'] as int?) ?? 1;
     final legacy = version < 2;
-    final savedFont = pick(ReadingFont.values, j['font'], d.font);
+    var savedFont = pick(ReadingFont.values, j['font'], d.font);
+    // Layout v3: each book gets its own fonts. Readers still on the default of
+    // their version (Literata in v1, Atkinson in v2) move to it; a font picked
+    // on purpose is kept.
+    if ((version < 2 && savedFont == ReadingFont.literata) || (version == 2 && savedFont == ReadingFont.atkinson)) {
+      savedFont = ReadingFont.book;
+    }
     final savedGoal = (j['dailyGoal'] as int?) ?? d.dailyGoal;
     return AppSettings(
       theme: pick(ReadingThemeId.values, j['theme'], d.theme),
       followSystemDark: (j['followSystemDark'] as bool?) ?? d.followSystemDark,
       // Layout v2 (social feed): short cards, larger sans text. Migrate untouched defaults.
-      font: legacy && savedFont == ReadingFont.literata ? ReadingFont.atkinson : savedFont,
+      font: savedFont,
       fontSize: legacy ? (num_(j['fontSize'], d.fontSize) < 22 ? 22 : num_(j['fontSize'], d.fontSize)) : num_(j['fontSize'], d.fontSize),
       lineHeight: num_(j['lineHeight'], d.lineHeight),
       letterSpacing: num_(j['letterSpacing'], d.letterSpacing),

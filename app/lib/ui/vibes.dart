@@ -5,7 +5,143 @@ import 'package:flutter/material.dart';
 import '../data/settings.dart';
 import 'theme.dart';
 
-/// Visual style for each calm "study vibe" (text sits on a tinted glass card).
+/// Text colours for one scene, chosen to sit naturally on it:
+///
+/// * ink is a tinted off-white (or a deep ink on the bright meadow), never
+///   pure white, which "vibrates" and blooms on dark scenes;
+/// * the shade over the scene uses the scene's own darkest hue rather than
+///   grey, so colours stay rich instead of muddy;
+/// * the shade's strength varies down the screen, measured from the painted
+///   scene: body text keeps ≥ 7:1 contrast (WCAG AAA) where it sits (the
+///   middle 60 % of the screen) and every text colour and control keeps
+///   ≥ 4.5:1 (AA) everywhere, while dark parts of the scene stay untouched
+///   (test/ui/scene_palette_test.dart checks this on the rendered scenes).
+class ScenePalette {
+  const ScenePalette({
+    required this.ink,
+    required this.emphasis,
+    required this.spot,
+    required this.accent,
+    required this.tint,
+    required this.shade,
+    this.lightInk = true,
+  });
+
+  /// Body text.
+  final Color ink;
+
+  /// Inline emphasis: same size as the body, a warmer or brighter tone.
+  final Color emphasis;
+
+  /// Spotlight lines in large display type.
+  final Color spot;
+
+  /// Labels and active controls.
+  final Color accent;
+
+  /// Colour of the shade (dark scenes) or veil (light scenes).
+  final Color tint;
+
+  /// Shade opacity at 0 %, 10 %, … 100 % of the screen height.
+  final List<double> shade;
+
+  /// Light text on a darkened scene (false: dark text on a light veil).
+  final bool lightInk;
+
+  Color get muted => ink.withValues(alpha: lightInk ? 0.74 : 0.8);
+
+  LinearGradient get scrim => LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [for (final a in shade) tint.withValues(alpha: a)],
+        stops: [for (var i = 0; i < shade.length; i++) i / (shade.length - 1)],
+      );
+
+  List<Shadow> get textShadows => lightInk
+      ? [
+          Shadow(color: tint.withValues(alpha: 0.55), blurRadius: 14),
+          Shadow(color: tint.withValues(alpha: 0.45), blurRadius: 2, offset: const Offset(0, 1)),
+        ]
+      : [Shadow(color: tint.withValues(alpha: 0.85), blurRadius: 10)];
+}
+
+const scenePalettes = <Vibe, ScenePalette>{
+  // Parchment on deep pine; honey for emphasis.
+  Vibe.forest: ScenePalette(
+    ink: Color(0xFFF4EEDD),
+    emphasis: Color(0xFFF3D38C),
+    spot: Color(0xFFFFF5DC),
+    accent: Color(0xFFF2C46D),
+    tint: Color(0xFF0C1A12),
+    shade: [0.14, 0.23, 0.35, 0.47, 0.47, 0.35, 0.23, 0.14, 0.14, 0.24, 0.30],
+  ),
+  // Latte foam on espresso; caramel emphasis.
+  Vibe.cafe: ScenePalette(
+    ink: Color(0xFFF7EADB),
+    emphasis: Color(0xFFF7C089),
+    spot: Color(0xFFFFEBD2),
+    accent: Color(0xFFFFB86B),
+    tint: Color(0xFF170D07),
+    shade: [0.14, 0.20, 0.32, 0.44, 0.44, 0.33, 0.33, 0.28, 0.28, 0.28, 0.30],
+  ),
+  // Cool mist on rain-night navy; rain-sky blue emphasis.
+  Vibe.rain: ScenePalette(
+    ink: Color(0xFFE8EFF7),
+    emphasis: Color(0xFFAFD3F8),
+    spot: Color(0xFFF3F8FF),
+    accent: Color(0xFF8FC1FF),
+    tint: Color(0xFF060D19),
+    shade: [0.14, 0.14, 0.14, 0.16, 0.28, 0.28, 0.16, 0.14, 0.14, 0.24, 0.30],
+  ),
+  // Seashell on dusk indigo; sunset peach emphasis.
+  Vibe.ocean: ScenePalette(
+    ink: Color(0xFFFBF0E9),
+    emphasis: Color(0xFFFFC9A8),
+    spot: Color(0xFFFFF2E8),
+    accent: Color(0xFFFFB38A),
+    tint: Color(0xFF120D24),
+    shade: [0.14, 0.14, 0.14, 0.17, 0.29, 0.41, 0.52, 0.52, 0.40, 0.28, 0.30],
+  ),
+  // Moonlight on midnight blue; lavender emphasis.
+  Vibe.night: ScenePalette(
+    ink: Color(0xFFECEBF8),
+    emphasis: Color(0xFFD3C7FF),
+    spot: Color(0xFFF8F5FF),
+    accent: Color(0xFFC9B8FF),
+    tint: Color(0xFF04071A),
+    shade: [0.14, 0.14, 0.14, 0.14, 0.14, 0.14, 0.14, 0.14, 0.14, 0.24, 0.30],
+  ),
+  // A bright day: deep moss ink on a soft sunlit veil, dark honey emphasis.
+  Vibe.meadow: ScenePalette(
+    ink: Color(0xFF24301F),
+    emphasis: Color(0xFF6B3F0C),
+    spot: Color(0xFF1C2618),
+    accent: Color(0xFF224D1F),
+    tint: Color(0xFFFFFAEC),
+    shade: [0.08, 0.08, 0.08, 0.08, 0.09, 0.21, 0.33, 0.45, 0.45, 0.33, 0.21],
+    lightInk: false,
+  ),
+  // Frost on winter navy; ice-blue emphasis.
+  Vibe.snow: ScenePalette(
+    ink: Color(0xFFEEF3FA),
+    emphasis: Color(0xFFBCDDFF),
+    spot: Color(0xFFF7FAFF),
+    accent: Color(0xFFA8D8FF),
+    tint: Color(0xFF0D1526),
+    shade: [0.14, 0.14, 0.14, 0.14, 0.14, 0.26, 0.38, 0.50, 0.50, 0.44, 0.40],
+  ),
+  // Pale neon on night violet; soft neon-rose emphasis.
+  Vibe.city: ScenePalette(
+    ink: Color(0xFFF2ECF7),
+    emphasis: Color(0xFFFFB8DC),
+    spot: Color(0xFFFFF3FA),
+    accent: Color(0xFFFF8FC7),
+    tint: Color(0xFF0A0617),
+    shade: [0.14, 0.14, 0.14, 0.14, 0.14, 0.14, 0.25, 0.37, 0.37, 0.25, 0.30],
+  ),
+};
+
+/// Visual style for each calm "study vibe".
 class VibeStyle {
   const VibeStyle({
     required this.label,
@@ -19,39 +155,48 @@ class VibeStyle {
   final String emoji;
   final String tagline;
   final Color accent;
+
+  /// Light text on this scene.
   final bool dark;
 
-  Color get text => dark ? const Color(0xFFFFF8EE) : const Color(0xFF1F1D1A);
-  Color get muted => dark ? const Color(0xB3FFF8EE) : const Color(0xFF6E685E);
+  Color get text => dark ? const Color(0xFFF4EFE6) : const Color(0xFF1F1D1A);
+  Color get muted => dark ? const Color(0xBDF4EFE6) : const Color(0xFF5E584F);
   Color get glass => dark ? const Color(0x9E10131A) : const Color(0xE6FFFDF8);
   Color get glassBorder => dark ? const Color(0x24FFFFFF) : const Color(0x14000000);
 }
 
 const vibeStyles = <Vibe, VibeStyle>{
-  Vibe.forest: VibeStyle(label: 'Forest', emoji: '🌲', tagline: 'Misty pines at dawn', accent: Color(0xFFF2C46D)),
+  Vibe.forest: VibeStyle(label: 'Forest', emoji: '🌲', tagline: 'Pines at dusk, fireflies', accent: Color(0xFFF2C46D)),
   Vibe.cafe: VibeStyle(label: 'Café', emoji: '☕', tagline: 'Rainy evening, warm cup', accent: Color(0xFFFFB86B)),
   Vibe.rain: VibeStyle(label: 'Rain', emoji: '🌧️', tagline: 'City lights through rain', accent: Color(0xFF8FC1FF)),
-  Vibe.ocean: VibeStyle(label: 'Ocean', emoji: '🌅', tagline: 'Slow waves at sunset', accent: Color(0xFFFFB38A)),
+  Vibe.ocean: VibeStyle(label: 'Ocean', emoji: '🌅', tagline: 'Slow waves after sunset', accent: Color(0xFFFFB38A)),
   Vibe.night: VibeStyle(label: 'Night', emoji: '🌙', tagline: 'Stars over the mountains', accent: Color(0xFFC9B8FF)),
-  Vibe.meadow: VibeStyle(label: 'Meadow', emoji: '🌼', tagline: 'Sunny meadow, drifting clouds', accent: Color(0xFFFFD166)),
+  Vibe.meadow: VibeStyle(label: 'Meadow', emoji: '🌼', tagline: 'Sunny meadow, drifting clouds', accent: Color(0xFF224D1F), dark: false),
   Vibe.snow: VibeStyle(label: 'Snow', emoji: '❄️', tagline: 'Quiet cabin, falling snow', accent: Color(0xFFA8D8FF)),
   Vibe.city: VibeStyle(label: 'City', emoji: '🌃', tagline: 'Skyline lights at night', accent: Color(0xFFFF8FC7)),
   Vibe.paper: VibeStyle(label: 'Paper', emoji: '📄', tagline: 'Plain and focused', accent: ember, dark: false),
 };
 
-/// Reading-surface colours used on top of a scene.
+/// Reading-surface colours on top of a scene (the scene's palette).
 ReadingTheme readingThemeForVibe(Vibe vibe, ReadingTheme paper) {
-  if (vibe == Vibe.paper) return paper;
-  final s = vibeStyles[vibe]!;
+  final p = scenePalettes[vibe];
+  if (p == null) return paper;
   return ReadingTheme(
     background: const Color(0x00000000),
-    text: s.text,
-    muted: s.muted,
-    keyPoint: s.accent.withValues(alpha: 0.28),
-    hardWordUnderline: s.accent,
-    highlights: const [Color(0x66FFC66B), Color(0x6673D69A), Color(0x666FA8FF), Color(0x66FF8FB8)],
-    isDark: true,
-    glass: s.glass,
+    text: p.ink,
+    muted: p.muted,
+    keyPoint: p.emphasis.withValues(alpha: 0.24),
+    hardWordUnderline: p.emphasis,
+    highlights: p.lightInk
+        ? const [Color(0x66E0A23A), Color(0x664FA873), Color(0x664A82C9), Color(0x66C85C8A)]
+        : const [Color(0x59F2B84B), Color(0x5967C587), Color(0x595B9BE6), Color(0x59E87AA4)],
+    isDark: p.lightInk,
+    glass: p.lightInk ? p.tint.withValues(alpha: 0.62) : p.tint.withValues(alpha: 0.78),
+    emphasis: p.emphasis,
+    spot: p.spot,
+    accent: p.accent,
+    scrim: p.scrim,
+    textShadows: p.textShadows,
   );
 }
 
@@ -246,13 +391,16 @@ Path _mountains(Size size, int seed, double baseY, double amp, int peaks) {
 
 void _forest(Canvas c, Size size, double t, double scroll) {
   final w = size.width, h = size.height;
-  _gradient(c, size, const [Color(0xFFF6D8B0), Color(0xFFD7E3C4), Color(0xFF7E9C84), Color(0xFF2C4537)], const [0, 0.38, 0.66, 1]);
-  _glow(c, Offset(w * 0.72, h * 0.26), w * 0.55, const Color(0xCCFFF1D2));
+  // Dusk in the pines: a deep teal sky with the last warm light behind the
+  // far ridge, so light text sits on calm, dark greens everywhere.
+  _gradient(c, size, const [Color(0xFF22363F), Color(0xFF2C4A48), Color(0xFF34503F), Color(0xFF233A2E), Color(0xFF132119)],
+      const [0, 0.14, 0.3, 0.55, 1]);
+  _glow(c, Offset(w * 0.7, h * 0.2), w * 0.55, const Color(0x38FFD9A0));
   const layers = [
-    (Color(0xFFA9C2A8), 0.50, 0.10, 0.20, 0.15),
-    (Color(0xFF7FA287), 0.60, 0.14, 0.26, 0.35),
-    (Color(0xFF527660), 0.73, 0.18, 0.32, 0.65),
-    (Color(0xFF2E4A3A), 0.88, 0.22, 0.40, 1.0),
+    (Color(0xFF52695A), 0.34, 0.10, 0.20, 0.15),
+    (Color(0xFF3B5446), 0.48, 0.14, 0.26, 0.35),
+    (Color(0xFF2A4234), 0.64, 0.18, 0.32, 0.65),
+    (Color(0xFF17281E), 0.84, 0.22, 0.40, 1.0),
   ];
   for (var i = 0; i < layers.length; i++) {
     final (color, base, minH, maxH, speed) = layers[i];
@@ -260,7 +408,7 @@ void _forest(Canvas c, Size size, double t, double scroll) {
         () => _pineRidge(size, 11 + i, h * base, h * minH, h * maxH, w * (0.16 - i * 0.02)));
     _wrapped(c, path, w, scroll * 22 * speed + t * 1.5 * speed, Paint()..color = color);
     if (i < 2) {
-      // Morning mist between the far ridges.
+      // Soft mist between the far ridges.
       final y = h * (base + 0.02);
       c.drawRect(
         Rect.fromLTWH(0, y - h * 0.06, w, h * 0.12),
@@ -268,7 +416,7 @@ void _forest(Canvas c, Size size, double t, double scroll) {
           ..shader = const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0x00FFFFFF), Color(0x55FFFFFF), Color(0x00FFFFFF)],
+            colors: [Color(0x00FFFFFF), Color(0x24FFFFFF), Color(0x00FFFFFF)],
           ).createShader(Rect.fromLTWH(0, y - h * 0.06, w, h * 0.12)),
       );
     }
@@ -281,7 +429,7 @@ void _forest(Canvas c, Size size, double t, double scroll) {
     final x = sd[0] * w + math.sin(t * 0.4 + sd[3] * 6) * 18;
     final y = h * 0.98 - rise;
     final a = 0.25 + 0.75 * (0.5 + 0.5 * math.sin(t * 1.6 + sd[3] * 10));
-    c.drawCircle(Offset(x, y), 2.2 + sd[2] * 1.8, fly..color = Color.fromRGBO(255, 233, 168, a * 0.9));
+    c.drawCircle(Offset(x, y), 2.2 + sd[2] * 1.8, fly..color = Color.fromRGBO(255, 233, 168, a * 0.8));
   }
 }
 
@@ -327,7 +475,7 @@ void _cafe(Canvas c, Size size, double t, double scroll) {
   c.drawLine(Offset(win.center.dx, win.top), Offset(win.center.dx, win.bottom), frame..strokeWidth = 6);
   // Pendant lights with a soft flicker.
   for (var i = 0; i < 3; i++) {
-    final x = w * (0.2 + i * 0.3);
+    final x = w * const [0.165, 0.64, 0.895][i];
     final y = h * (0.07 + (i.isEven ? 0.02 : 0));
     c.drawLine(Offset(x, 0), Offset(x, y), Paint()
       ..color = const Color(0xFF120C08)
@@ -349,11 +497,11 @@ void _cafe(Canvas c, Size size, double t, double scroll) {
   );
   final cup = Offset(w * 0.78, h * 0.84);
   c.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(cup.dx - 24, cup.dy - 40, 48, 40), const Radius.circular(10)),
-      Paint()..color = const Color(0xFFE9DDCC));
+      Paint()..color = const Color(0xFF9C7E64));
   c.drawCircle(Offset(cup.dx + 28, cup.dy - 22), 9, Paint()
     ..style = PaintingStyle.stroke
     ..strokeWidth = 5
-    ..color = const Color(0xFFE9DDCC));
+    ..color = const Color(0xFF9C7E64));
   final steam = Paint()
     ..style = PaintingStyle.stroke
     ..strokeWidth = 3
@@ -405,21 +553,21 @@ void _rain(Canvas c, Size size, double t, double scroll) {
 
 void _ocean(Canvas c, Size size, double t, double scroll) {
   final w = size.width, h = size.height;
-  final horizon = h * 0.56;
-  _gradient(c, Size(w, horizon), const [Color(0xFF3A3A6A), Color(0xFFA25E86), Color(0xFFF1A26C)], const [0, 0.55, 1]);
+  final horizon = h * 0.62;
+  _gradient(c, Size(w, horizon), const [Color(0xFF1C1B40), Color(0xFF3D2E5B), Color(0xFF6E3C63), Color(0xFF9C5166)], const [0, 0.45, 0.82, 1]);
   // Soft clouds.
   final cloud = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
   for (var i = 0; i < 6; i++) {
     final sd = _seeds[i + 120];
     final x = (sd[0] * w + t * (2 + sd[2] * 3) + scroll * 8) % (w + 200) - 100;
     c.drawOval(Rect.fromCenter(center: Offset(x, horizon * (0.25 + sd[1] * 0.5)), width: 160 + sd[3] * 120, height: 26 + sd[2] * 18),
-        cloud..color = const Color(0x40FFD3C2));
+        cloud..color = const Color(0x2EFFD3C2));
   }
   final sun = Offset(w * 0.5, horizon);
-  _glow(c, sun, w * 0.6, const Color(0x99FFD39A));
+  _glow(c, sun, w * 0.42, const Color(0x40FFB07A));
   c.save();
   c.clipRect(Rect.fromLTWH(0, 0, w, horizon));
-  c.drawCircle(sun, w * 0.13, Paint()..color = const Color(0xFFFFD9A0));
+  c.drawCircle(sun.translate(0, w * 0.06), w * 0.1, Paint()..color = const Color(0xFFF2B285));
   c.restore();
   final sea = Rect.fromLTWH(0, horizon, w, h - horizon);
   c.drawRect(
@@ -428,23 +576,26 @@ void _ocean(Canvas c, Size size, double t, double scroll) {
       ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xFF7A5E8E), Color(0xFF34406A), Color(0xFF18213D)],
+        colors: [Color(0xFF5E4A78), Color(0xFF2B3461), Color(0xFF121A35)],
       ).createShader(sea),
   );
   // Shimmer on the sun's path.
-  final shimmer = Paint()..strokeWidth = 2;
+  final shimmer = Paint()
+    ..strokeWidth = 2.5
+    ..strokeCap = StrokeCap.round
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6);
   for (var i = 0; i < 40; i++) {
     final sd = _seeds[i];
     final y = horizon + 6 + sd[1] * (h - horizon) * 0.55;
     final spread = 18 + (y - horizon) * 0.5;
     final x = sun.dx + (sd[0] - 0.5) * spread * 2 + math.sin(t * 0.8 + sd[3] * 6) * 6;
-    final a = 0.15 + 0.45 * (0.5 + 0.5 * math.sin(t * 2 + sd[2] * 9));
+    final a = 0.08 + 0.24 * (0.5 + 0.5 * math.sin(t * 2 + sd[2] * 9));
     shimmer.color = Color.fromRGBO(255, 220, 170, a);
     c.drawLine(Offset(x - 8 - sd[2] * 10, y), Offset(x + 8 + sd[2] * 10, y), shimmer);
   }
   // Gentle waves in the foreground.
   for (var layer = 0; layer < 3; layer++) {
-    final baseY = h * (0.8 + layer * 0.07);
+    final baseY = h * (0.83 + layer * 0.06);
     final path = Path()..moveTo(0, h);
     for (var x = 0.0; x <= w + 10; x += 10) {
       final y = baseY + math.sin(x / (60 + layer * 20) + t * (0.5 + layer * 0.2) + scroll * 0.6) * (5 + layer * 3);
@@ -464,18 +615,20 @@ void _night(Canvas c, Size size, double t, double scroll) {
     final x = ((sd[0] + i * 0.0137) % 1) * w;
     final y = ((sd[1] + i * 0.0071) % 1) * h * 0.7;
     final a = 0.25 + 0.75 * (0.5 + 0.5 * math.sin(t * (0.8 + sd[2] * 1.6) + sd[3] * 12));
-    c.drawCircle(Offset(x, y), 0.6 + sd[2] * 1.3, Paint()..color = Color.fromRGBO(255, 255, 255, a));
+    // Bright in the open sky, faint behind the text (a star must never read as a full stop).
+    final band = 1 - 0.62 * ((y / h - 0.22) / 0.2).clamp(0.0, 1.0);
+    c.drawCircle(Offset(x, y), 0.6 + sd[2] * 1.3, Paint()..color = Color.fromRGBO(255, 255, 255, a * band));
   }
-  final moon = Offset(w * 0.78, h * 0.17);
-  _glow(c, moon, 120, const Color(0x55E8E6FF));
-  c.drawCircle(moon, 26, Paint()..color = const Color(0xFFF4F1E0));
-  c.drawCircle(moon.translate(9, -5), 23, Paint()..color = const Color(0xFF12183A).withValues(alpha: 0.9));
+  final moon = Offset(w * 0.8, h * 0.145);
+  _glow(c, moon, 96, const Color(0x40E8E6FF));
+  c.drawCircle(moon, 18, Paint()..color = const Color(0xFFF4F1E0));
+  c.drawCircle(moon.translate(7, -4), 16, Paint()..color = const Color(0xFF12183A).withValues(alpha: 0.9));
   // An occasional shooting star (every ~16 s).
   final cycle = t % 16;
   if (cycle < 1.2) {
     final p = cycle / 1.2;
-    final start = Offset(w * 0.15, h * 0.12);
-    final head = start + Offset(w * 0.5 * p, h * 0.12 * p);
+    final start = Offset(w * 0.12, h * 0.13);
+    final head = start + Offset(w * 0.42 * p, h * 0.08 * p);
     c.drawLine(head - Offset(w * 0.08, h * 0.02), head, Paint()
       ..shader = LinearGradient(colors: [const Color(0x00FFFFFF), Color.fromRGBO(255, 255, 255, 0.9 * (1 - p))])
           .createShader(Rect.fromPoints(head - Offset(w * 0.08, h * 0.02), head))
@@ -597,11 +750,14 @@ void _meadow(Canvas c, Size size, double t, double scroll) {
   for (var i = 0; i < hills.length; i++) {
     final (color, base, amp, speed) = hills[i];
     final path = _cached('meadow$i-${w.round()}x${h.round()}', () {
+      // Whole periods across the width, and a few pixels of overlap, so the
+      // layer wraps without a seam as it drifts.
+      final periods = const [1, 2, 1][i];
       final p = Path()..moveTo(0, h);
-      for (var x = 0.0; x <= w + 1; x += 8) {
-        p.lineTo(x, h * base + math.sin(x / w * math.pi * 2 * (1 + i * 0.5) + i) * amp + math.sin(x / w * math.pi * 6 + i * 2) * amp * 0.25);
+      for (var x = 0.0; x <= w + 4; x += 4) {
+        p.lineTo(x, h * base + math.sin(x / w * math.pi * 2 * periods + i) * amp + math.sin(x / w * math.pi * 6 + i * 2) * amp * 0.25);
       }
-      p.lineTo(w, h);
+      p.lineTo(w + 4, h);
       p.close();
       return p;
     });
@@ -627,22 +783,22 @@ void _meadow(Canvas c, Size size, double t, double scroll) {
 
 void _snow(Canvas c, Size size, double t, double scroll) {
   final w = size.width, h = size.height;
-  _gradient(c, size, const [Color(0xFF263552), Color(0xFF4B5A7E), Color(0xFF9A93B8), Color(0xFFDCE5F1)], const [0, 0.38, 0.62, 0.78]);
-  _glow(c, Offset(w * 0.5, h * 0.62), w * 0.8, const Color(0x33F6B9C9));
-  final ridge = _cached('snowridge-${w.round()}x${h.round()}', () => _mountains(size, 51, h * 0.66, h * 0.14, 6));
-  _wrapped(c, ridge, w, scroll * 8, Paint()..color = const Color(0xFF6E7BA0));
-  final pines = _cached('snowpines-${w.round()}x${h.round()}', () => _pineRidge(size, 61, h * 0.76, h * 0.12, h * 0.22, w * 0.12));
-  _wrapped(c, pines, w, scroll * 16, Paint()..color = const Color(0xFF223049));
-  // Snowy ground.
+  _gradient(c, size, const [Color(0xFF1B2640), Color(0xFF2B3759), Color(0xFF3F4670), Color(0xFF575C87)], const [0, 0.4, 0.66, 0.86]);
+  _glow(c, Offset(w * 0.5, h * 0.7), w * 0.8, const Color(0x26F6B9C9));
+  final ridge = _cached('snowridge-${w.round()}x${h.round()}', () => _mountains(size, 51, h * 0.72, h * 0.14, 6));
+  _wrapped(c, ridge, w, scroll * 8, Paint()..color = const Color(0xFF465077));
+  final pines = _cached('snowpines-${w.round()}x${h.round()}', () => _pineRidge(size, 61, h * 0.82, h * 0.12, h * 0.22, w * 0.12));
+  _wrapped(c, pines, w, scroll * 16, Paint()..color = const Color(0xFF1A2438));
+  // Moonlit snowy ground.
   final ground = Path()..moveTo(0, h);
   for (var x = 0.0; x <= w + 1; x += 10) {
-    ground.lineTo(x, h * 0.8 + math.sin(x / w * math.pi * 2) * 10);
+    ground.lineTo(x, h * 0.86 + math.sin(x / w * math.pi * 2) * 8);
   }
   ground.lineTo(w, h);
   ground.close();
-  c.drawPath(ground, Paint()..color = const Color(0xFFE8EFF8));
+  c.drawPath(ground, Paint()..color = const Color(0xFF8E9CB6));
   // Cabin with a warm window and chimney smoke.
-  final base = Offset(w * 0.68, h * 0.8);
+  final base = Offset(w * 0.68, h * 0.86);
   c.drawRect(Rect.fromLTWH(base.dx - 40, base.dy - 46, 80, 46), Paint()..color = const Color(0xFF3B2F2B));
   final roof = Path()
     ..moveTo(base.dx - 52, base.dy - 44)
@@ -658,7 +814,7 @@ void _snow(Canvas c, Size size, double t, double scroll) {
     ..lineTo(base.dx, base.dy - 76)
     ..lineTo(base.dx - 46, base.dy - 48)
     ..close();
-  c.drawPath(snowRoof, Paint()..color = const Color(0xFFF2F6FB));
+  c.drawPath(snowRoof, Paint()..color = const Color(0xFFA9B6CB));
   final flicker = 0.85 + 0.15 * math.sin(t * 2.1);
   _glow(c, Offset(base.dx - 12, base.dy - 24), 70, Color.fromRGBO(255, 200, 115, 0.45 * flicker));
   c.drawRect(Rect.fromLTWH(base.dx - 22, base.dy - 34, 20, 18), Paint()..color = const Color(0xFFFFCE7A));
@@ -676,7 +832,7 @@ void _snow(Canvas c, Size size, double t, double scroll) {
     final speed = 18 + sd[2] * 30;
     final y = ((sd[1] * h + t * speed + i * 23) % (h + 20)) - 10;
     final x = ((sd[0] * w + i * 17) % w) + math.sin(t * 0.8 + sd[3] * 10) * 12;
-    c.drawCircle(Offset(x, y), 0.9 + sd[3] * 2.2, Paint()..color = Color.fromRGBO(255, 255, 255, 0.55 + sd[2] * 0.4));
+    c.drawCircle(Offset(x, y), 0.9 + sd[3] * 2.0, Paint()..color = Color.fromRGBO(255, 255, 255, 0.3 + sd[2] * 0.35));
   }
 }
 
@@ -704,7 +860,7 @@ void _city(Canvas c, Size size, double t, double scroll) {
     final a = 0.2 + 0.6 * (0.5 + 0.5 * math.sin(t * (0.7 + sd[2]) + sd[3] * 9));
     c.drawCircle(Offset(sd[0] * w, sd[1] * h * 0.4), 0.6 + sd[2], Paint()..color = Color.fromRGBO(255, 255, 255, a));
   }
-  _glow(c, Offset(w * 0.5, h * 0.7), w * 0.9, const Color(0x40FF7AB8));
+  _glow(c, Offset(w * 0.5, h * 0.72), w * 0.9, const Color(0x30FF7AB8));
   void layer(List<Rect> rects, Color color, double dx, {bool windows = false}) {
     final shift = -(dx % w);
     for (final copy in [0.0, w]) {
@@ -717,9 +873,9 @@ void _city(Canvas c, Size size, double t, double scroll) {
         for (var wy = b.top + 8; wy < h * 0.92; wy += 12) {
           for (var wx = b.left + 5; wx < b.right - 6; wx += 9) {
             final key = (i * 131 + (wy - b.top).round() * 7 + (wx - b.left).round() * 3) % 97;
-            if (key % 3 != 0) continue;
-            final flick = math.sin(t * 0.5 + key) > 0.92 ? 0.25 : 0.85;
-            lit.color = (key % 7 == 0 ? const Color(0xFF9CC9FF) : const Color(0xFFFFD98A)).withValues(alpha: flick);
+            if (key % 5 != 0) continue;
+            final flick = math.sin(t * 0.5 + key) > 0.92 ? 0.15 : 0.5;
+            lit.color = (key % 7 == 0 ? const Color(0xFF8DB4E6) : const Color(0xFFE8C27A)).withValues(alpha: flick);
             c.drawRect(Rect.fromLTWH(wx, wy, 4, 6), lit);
           }
         }
@@ -727,8 +883,8 @@ void _city(Canvas c, Size size, double t, double scroll) {
     }
   }
 
-  layer(_skyline(size, 71, h * 0.7, h * 0.12, h * 0.36), const Color(0xFF2E2756), scroll * 6);
-  layer(_skyline(size, 81, h * 0.8, h * 0.1, h * 0.42), const Color(0xFF141029), scroll * 14, windows: true);
+  layer(_skyline(size, 71, h * 0.74, h * 0.1, h * 0.26), const Color(0xFF2E2756), scroll * 6);
+  layer(_skyline(size, 81, h * 0.82, h * 0.08, h * 0.26), const Color(0xFF141029), scroll * 14, windows: true);
   // Street with moving car lights.
   c.drawRect(Rect.fromLTWH(0, h * 0.93, w, h * 0.07), Paint()..color = const Color(0xFF0B0819));
   for (var i = 0; i < 8; i++) {

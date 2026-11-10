@@ -111,6 +111,25 @@ class BookReelApi {
     return (res['picks'] as List).cast<Map<String, dynamic>>();
   }
 
+  /// Asks the AI which typographic voice fits a book (paid tiers); returns
+  /// the voice name. Only metadata and a short opening sample are sent.
+  Future<String> bookProfile(
+    String tier, {
+    required String title,
+    required String author,
+    required String contentHash,
+    List<String> subjects = const [],
+    required String sample,
+  }) async {
+    final res = (await _send('POST', '/v1/book/profile', {
+      'tier': tier,
+      'book': {'title': title, 'author': author, 'content_hash': contentHash},
+      'subjects': subjects.take(12).toList(),
+      'sample': sample.length > 6000 ? sample.substring(0, 6000) : sample,
+    })) as Map<String, dynamic>;
+    return res['voice'] as String;
+  }
+
   /// Creates a short share link with a web preview; returns its URL.
   Future<String> createShare(Map<String, dynamic> payload) async =>
       ((await _send('POST', '/v1/share', payload)) as Map<String, dynamic>)['url'] as String;

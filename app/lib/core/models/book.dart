@@ -121,6 +121,9 @@ class BookMeta {
     this.positionSid,
     this.progress = 0,
     this.finishedAt,
+    this.subjects = const [],
+    this.voice,
+    this.voiceSource,
   });
 
   final String id;
@@ -139,12 +142,22 @@ class BookMeta {
   final double progress;
   final DateTime? finishedAt;
 
+  /// Genre tags from the file's metadata (`dc:subject`).
+  final List<String> subjects;
+
+  /// Typographic voice of the book (`BookVoice` name), and who chose it:
+  /// "rules" (on-device) or "ai".
+  final String? voice;
+  final String? voiceSource;
+
   BookMeta copyWith({
     DateTime? lastReadAt,
     String? positionSid,
     double? progress,
     DateTime? finishedAt,
     String? coverPath,
+    String? voice,
+    String? voiceSource,
   }) =>
       BookMeta(
         id: id,
@@ -160,6 +173,9 @@ class BookMeta {
         positionSid: positionSid ?? this.positionSid,
         progress: progress ?? this.progress,
         finishedAt: finishedAt ?? this.finishedAt,
+        subjects: subjects,
+        voice: voice ?? this.voice,
+        voiceSource: voiceSource ?? this.voiceSource,
       );
 
   Map<String, dynamic> toJson() => {
@@ -176,6 +192,9 @@ class BookMeta {
         'pos': positionSid,
         'progress': progress,
         'finishedAt': finishedAt?.toIso8601String(),
+        if (subjects.isNotEmpty) 'subjects': subjects,
+        if (voice != null) 'voice': voice,
+        if (voiceSource != null) 'voiceSource': voiceSource,
       };
 
   factory BookMeta.fromJson(Map<String, dynamic> json) => BookMeta(
@@ -192,6 +211,9 @@ class BookMeta {
         positionSid: json['pos'] as String?,
         progress: ((json['progress'] as num?) ?? 0).toDouble(),
         finishedAt: json['finishedAt'] == null ? null : DateTime.parse(json['finishedAt'] as String),
+        subjects: ((json['subjects'] as List?) ?? const []).cast<String>(),
+        voice: json['voice'] as String?,
+        voiceSource: json['voiceSource'] as String?,
       );
 }
 

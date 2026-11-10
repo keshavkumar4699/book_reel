@@ -14,6 +14,7 @@ import { MusicPicker, MusicPlanRequestSchema, type TrackChooser } from "./music/
 import { landingPage, ShareSchema, ShareService } from "./social/shares.js";
 import { SyncPushSchema, SyncService } from "./social/sync.js";
 import type { QuotaStore } from "./stores/memory.js";
+import { BookProfiler, BookProfileRequestSchema, type VoiceChooser } from "./typography/profile.js";
 
 export interface AppDeps {
   db: Db;
@@ -28,6 +29,8 @@ export interface AppDeps {
   music?: Track[];
   /** AI music supervisor (picks tracks for the chapter's music cues). */
   musicChooser?: TrackChooser;
+  /** AI book designer (picks each book's typographic voice). */
+  voiceChooser?: VoiceChooser;
   logger?: boolean;
 }
 
@@ -42,6 +45,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const shares = new ShareService(deps.db, baseUrl);
   const auth = deps.auth ?? new Authenticator(deps.db);
   const picker = new MusicPicker(deps.music ?? [], deps.musicChooser);
+  const profiler = new BookProfiler(deps.voiceChooser);
   const paid = (tier: string) => ["plus", "pro", "scholar"].includes(tier);
 
   const caller = async (req: FastifyRequest): Promise<Caller> => {
@@ -188,6 +192,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return reply.code(403).send({ error: "tier_not_eligible", message: "The soundtrack is available on Plus, Pro and Scholar." });
     }
     return picker.plan(body);
+  });
+
+  // ------------------------------------------------------------ book typography
+  app.post("/v1/book/profile", async (req, reply) => {
+    await caller(req);
+    const body = BookProfileRequestSchema.parse(req.body);
+    if (!paid(body.tier)) {
+      return reply.code(403).send({ error: "tier_not_eligible", message: "AI book design is available on Plus, Pro and Scholar." });
+    }
+    return profiler.profile(body);
   });
 
   // ------------------------------------------------------------ share links & web pages

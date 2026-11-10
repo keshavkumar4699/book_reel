@@ -43,13 +43,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final style = vibeStyles[_vibe]!;
-    final fg = style.dark ? Colors.white : const Color(0xFF1F1D1A);
-    final titleStyle = TextStyle(color: fg, fontSize: 30, fontWeight: FontWeight.w800, height: 1.15, shadows: const [
-      Shadow(color: Color(0x55000000), blurRadius: 12),
-    ]);
-    final bodyStyle = TextStyle(color: fg.withValues(alpha: 0.9), fontSize: 17, height: 1.4, shadows: const [
-      Shadow(color: Color(0x55000000), blurRadius: 10),
-    ]);
+    final palette = scenePalettes[_vibe];
+    final fg = palette?.ink ?? const Color(0xFF1F1D1A);
+    final shadows = palette?.textShadows;
+    final titleStyle = TextStyle(color: fg, fontSize: 30, fontWeight: FontWeight.w800, height: 1.15, shadows: shadows);
+    final bodyStyle = TextStyle(color: fg.withValues(alpha: 0.92), fontSize: 17, height: 1.4, shadows: shadows);
     Widget primary(String label, VoidCallback? onPressed) => SizedBox(
           width: double.infinity,
           child: FilledButton(
@@ -112,18 +110,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return Scaffold(
       body: Stack(children: [
         Positioned.fill(child: VibeBackground(vibe: _vibe)),
-        // Soft scrim so text stays readable over any scene.
-        const Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0x00000000), Color(0x66000000)],
-              ),
-            ),
-          ),
-        ),
+        // The scene's own calibrated shade keeps text readable on it.
+        if (palette != null) Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(gradient: palette.scrim))),
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
