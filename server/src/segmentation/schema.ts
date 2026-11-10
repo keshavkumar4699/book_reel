@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { MOODS } from "../config.js";
+import { LAYOUTS, MOODS, SCENES } from "../config.js";
 
 export const BlockTypeSchema = z.enum(["heading", "paragraph", "quote", "list", "dialogue", "preformatted"]);
 
@@ -35,119 +35,118 @@ export type Sentence = z.infer<typeof SentenceSchema>;
 export type ChapterInput = z.infer<typeof ChapterInputSchema>;
 export type SegmentRequest = z.infer<typeof SegmentRequestSchema>;
 
-/** What the model returns for one chapter (validated with Zod after parsing). */
-export const ModelCardSchema = z.object({
-  start_sid: z.string(),
-  end_sid: z.string(),
-  title: z.string(),
-  hook: z.string(),
-  type: z.string(),
-  standalone: z.boolean(),
-  key_sids: z.array(z.string()),
-  hard_words: z.array(z.object({ word: z.string(), sid: z.string(), meaning: z.string() })),
-  // Older cached answers have no mood; the validator treats unknown values as absent.
-  mood: z.string().optional(),
-  energy: z.number().int().optional(),
-});
+// ---------------------------------------------------------------------------
+// Pass 1 — structure & direction (tier model): where cards start, recaps,
+// recall questions, teaser, the chapter's scenes and its music cues.
 
-export const ModelOutputSchema = z.object({
-  cards: z.array(ModelCardSchema),
+export const StructureOutputSchema = z.object({
+  cards: z.array(z.object({ start_sid: z.string() })),
   recaps: z.array(z.object({ after_card: z.number().int(), bullets: z.array(z.string()) })),
   recalls: z.array(
-    z.object({
-      after_card: z.number().int(),
-      question: z.string(),
-      options: z.array(z.string()),
-      answer_index: z.number().int(),
-    }),
+    z.object({ after_card: z.number().int(), question: z.string(), options: z.array(z.string()), answer_index: z.number().int() }),
   ),
   chapter_teaser: z.string(),
+  scene: z.string(),
+  scene_cues: z.array(z.object({ at_card: z.number().int(), scene: z.string() })),
+  music_cues: z.array(z.object({ at_card: z.number().int(), mood: z.string(), energy: z.number().int(), description: z.string() })),
 });
+export type StructureOutput = z.infer<typeof StructureOutputSchema>;
 
-export type ModelCard = z.infer<typeof ModelCardSchema>;
-export type ModelOutput = z.infer<typeof ModelOutputSchema>;
-
-/**
- * JSON schema for Claude structured outputs (`output_config.format`). Written
- * by hand so every object is closed and every field required.
- */
-export const MODEL_OUTPUT_JSON_SCHEMA = {
+const obj = (properties: Record<string, unknown>) => ({
   type: "object",
   additionalProperties: false,
-  required: ["cards", "recaps", "recalls", "chapter_teaser"],
-  properties: {
-    cards: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["start_sid", "end_sid", "title", "hook", "type", "standalone", "key_sids", "hard_words", "mood", "energy"],
-        properties: {
-          start_sid: { type: "string" },
-          end_sid: { type: "string" },
-          title: { type: "string" },
-          hook: { type: "string" },
-          type: {
-            type: "string",
-            enum: ["narrative", "argument", "example", "dialogue", "definition", "description", "summary", "quote"],
-          },
-          standalone: { type: "boolean" },
-          mood: { type: "string", enum: [...MOODS] },
-          energy: { type: "integer", enum: [1, 2, 3, 4, 5] },
-          key_sids: { type: "array", items: { type: "string" } },
-          hard_words: {
-            type: "array",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["word", "sid", "meaning"],
-              properties: { word: { type: "string" }, sid: { type: "string" }, meaning: { type: "string" } },
-            },
-          },
-        },
-      },
-    },
-    recaps: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["after_card", "bullets"],
-        properties: { after_card: { type: "integer" }, bullets: { type: "array", items: { type: "string" } } },
-      },
-    },
-    recalls: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["after_card", "question", "options", "answer_index"],
-        properties: {
-          after_card: { type: "integer" },
-          question: { type: "string" },
-          options: { type: "array", items: { type: "string" } },
-          answer_index: { type: "integer" },
-        },
-      },
-    },
-    chapter_teaser: { type: "string" },
-  },
-} as const;
+  required: Object.keys(properties),
+  properties,
+});
+const arr = (items: unknown) => ({ type: "array", items });
+const str = { type: "string" };
+const int = { type: "integer" };
 
-/** Card/chapter shape returned to the app (app/lib/data/ai_client.dart). */
+/** JSON schema for Claude structured outputs (closed objects, all fields required). */
+export const STRUCTURE_JSON_SCHEMA = obj({
+  cards: arr(obj({ start_sid: str })),
+  recaps: arr(obj({ after_card: int, bullets: arr(str) })),
+  recalls: arr(obj({ after_card: int, question: str, options: arr(str), answer_index: int })),
+  chapter_teaser: str,
+  scene: { type: "string", enum: [...SCENES] },
+  scene_cues: arr(obj({ at_card: int, scene: { type: "string", enum: [...SCENES] } })),
+  music_cues: arr(
+    obj({ at_card: int, mood: { type: "string", enum: [...MOODS] }, energy: { type: "integer", enum: [1, 2, 3, 4, 5] }, description: str }),
+  ),
+});
+
+// ---------------------------------------------------------------------------
+// Pass 2 — art direction per card (fast model): which phrases to make big,
+// layout, key sentences, mood/energy, hard words.
+
+export const PresentationOutputSchema = z.object({
+  cards: z.array(
+    z.object({
+      card: z.number().int(),
+      layout: z.string(),
+      emphasis: z.array(z.object({ sid: z.string(), text: z.string(), level: z.number().int() })),
+      key_sids: z.array(z.string()),
+      mood: z.string(),
+      energy: z.number().int(),
+      hard_words: z.array(z.object({ word: z.string(), sid: z.string(), meaning: z.string() })),
+    }),
+  ),
+});
+export type PresentationOutput = z.infer<typeof PresentationOutputSchema>;
+
+export const PRESENTATION_JSON_SCHEMA = obj({
+  cards: arr(
+    obj({
+      card: int,
+      layout: { type: "string", enum: [...LAYOUTS] },
+      emphasis: arr(obj({ sid: str, text: str, level: { type: "integer", enum: [2, 3] } })),
+      key_sids: arr(str),
+      mood: { type: "string", enum: [...MOODS] },
+      energy: { type: "integer", enum: [1, 2, 3, 4, 5] },
+      hard_words: arr(obj({ word: str, sid: str, meaning: str })),
+    }),
+  ),
+});
+
+// ---------------------------------------------------------------------------
+// What the app receives (app/lib/data/ai_client.dart → parseServerChapter).
+
+export interface Emphasis {
+  sid: string;
+  /** Exact substring of the sentence. */
+  text: string;
+  /** 2 = large, 3 = hero. */
+  level: number;
+}
+
 export interface OutCard {
   start_sid: string;
   end_sid: string;
-  title?: string;
-  hook?: string;
   type: string;
   standalone: boolean;
   key_sids: string[];
   hard_words: { word: string; sid: string; meaning?: string }[];
-  /** Emotional tone of the card (soundtrack); absent for rule-based cards. */
+  /** Emotional tone of the card; absent for rule-based cards. */
   mood?: string;
   /** 1 (very quiet) – 5 (intense). */
   energy?: number;
+  emphasis?: Emphasis[];
+  layout?: string;
+  title?: string;
+  hook?: string;
+}
+
+export interface SceneCue {
+  at_card: number;
+  scene: string;
+}
+
+export interface MusicCue {
+  at_card: number;
+  mood: string;
+  energy: number;
+  /** Ideal music in a few words, e.g. "soft lo-fi piano, curious". */
+  description: string;
 }
 
 export interface OutChapter {
@@ -157,6 +156,12 @@ export interface OutChapter {
   recaps: { after_card: number; bullets: string[] }[];
   recalls: { after_card: number; question: string; options: string[]; answer_index: number }[];
   teaser?: string;
-  /** Set when the validator had to repair the model output. */
+  /** Default background scene for the chapter. */
+  scene?: string;
+  scene_cues: SceneCue[];
+  music_cues: MusicCue[];
+  /** Set when the validator had to repair the structure. */
   repaired?: number;
+  /** Number of cards that received art direction. */
+  presented?: number;
 }

@@ -1,6 +1,6 @@
-import type { ChapterInput, ModelOutput, Sentence } from "../src/segmentation/schema.js";
+import type { ChapterInput, PresentationOutput, Sentence, StructureOutput } from "../src/segmentation/schema.js";
 
-/** A chapter of `blocks` paragraphs with `perBlock` ~12-word sentences each. */
+/** A chapter of `blocks` paragraphs with `perBlock` ~15-word sentences each. */
 export function makeChapter(index = 0, blocks = 12, perBlock = 4): ChapterInput {
   const sentences: Sentence[] = [];
   for (let b = 0; b < blocks; b++) {
@@ -15,28 +15,32 @@ export function makeChapter(index = 0, blocks = 12, perBlock = 4): ChapterInput 
   return { index, title: `Chapter ${index + 1}`, context_before: "", sentences };
 }
 
-/** A perfect model answer: one card per two paragraphs (~8 sentences, ~120 words). */
-export function perfectOutput(ch: ChapterInput, perCard = 8): ModelOutput {
+/** A clean pass-1 answer: one card every `perCard` sentences (8 ≈ 120 words). */
+export function structureOutput(ch: ChapterInput, perCard = 8): StructureOutput {
   const cards = [];
-  for (let i = 0; i < ch.sentences.length; i += perCard) {
-    const slice = ch.sentences.slice(i, i + perCard);
-    cards.push({
-      start_sid: slice[0]!.sid,
-      end_sid: slice[slice.length - 1]!.sid,
-      title: "Why small habits compound",
-      hook: "Tiny actions add up faster than you think.",
-      type: "argument",
-      standalone: true,
-      mood: "reflective",
-      energy: 2,
-      key_sids: [slice[1]!.sid],
-      hard_words: [{ word: "habits", sid: slice[0]!.sid, meaning: "repeated behaviours" }],
-    });
-  }
+  for (let i = 0; i < ch.sentences.length; i += perCard) cards.push({ start_sid: ch.sentences[i]!.sid });
   return {
     cards,
     recaps: [{ after_card: cards.length - 1, bullets: ["Small habits compound.", "Systems beat goals."] }],
     recalls: [],
     chapter_teaser: "What if the smallest change mattered most?",
+    scene: "forest",
+    scene_cues: [],
+    music_cues: [{ at_card: 0, mood: "calm", energy: 2, description: "soft piano" }],
+  };
+}
+
+/** A clean pass-2 answer for the given card numbers. */
+export function presentationOutput(cards: { index: number; sentences: Sentence[] }[]): PresentationOutput {
+  return {
+    cards: cards.map((c) => ({
+      card: c.index,
+      layout: "centered",
+      emphasis: [{ sid: c.sentences[0]!.sid, text: "quiet power", level: 3 }],
+      key_sids: [c.sentences[0]!.sid],
+      mood: "reflective",
+      energy: 2,
+      hard_words: [{ word: "habits", sid: c.sentences[0]!.sid, meaning: "repeated behaviours" }],
+    })),
   };
 }

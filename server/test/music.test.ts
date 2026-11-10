@@ -63,7 +63,14 @@ describe("GET /v1/music/tracks", () => {
   afterEach(() => db.close());
 
   it("is for paid tiers only", async () => {
-    const model: ModelSegmenter = { segment: async () => { throw new Error("unused"); } };
+    const model: ModelSegmenter = {
+      structure: async () => {
+        throw new Error("unused");
+      },
+      present: async () => {
+        throw new Error("unused");
+      },
+    };
     const quota = new SqlQuotaStore(db);
     const segments = new SegmentService({ cache: new SqlSegmentCache(db), quota, usage: new SqlUsageLog(db), model });
     const app = buildApp({ db, segments, quota, music: [good as never] });
@@ -73,5 +80,10 @@ describe("GET /v1/music/tracks", () => {
     const ok = await app.inject({ url: "/v1/music/tracks?tier=pro", headers });
     expect(ok.statusCode).toBe(200);
     expect(ok.json().tracks[0].attribution).toBe("A – Morning Mist");
+
+    const cues = [{ at_card: 0, mood: "calm", energy: 1, description: "soft" }];
+    expect((await app.inject({ method: "POST", url: "/v1/music/plan", headers, payload: { tier: "free", cues } })).statusCode).toBe(403);
+    const plan = await app.inject({ method: "POST", url: "/v1/music/plan", headers, payload: { tier: "plus", cues } });
+    expect(plan.json()).toEqual({ picks: [{ at_card: 0, track_id: "t1" }], source: "rules" });
   });
 });

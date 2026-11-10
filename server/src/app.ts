@@ -10,6 +10,7 @@ import { LeagueService } from "./habit/leagues.js";
 import { SegmentRequestSchema } from "./segmentation/schema.js";
 import { QuotaExceeded, SegmentService, TierNotEligible, type Caller } from "./segmentation/service.js";
 import type { Track } from "./music/catalog.js";
+import { MusicPicker, MusicPlanRequestSchema, type TrackChooser } from "./music/picker.js";
 import { landingPage, ShareSchema, ShareService } from "./social/shares.js";
 import { SyncPushSchema, SyncService } from "./social/sync.js";
 import type { QuotaStore } from "./stores/memory.js";
@@ -25,6 +26,8 @@ export interface AppDeps {
   androidCertFingerprints?: string[];
   /** Licensed soundtrack catalog (paid tiers). */
   music?: Track[];
+  /** AI music supervisor (picks tracks for the chapter's music cues). */
+  musicChooser?: TrackChooser;
   logger?: boolean;
 }
 
@@ -38,6 +41,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const sync = new SyncService(deps.db);
   const shares = new ShareService(deps.db, baseUrl);
   const auth = deps.auth ?? new Authenticator(deps.db);
+  const picker = new MusicPicker(deps.music ?? [], deps.musicChooser);
+  const paid = (tier: string) => ["plus", "pro", "scholar"].includes(tier);
 
   const caller = async (req: FastifyRequest): Promise<Caller> => {
     const c = await auth.resolve(req);
@@ -169,10 +174,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     await caller(req);
     // Entitlements arrive with Play Billing (Phase 8); until then the tier is the client's claim, as for /v1/segment.
     const tier = req.query.tier ?? "free";
-    if (!["plus", "pro", "scholar"].includes(tier)) {
+    if (!paid(tier)) {
       return reply.code(403).send({ error: "tier_not_eligible", message: "The soundtrack is available on Plus, Pro and Scholar." });
     }
     return { tracks: deps.music ?? [] };
+  });
+
+  // The AI picks the best catalog track for each of a chapter's music cues.
+  app.post("/v1/music/plan", async (req, reply) => {
+    await caller(req);
+    const body = MusicPlanRequestSchema.parse(req.body);
+    if (!paid(body.tier)) {
+      return reply.code(403).send({ error: "tier_not_eligible", message: "The soundtrack is available on Plus, Pro and Scholar." });
+    }
+    return picker.plan(body);
   });
 
   // ------------------------------------------------------------ share links & web pages

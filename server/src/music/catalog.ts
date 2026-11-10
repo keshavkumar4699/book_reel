@@ -22,6 +22,8 @@ export const TrackSchema = z.object({
   energy: z.number().int().min(1).max(5),
   bpm: z.number().int().positive().optional(),
   duration_s: z.number().int().positive().optional(),
+  /** Genre, instruments and feel, e.g. "lo-fi piano, rain". Helps the AI choose. */
+  description: z.string().max(200).optional(),
   license: z.string().min(3).max(300),
   attribution: z.string().min(3).max(300),
   source_url: z.string().url().optional(),

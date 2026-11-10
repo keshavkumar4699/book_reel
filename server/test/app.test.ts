@@ -5,7 +5,7 @@ import type { Db } from "../src/db/db.js";
 import type { ModelSegmenter } from "../src/segmentation/claudeSegmenter.js";
 import { SegmentService } from "../src/segmentation/service.js";
 import { SqlJobStore, SqlQuotaStore, SqlSegmentCache, SqlUsageLog } from "../src/stores/sql.js";
-import { makeChapter, perfectOutput } from "./fixtures.js";
+import { makeChapter, presentationOutput, structureOutput } from "./fixtures.js";
 import { testDb } from "./helpers.js";
 
 let db: Db;
@@ -16,7 +16,8 @@ afterEach(() => db.close());
 
 function app() {
   const model: ModelSegmenter = {
-    segment: async (job) => ({ output: perfectOutput(job.chapter), model: job.route.model, inputTokens: 1, outputTokens: 1 }),
+    structure: async (job) => ({ output: structureOutput(job.chapter), model: job.route.model, inputTokens: 1, outputTokens: 1 }),
+    present: async (job) => ({ output: presentationOutput(job.cards), model: "claude-haiku-5-5", inputTokens: 1, outputTokens: 1 }),
   };
   const quota = new SqlQuotaStore(db);
   const segments = new SegmentService({
@@ -51,8 +52,15 @@ describe("HTTP API", () => {
     const res = await a.inject({ method: "POST", url: "/v1/segment", headers: device, payload: body() });
     expect(res.statusCode).toBe(200);
     const json = res.json();
-    expect(json.chapters[0].cards[0]).toMatchObject({ start_sid: "c0.b0.s0", end_sid: "c0.b1.s3", key_sids: ["c0.b0.s1"] });
-    expect(json.quota).toEqual({ used: 1, limit: 20 });
+    expect(json.chapters[0].cards[0]).toMatchObject({
+      start_sid: "c0.b0.s0",
+      end_sid: "c0.b1.s3",
+      key_sids: ["c0.b0.s0"],
+      layout: "centered",
+      emphasis: [{ sid: "c0.b0.s0", text: "quiet power", level: 3 }],
+    });
+    expect(json.chapters[0]).toMatchObject({ scene: "forest", music_cues: [{ at_card: 0, mood: "calm" }] });
+    expect(json.quota).toEqual({ used: 1, limit: 12 });
     const again = (await a.inject({ method: "POST", url: "/v1/segment", headers: device, payload: body() })).json();
     expect(again.cached).toBe(1);
   });

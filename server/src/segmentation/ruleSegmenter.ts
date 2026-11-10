@@ -122,5 +122,5 @@ export function ruleSegmentChapter(index: number, sentences: Sentence[], length:
       hard_words: [],
     });
   }
-  return { index, source: "rules", cards, recaps: [], recalls: [] };
+  return { index, source: "rules", cards, recaps: [], recalls: [], scene_cues: [], music_cues: [] };
 }

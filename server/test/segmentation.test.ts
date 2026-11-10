@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { LENGTH_BANDS } from "../src/config.js";
-import { buildUserPrompt, SYSTEM_PROMPT } from "../src/segmentation/prompt.js";
+import { buildPresentationPrompt, buildStructurePrompt, PRESENTATION_SYSTEM_PROMPT, STRUCTURE_SYSTEM_PROMPT } from "../src/segmentation/prompt.js";
 import { countWords, ruleSegmentChapter, SCENE_BREAK } from "../src/segmentation/ruleSegmenter.js";
-import { InvalidModelOutput, validateAndRepair } from "../src/segmentation/validator.js";
-import { makeChapter, perfectOutput } from "./fixtures.js";
+import { applyPresentation, cardSentences, InvalidModelOutput, validateStructure } from "../src/segmentation/validator.js";
+import { makeChapter, presentationOutput, structureOutput } from "./fixtures.js";
 
 const sidsOf = (ch: ReturnType<typeof makeChapter>, start: string, end: string) => {
   const ids = ch.sentences.map((s) => s.sid);
@@ -15,8 +15,7 @@ describe("rule segmenter", () => {
   it("covers every sentence in order and stays in band", () => {
     const ch = makeChapter(0, 20, 4);
     const out = ruleSegmentChapter(0, ch.sentences, "standard");
-    const covered = out.cards.flatMap((c) => sidsOf(ch, c.start_sid, c.end_sid));
-    expect(covered).toEqual(ch.sentences.map((s) => s.sid));
+    expect(out.cards.flatMap((c) => sidsOf(ch, c.start_sid, c.end_sid))).toEqual(ch.sentences.map((s) => s.sid));
     const band = LENGTH_BANDS.standard;
     for (const c of out.cards) {
       const words = sidsOf(ch, c.start_sid, c.end_sid).length * 15;
@@ -38,87 +37,130 @@ describe("rule segmenter", () => {
   });
 });
 
-describe("validator", () => {
-  it("accepts a good answer unchanged", () => {
+describe("pass 1: structure", () => {
+  it("turns card starts into contiguous cards and keeps direction", () => {
     const ch = makeChapter();
-    const v = validateAndRepair(0, ch.sentences, perfectOutput(ch), "standard");
+    const v = validateStructure(0, ch.sentences, structureOutput(ch), "standard");
     expect(v.repairRate).toBe(0);
     expect(v.chapter.cards).toHaveLength(6);
-    expect(v.chapter.cards[0]!.key_sids).toEqual(["c0.b0.s1"]);
-    expect(v.chapter.recaps).toHaveLength(1);
+    expect(v.chapter.cards.flatMap((c) => sidsOf(ch, c.start_sid, c.end_sid))).toEqual(ch.sentences.map((s) => s.sid));
+    expect(v.chapter.scene).toBe("forest");
+    expect(v.chapter.music_cues).toEqual([{ at_card: 0, mood: "calm", energy: 2, description: "soft piano" }]);
+    expect(v.chapter.recaps[0]!.after_card).toBe(5);
   });
 
-  it("repairs gaps, overlaps and a missing tail", () => {
+  it("adds a missing first card, merges tiny cards, splits huge ones", () => {
     const ch = makeChapter();
-    const out = perfectOutput(ch);
-    out.cards[1]!.start_sid = "c0.b2.s2"; // gap of two sentences after card 0
-    out.cards[3]!.start_sid = "c0.b5.s0"; // overlaps card 2
-    out.cards.pop(); // tail missing
-    const v = validateAndRepair(0, ch.sentences, out, "standard");
-    const covered = v.chapter.cards.flatMap((c) => sidsOf(ch, c.start_sid, c.end_sid));
-    expect(covered).toEqual(ch.sentences.map((s) => s.sid));
-    expect(v.repairs).toBeGreaterThan(0);
-  });
-
-  it("merges too-short cards and splits too-long cards", () => {
-    const ch = makeChapter();
-    const out = perfectOutput(ch);
-    // card 0 → two tiny cards; last two cards → one huge card
-    const first = out.cards[0]!;
-    out.cards.splice(0, 1, { ...first, end_sid: "c0.b0.s0" }, { ...first, start_sid: "c0.b0.s1", end_sid: "c0.b1.s3" });
-    const merged = { ...out.cards[out.cards.length - 2]!, end_sid: out.cards[out.cards.length - 1]!.end_sid };
-    out.cards.splice(out.cards.length - 2, 2, merged);
-    const v = validateAndRepair(0, ch.sentences, out, "standard");
+    const out = structureOutput(ch);
+    out.cards.shift(); // no card at the first sentence
+    out.cards.splice(1, 0, { start_sid: "c0.b3.s1" }); // a 1-sentence card
+    const v = validateStructure(0, ch.sentences, out, "standard");
+    expect(v.chapter.cards[0]!.start_sid).toBe("c0.b0.s0");
     const band = LENGTH_BANDS.standard;
     for (const c of v.chapter.cards) {
       const words = sidsOf(ch, c.start_sid, c.end_sid).reduce((a, sid) => a + countWords(ch.sentences.find((s) => s.sid === sid)!.text), 0);
       expect(words).toBeGreaterThanOrEqual(band.min * 0.5);
       expect(words).toBeLessThanOrEqual(band.max);
     }
+    expect(v.repairs).toBeGreaterThan(0);
+  });
+
+  it("remaps cues and recaps onto repaired cards and drops invalid ones", () => {
+    const ch = makeChapter(0, 12, 4); // 48 sentences
+    const out = structureOutput(ch, 4); // 12 model cards of ~60 words (bite band keeps them)
+    out.scene_cues = [
+      { at_card: 6, scene: "night" },
+      { at_card: 8, scene: "night" }, // same as previous: dropped
+      { at_card: 9, scene: "volcano" }, // unknown scene: dropped
+    ];
+    out.music_cues = [
+      { at_card: 2, mood: "calm", energy: 9, description: "x".repeat(200) }, // first cue moves to card 0, energy clamped
+      { at_card: 7, mood: "tense", energy: 4, description: "pulsing synths" },
+      { at_card: 9, mood: "furious", energy: 3, description: "" }, // unknown mood: dropped
+    ];
+    out.recaps = [{ after_card: 5, bullets: ["a"] }];
+    const v = validateStructure(0, ch.sentences, out, "bite");
+    expect(v.chapter.cards).toHaveLength(12);
+    expect(v.chapter.scene_cues).toEqual([{ at_card: 6, scene: "night" }]);
+    expect(v.chapter.music_cues.map((c) => [c.at_card, c.mood, c.energy])).toEqual([
+      [0, "calm", 5],
+      [7, "tense", 4],
+    ]);
+    expect(v.chapter.music_cues[0]!.description).toHaveLength(80);
+    expect(v.chapter.recaps[0]!.after_card).toBe(5);
+
+    // Merge two model cards into one by asking for a bigger band: card numbers shift.
+    const merged = validateStructure(0, ch.sentences, out, "standard");
+    expect(merged.chapter.cards.length).toBeLessThan(12);
+    const cue = merged.chapter.music_cues[1]!;
+    const cueCard = merged.chapter.cards[cue.at_card]!;
+    expect(sidsOf(ch, cueCard.start_sid, cueCard.end_sid)).toContain(out.cards[7]!.start_sid);
   });
 
   it("rejects hallucinated sentence ids", () => {
     const ch = makeChapter();
-    const out = perfectOutput(ch);
-    out.cards[2]!.end_sid = "c0.b77.s0";
-    expect(() => validateAndRepair(0, ch.sentences, out, "standard")).toThrow(InvalidModelOutput);
-  });
-
-  it("drops extras that point outside the card or at words not in the sentence", () => {
-    const ch = makeChapter();
-    const out = perfectOutput(ch);
-    out.cards[0]!.key_sids = ["c0.b0.s1", "c0.b9.s0"];
-    out.cards[0]!.hard_words.push({ word: "zeugma", sid: "c0.b0.s0", meaning: "x" });
-    out.cards[0]!.title = "one two three four five six seven eight nine ten";
-    out.recalls = [{ after_card: 0, question: "q", options: ["a", "b", "c"], answer_index: 7 }];
-    const v = validateAndRepair(0, ch.sentences, out, "standard");
-    expect(v.chapter.cards[0]!.key_sids).toEqual(["c0.b0.s1"]);
-    expect(v.chapter.cards[0]!.hard_words.map((h) => h.word)).toEqual(["habits"]);
-    expect(v.chapter.cards[0]!.title).toBe("one two three four five six seven eight…");
-    expect(v.chapter.recalls).toHaveLength(0);
+    const out = structureOutput(ch);
+    out.cards[2] = { start_sid: "c0.b77.s0" };
+    expect(() => validateStructure(0, ch.sentences, out, "standard")).toThrow(InvalidModelOutput);
   });
 });
 
-describe("prompt", () => {
-  it("numbers sentences, groups blocks and keeps per-request data out of the system prompt", () => {
+describe("pass 2: art direction", () => {
+  const ch = makeChapter();
+  const chapter = validateStructure(0, ch.sentences, structureOutput(ch), "standard").chapter;
+  const cards = cardSentences(chapter, ch.sentences).map((sentences, index) => ({ index, sentences }));
+
+  it("merges emphasis, layout, mood and words into the cards", () => {
+    const r = applyPresentation(chapter, ch.sentences, presentationOutput(cards));
+    expect(r.applied).toBe(6);
+    expect(r.chapter.presented).toBe(6);
+    expect(r.chapter.cards[0]).toMatchObject({
+      layout: "centered",
+      mood: "reflective",
+      energy: 2,
+      key_sids: ["c0.b0.s0"],
+      emphasis: [{ sid: "c0.b0.s0", text: "quiet power", level: 3 }],
+    });
+  });
+
+  it("only accepts phrases that really appear in that card's sentence", () => {
+    const out = presentationOutput(cards.slice(0, 1));
+    out.cards[0]!.emphasis = [
+      { sid: "c0.b0.s0", text: "QUIET POWER", level: 3 }, // case differs: kept with the author's casing
+      { sid: "c0.b0.s0", text: "invented phrase", level: 2 }, // not in the text
+      { sid: "c0.b5.s0", text: "small idea", level: 2 }, // another card's sentence
+      { sid: "c0.b0.s1", text: "small idea about habits", level: 3 }, // second hero → demoted to 2
+      { sid: "c0.b0.s0", text: "power", level: 2 }, // overlaps the first phrase
+      { sid: "c0.b0.s2", text: ch.sentences[2]!.text, level: 2 }, // the whole sentence
+    ];
+    const r = applyPresentation(chapter, ch.sentences, out);
+    expect(r.chapter.cards[0]!.emphasis).toEqual([
+      { sid: "c0.b0.s0", text: "quiet power", level: 3 },
+      { sid: "c0.b0.s1", text: "small idea about habits", level: 2 },
+    ]);
+    expect(r.dropped).toBe(4);
+  });
+
+  it("ignores unknown card numbers and invalid layouts", () => {
+    const out = presentationOutput(cards.slice(0, 1));
+    out.cards.push({ ...out.cards[0]!, card: 99 });
+    out.cards[0]!.layout = "spiral";
+    const r = applyPresentation(chapter, ch.sentences, out);
+    expect(r.chapter.cards[0]!.layout).toBeUndefined();
+    expect(r.dropped).toBeGreaterThan(0);
+  });
+});
+
+describe("prompts", () => {
+  it("number sentences, group cards and keep per-request data out of system prompts", () => {
     const ch = makeChapter(2, 3, 2);
-    const p = buildUserPrompt({ title: "Atomic", author: "A", chapter: ch, length: "bite", level: "beginner" });
+    const p = buildStructurePrompt({ title: "Atomic", author: "A", chapter: ch, length: "snack", level: "beginner" });
     expect(p).toContain("[c2.b0.s0] Sentence 0 of paragraph 0");
-    expect(p).toContain("<paragraph>");
-    expect(p).toContain("45-110 words");
-    expect(SYSTEM_PROMPT).not.toContain("Atomic");
-  });
-});
-
-describe("card mood", () => {
-  it("keeps valid moods and energies, drops unknown ones", () => {
-    const ch = makeChapter();
-    const out = perfectOutput(ch);
-    out.cards[1]!.mood = "furious";
-    out.cards[2]!.energy = 9;
-    const v = validateAndRepair(0, ch.sentences, out, "standard");
-    expect(v.chapter.cards[0]).toMatchObject({ mood: "reflective", energy: 2 });
-    expect(v.chapter.cards[1]!.mood).toBeUndefined();
-    expect(v.chapter.cards[2]!.energy).toBe(5);
+    expect(p).toContain("12-55 words");
+    const q = buildPresentationPrompt({ title: "Atomic", author: "A", chapterIndex: 2, chapterTitle: "T", level: "advanced", cards: [{ index: 4, sentences: ch.sentences.slice(0, 2) }] });
+    expect(q).toContain("[card 4]");
+    expect(q).toContain("advanced reader");
+    expect(STRUCTURE_SYSTEM_PROMPT + PRESENTATION_SYSTEM_PROMPT).not.toContain("Atomic");
+    for (const scene of ["forest", "cafe", "rain", "ocean", "night", "meadow", "snow", "city"]) expect(STRUCTURE_SYSTEM_PROMPT).toContain(`- ${scene}:`);
   });
 });

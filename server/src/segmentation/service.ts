@@ -1,11 +1,18 @@
 import { randomUUID } from "node:crypto";
 
-import { quotaFor, routeFor, SEGMENTER_VERSION, type CardLength, type ReadingLevel, type Tier } from "../config.js";
+import { LIMITS, quotaFor, routeFor, SEGMENTER_VERSION, type CardLength, type ReadingLevel, type Tier } from "../config.js";
 import type { QuotaStore, SegmentCache, UsageLog } from "../stores/memory.js";
 import type { BatchClient } from "./batch.js";
-import { ModelFailure, ModelRefusal, parseModelText, type ChapterJob, type ModelSegmenter } from "./claudeSegmenter.js";
+import {
+  ModelFailure,
+  ModelRefusal,
+  parseStructure,
+  type ModelResult,
+  type ModelSegmenter,
+  type StructureJob,
+} from "./claudeSegmenter.js";
 import type { ChapterInput, OutChapter, SegmentRequest } from "./schema.js";
-import { InvalidModelOutput, validateAndRepair } from "./validator.js";
+import { applyPresentation, cardSentences, InvalidModelOutput, validateStructure } from "./validator.js";
 
 /** Per-million-token prices (USD, Anthropic first-party, Oct 2026) for usage logging. */
 const PRICES: Record<string, { input: number; output: number }> = {
@@ -49,6 +56,8 @@ export interface BatchJob {
   tier: Tier;
   length: CardLength;
   level: ReadingLevel;
+  title?: string;
+  author?: string;
   /** Chapter inputs keyed by batch custom_id (`ch<index>`). */
   chapters: Record<string, ChapterInput>;
   status: "pending" | "done" | "failed";
@@ -73,6 +82,14 @@ export class MemoryJobStore implements JobStore {
   }
 }
 
+/**
+ * Two-pass AI pipeline (DESIGN.md §4):
+ *  1. structure & direction with the tier's model (cards, recaps, recall,
+ *     teaser, scenes, music cues), validated and repaired in code;
+ *  2. art direction per card with the fast model (emphasis, layout, mood,
+ *     word meanings), in batches, validated phrase by phrase.
+ * Pass 2 is best effort: a chapter without it still has good cards.
+ */
 export class SegmentService {
   private readonly jobs: JobStore;
 
@@ -104,6 +121,18 @@ export class SegmentService {
     const used = await this.deps.quota.booksUsed(caller.userId, this.period());
     if (!used.has(hash) && used.size >= limit) throw new QuotaExceeded(limit);
     return { used: used.size + (used.has(hash) ? 0 : 1), limit };
+  }
+
+  private async log(caller: Caller, res: ModelResult<unknown>, batch = false) {
+    await this.deps.usage.add({
+      userId: caller.userId,
+      model: res.model,
+      inputTokens: res.inputTokens,
+      outputTokens: res.outputTokens,
+      costUsd: estimateCost(res.model, res.inputTokens, res.outputTokens, batch),
+      batch,
+      at: new Date(),
+    });
   }
 
   async segment(req: SegmentRequest, caller: Caller): Promise<SegmentResponse> {
@@ -154,21 +183,13 @@ export class SegmentService {
     return { chapters, cached, fallback, quota };
   }
 
-  /** Model call → validate/repair → one retry on failure or heavy repair → null means "use rules". */
-  private async segmentOne(job: ChapterJob, caller: Caller): Promise<OutChapter | null> {
+  /** Pass 1 with one retry on failure or heavy repair; null means "use rules". */
+  private async structureOne(job: StructureJob, caller: Caller): Promise<OutChapter | null> {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const res = await this.deps.model.segment(job);
-        await this.deps.usage.add({
-          userId: caller.userId,
-          model: res.model,
-          inputTokens: res.inputTokens,
-          outputTokens: res.outputTokens,
-          costUsd: estimateCost(res.model, res.inputTokens, res.outputTokens),
-          batch: false,
-          at: new Date(),
-        });
-        const v = validateAndRepair(job.chapter.index, job.chapter.sentences, res.output, job.length);
+        const res = await this.deps.model.structure(job);
+        await this.log(caller, res);
+        const v = validateStructure(job.chapter.index, job.chapter.sentences, res.output, job.length);
         if (v.repairRate <= MAX_REPAIR_RATE) return v.chapter;
       } catch (e) {
         if (e instanceof ModelRefusal) return null; // retrying a refusal won't help
@@ -176,6 +197,43 @@ export class SegmentService {
       }
     }
     return null;
+  }
+
+  private async segmentOne(job: StructureJob, caller: Caller): Promise<OutChapter | null> {
+    const chapter = await this.structureOne(job, caller);
+    return chapter ? this.present(chapter, job, caller) : null;
+  }
+
+  /** Pass 2 in batches of cards; failed batches simply keep plain cards. */
+  private async present(
+    chapter: OutChapter,
+    job: { title: string; author: string; chapter: ChapterInput; level: ReadingLevel },
+    caller: Caller,
+  ): Promise<OutChapter> {
+    const perCard = cardSentences(chapter, job.chapter.sentences);
+    const batches: { index: number; sentences: (typeof perCard)[number] }[][] = [];
+    for (let i = 0; i < perCard.length; i += LIMITS.presentationBatch) {
+      batches.push(perCard.slice(i, i + LIMITS.presentationBatch).map((sentences, k) => ({ index: i + k, sentences })));
+    }
+    const settled = await Promise.allSettled(
+      batches.map((cards) =>
+        this.deps.model.present({
+          title: job.title,
+          author: job.author,
+          chapterIndex: job.chapter.index,
+          chapterTitle: job.chapter.title,
+          level: job.level,
+          cards,
+        }),
+      ),
+    );
+    let result = chapter;
+    for (const s of settled) {
+      if (s.status !== "fulfilled") continue; // refusal, failure or bad JSON: keep plain cards
+      await this.log(caller, s.value);
+      result = applyPresentation(result, job.chapter.sentences, s.value.output).chapter;
+    }
+    return result;
   }
 
   // ------------------------------------------------------------------ batch
@@ -200,6 +258,7 @@ export class SegmentService {
         chapter,
         length: req.card_length,
         level: req.reading_level,
+        // Server-side fallbacks aren't available on the Batch API.
         route: { ...route, serverFallback: false },
       },
     }));
@@ -212,6 +271,8 @@ export class SegmentService {
       tier: req.tier,
       length: req.card_length,
       level: req.reading_level,
+      title: req.book.title,
+      author: req.book.author,
       chapters: Object.fromEntries(missing.map((c) => [`ch${c.index}`, c])),
       status: "pending",
       createdAt: new Date(),
@@ -220,7 +281,11 @@ export class SegmentService {
     return { jobId: job.id };
   }
 
-  /** Polls a background job; when the batch has ended, validates, caches and returns results. */
+  /**
+   * Polls a background job. When the batch (pass 1, half price) has ended,
+   * validates it, runs pass 2 in real time (fast and cheap), caches and
+   * returns the chapters.
+   */
   async pollJob(jobId: string, caller: Caller): Promise<BatchJob | undefined> {
     const job = await this.jobs.get(jobId);
     if (!job || job.userId !== caller.userId || !this.deps.batch) return undefined;
@@ -236,24 +301,21 @@ export class SegmentService {
         continue;
       }
       try {
-        const v = validateAndRepair(input.index, input.sentences, parseModelText(r.text), job.length);
+        const v = validateStructure(input.index, input.sentences, parseStructure(r.text), job.length);
+        if (r.model) {
+          await this.log(caller, { output: null, model: r.model, inputTokens: r.inputTokens ?? 0, outputTokens: r.outputTokens ?? 0 }, true);
+        }
         if (v.repairRate > MAX_REPAIR_RATE) {
           fallback.push(input.index);
           continue;
         }
-        chapters.push(v.chapter);
-        await this.deps.cache.set(SegmentService.cacheKey(job.contentHash, job.tier, job.length, job.level, input.index), v.chapter);
-        if (r.model) {
-          await this.deps.usage.add({
-            userId: job.userId,
-            model: r.model,
-            inputTokens: r.inputTokens ?? 0,
-            outputTokens: r.outputTokens ?? 0,
-            costUsd: estimateCost(r.model, r.inputTokens ?? 0, r.outputTokens ?? 0, true),
-            batch: true,
-            at: new Date(),
-          });
-        }
+        const chapter = await this.present(
+          v.chapter,
+          { title: job.title ?? "", author: job.author ?? "", chapter: input, level: job.level },
+          caller,
+        );
+        chapters.push(chapter);
+        await this.deps.cache.set(SegmentService.cacheKey(job.contentHash, job.tier, job.length, job.level, input.index), chapter);
       } catch {
         fallback.push(input.index);
       }

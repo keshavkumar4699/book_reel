@@ -4,6 +4,7 @@ import { buildApp } from "./app.js";
 import { Authenticator, FirebaseVerifier } from "./auth.js";
 import { openDb } from "./db/db.js";
 import { loadCatalog } from "./music/catalog.js";
+import { ClaudeTrackChooser } from "./music/picker.js";
 import { AnthropicBatchClient } from "./segmentation/batch.js";
 import { ClaudeSegmenter } from "./segmentation/claudeSegmenter.js";
 import { SegmentService } from "./segmentation/service.js";
@@ -41,6 +42,7 @@ const app = buildApp({
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? `http://localhost:${port}`,
   androidCertFingerprints: process.env.ANDROID_CERT_SHA256?.split(",").map((s) => s.trim()).filter(Boolean),
   music: music.tracks,
+  musicChooser: new ClaudeTrackChooser(client),
   logger: true,
 });
 await app.listen({ port, host: "0.0.0.0" });

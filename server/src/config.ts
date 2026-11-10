@@ -43,11 +43,15 @@ export const LENGTH_BANDS: Record<CardLength, { min: number; target: number; max
   deep: { min: 120, target: 180, max: 240 },
 };
 
-/** Monthly AI-book quotas by tier and region (DESIGN.md §6.1–6.2). */
+/**
+ * Monthly AI-book quotas by tier and region (DESIGN.md §6). Lower than v1
+ * because each book now also gets per-card art direction, scenes and a
+ * soundtrack plan (see the cost model in DESIGN.md §5).
+ */
 export const QUOTAS: Record<Exclude<Tier, "free">, { default: number; IN: number }> = {
-  plus: { default: 20, IN: 20 },
-  pro: { default: 8, IN: 5 },
-  scholar: { default: 8, IN: 5 },
+  plus: { default: 12, IN: 8 },
+  pro: { default: 6, IN: 4 },
+  scholar: { default: 6, IN: 4 },
 };
 
 export function quotaFor(tier: Tier, region: string | undefined): number {
@@ -57,11 +61,28 @@ export function quotaFor(tier: Tier, region: string | undefined): number {
 }
 
 /** Bump when prompts or validation change so cached segment maps are rebuilt. */
-export const SEGMENTER_VERSION = "seg-v2"; // v2: card mood + energy for the soundtrack
+export const SEGMENTER_VERSION = "seg-v3"; // v3: two-pass (structure + art direction), scenes, music cues
 
 /** The "soul" of a card, used to pick matching music (paid tiers). */
 export const MOODS = ["calm", "reflective", "hopeful", "joyful", "playful", "romantic", "mysterious", "tense", "sad", "epic"] as const;
 export type Mood = (typeof MOODS)[number];
+
+/** Background scenes the AI can choose (app/lib/ui/vibes.dart). */
+export const SCENES = ["forest", "cafe", "rain", "ocean", "night", "meadow", "snow", "city"] as const;
+export type Scene = (typeof SCENES)[number];
+
+/** Card layouts for the full-screen lyric typography. */
+export const LAYOUTS = ["centered", "left", "staggered"] as const;
+
+/**
+ * Per-card art direction (emphasis, layout, mood, word meanings) runs on the
+ * fast model for every paid tier: it is a light task and the bulk of the
+ * output tokens, so this keeps cost per book low (DESIGN.md §5).
+ */
+export const PRESENTATION_ROUTE: TierRoute = { model: MODELS.haiku, effort: "low", serverFallback: false };
+
+/** Music supervisor (picks catalog tracks for the AI's music cues). */
+export const MUSIC_PICK_ROUTE: TierRoute = { model: MODELS.haiku, effort: "low", serverFallback: false };
 
 export const LIMITS = {
   maxChaptersPerRequest: 3,
@@ -69,4 +90,8 @@ export const LIMITS = {
   /** Keep Haiku requests well under its 100K-token price threshold. */
   maxChapterChars: 160_000,
   recallEvery: 10,
+  /** Cards per art-direction request (keeps each response well under max_tokens). */
+  presentationBatch: 60,
+  maxSceneCues: 3,
+  maxMusicCues: 4,
 };

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-import { buildParams, type ChapterJob } from "./claudeSegmenter.js";
+import { buildStructureParams, type StructureJob } from "./claudeSegmenter.js";
 
 export type BatchStatus = "in_progress" | "canceling" | "ended";
 
@@ -15,12 +15,12 @@ export interface BatchItemResult {
 }
 
 /**
- * Message Batches API (50% cheaper) for background chapters (DESIGN.md §4.3).
+ * Message Batches API (50% cheaper) for pass 1 of background chapters (DESIGN.md §4.3).
  * Server-side fallbacks are not supported on batches, so a refused chapter
  * simply stays on rule cards.
  */
 export interface BatchClient {
-  create(items: { customId: string; job: ChapterJob }[]): Promise<string>;
+  create(items: { customId: string; job: StructureJob }[]): Promise<string>;
   status(batchId: string): Promise<BatchStatus>;
   results(batchId: string): Promise<BatchItemResult[]>;
 }
@@ -28,9 +28,9 @@ export interface BatchClient {
 export class AnthropicBatchClient implements BatchClient {
   constructor(private readonly client: Anthropic = new Anthropic()) {}
 
-  async create(items: { customId: string; job: ChapterJob }[]): Promise<string> {
+  async create(items: { customId: string; job: StructureJob }[]): Promise<string> {
     const batch = await this.client.messages.batches.create({
-      requests: items.map((i) => ({ custom_id: i.customId, params: buildParams(i.job) })),
+      requests: items.map((i) => ({ custom_id: i.customId, params: buildStructureParams(i.job) })),
     });
     return batch.id;
   }
