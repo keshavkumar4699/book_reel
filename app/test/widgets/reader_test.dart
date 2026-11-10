@@ -1,9 +1,12 @@
 import 'dart:io';
 
 import 'package:book_reel/data/json_store.dart';
+import 'package:book_reel/core/segmentation/rule_segmenter.dart';
 import 'package:book_reel/data/library.dart';
+import 'package:book_reel/data/notebook.dart';
 import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
+import 'package:book_reel/features/reader/cards/text_card.dart';
 import 'package:book_reel/features/reader/reader_screen.dart';
 import 'package:book_reel/features/share/share_sheet.dart';
 import 'package:book_reel/ui/theme.dart';
@@ -19,7 +22,8 @@ void main() {
     await tester.runAsync(() async {
       final store = await JsonStore.open(dir);
       container = ProviderContainer(overrides: [storeProvider.overrideWithValue(store)]);
-      container.read(settingsProvider.notifier).update((s) => s.copyWith(onboardingDone: true, goalSetupDone: true));
+      container.read(settingsProvider.notifier).update(
+          (s) => s.copyWith(onboardingDone: true, goalSetupDone: true, animatedBackground: false, cardLength: CardLength.standard));
       bookId = (await container.read(libraryProvider.notifier).ensureStarterBook())!.id;
     });
 
@@ -35,15 +39,35 @@ void main() {
     expect(find.text('CHAPTER I. Down the Rabbit-Hole'), findsWidgets);
     expect(find.text('Swipe up to begin'), findsOneWidget);
 
+    // First run shows the gesture guide once.
+    expect(find.text('Read like you scroll'), findsOneWidget);
+    await tester.tap(find.text('Got it'));
+    await tester.pump();
+    expect(find.text('Read like you scroll'), findsNothing);
+    expect(container.read(settingsProvider).gestureTutorialSeen, isTrue);
+
     await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(find.textContaining('Alice was beginning to get very tired', findRichText: true), findsOneWidget);
     expect(find.byTooltip('Save'), findsOneWidget);
     expect(find.byTooltip('Share'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Save'));
+    // Double-tap anywhere on the post likes it.
+    final post = find.byType(PostCard);
+    await tester.tap(post);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(post);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(seconds: 1));
+    final card = tester.widget<PostCard>(post);
+    expect(container.read(notebookProvider).liked, contains('$bookId|${card.card.startSid}'));
+
+    // Swipe left saves.
+    await tester.drag(post, const Offset(-200, 0));
     await tester.pump();
-    expect(find.text('Saved to your Notebook'), findsOneWidget);
+    expect(find.text('Saved to your Notebook 🔖'), findsOneWidget);
+    expect(container.read(notebookProvider).isSaved(bookId, card.card.startSid), isTrue);
+    await tester.pump(const Duration(seconds: 3)); // let the snackbar timer finish
 
     await tester.runAsync(() async => dir.deleteSync(recursive: true));
   });

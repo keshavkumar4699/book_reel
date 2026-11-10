@@ -23,7 +23,7 @@ export const SegmentRequestSchema = z.object({
     language: z.string().max(20).default("en"),
   }),
   tier: z.enum(["free", "plus", "pro", "scholar"]),
-  card_length: z.enum(["bite", "standard", "deep"]).default("standard"),
+  card_length: z.enum(["snack", "bite", "standard", "deep"]).default("snack"),
   reading_level: z.enum(["beginner", "intermediate", "advanced"]).default("intermediate"),
   priority: z.enum(["now", "background"]).default("now"),
   chapters: z.array(ChapterInputSchema).min(1).max(3),

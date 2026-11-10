@@ -34,6 +34,7 @@ const friend = { "x-device-id": "0123456789abcdef" };
 const body = (tier = "plus") => ({
   book: { content_hash: "a".repeat(64), title: "T", author: "A" },
   tier,
+  card_length: "standard",
   chapters: [makeChapter(0)],
 });
 

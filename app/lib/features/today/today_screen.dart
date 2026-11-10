@@ -7,6 +7,9 @@ import '../../data/habit.dart';
 import '../../data/library.dart';
 import '../../data/notebook.dart';
 import '../../data/settings_provider.dart';
+import '../../data/settings.dart';
+import '../../ui/theme.dart';
+import '../../ui/vibes.dart';
 import '../../ui/widgets.dart';
 
 /// Today (home): one main action, today's goal ring and streak, one social
@@ -48,46 +51,81 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final dueWords = ref.watch(notebookProvider).dueWords(DateTime.now()).length;
     final value = goal.unit == GoalUnit.cards ? '${today.verifiedCards}' : today.minutes.floor().toString();
 
+    final style = vibeStyles[settings.vibe]!;
+    final onScene = settings.vibe != Vibe.paper;
+    final heroTheme = onScene ? buildAppTheme(brightness: Brightness.dark) : theme;
+    final top = MediaQuery.paddingOf(context).top;
+
     return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          children: [
-            Row(children: [
-              Expanded(
-                child: Text(
-                  '${_greeting()}${settings.displayName == 'Reader' ? '' : ', ${settings.displayName}'}',
-                  style: theme.textTheme.headlineSmall,
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          // Hero: today's goal and streak over the reader's chosen scene.
+          SizedBox(
+            height: top + 300,
+            child: Stack(fit: StackFit.expand, children: [
+              VibeBackground(vibe: settings.vibe, animate: settings.animatedBackground, paperColor: theme.colorScheme.surface),
+              if (onScene)
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0x66000000), Color(0x40000000), Color(0x73000000)],
+                    ),
+                  ),
+                ),
+              Theme(
+                data: heroTheme,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(20, top + 8, 8, 16),
+                  child: Column(children: [
+                    Row(children: [
+                      Expanded(
+                        child: Text(
+                          '${_greeting()}${settings.displayName == 'Reader' ? '' : ', ${settings.displayName}'}',
+                          style: heroTheme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            shadows: onScene ? const [Shadow(color: Color(0x66000000), blurRadius: 10)] : null,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Your progress',
+                        onPressed: () => context.push('/profile'),
+                        icon: const CircleAvatar(child: Icon(Icons.person_outline)),
+                      ),
+                      IconButton(tooltip: 'Settings', onPressed: () => context.push('/settings'), icon: const Icon(Icons.settings_outlined)),
+                    ]),
+                    const Spacer(),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                      GoalRing(
+                        progress: today.progress(goal),
+                        label: '$value / ${goal.dailyTarget}',
+                        sublabel: goal.unit == GoalUnit.cards ? 'cards today' : 'min today',
+                      ),
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        StreakBadge(days: streak, weekly: weekly),
+                        const SizedBox(height: 6),
+                        if (weekly)
+                          Text('${notifier.activeDaysThisWeek()} of ${goal.weeklyDays} days this week', style: heroTheme.textTheme.bodySmall)
+                        else
+                          Text('${notifier.freezesLeft()} streak freeze${notifier.freezesLeft() == 1 ? '' : 's'} left',
+                              style: heroTheme.textTheme.bodySmall),
+                        const SizedBox(height: 6),
+                        Text(today.meets(goal) ? 'Goal done ✓' : '${style.emoji} ${style.tagline}',
+                            style: heroTheme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                      ]),
+                    ]),
+                    const Spacer(),
+                  ]),
                 ),
               ),
-              IconButton(
-                tooltip: 'Your progress',
-                onPressed: () => context.push('/profile'),
-                icon: const CircleAvatar(child: Icon(Icons.person_outline)),
-              ),
-              IconButton(tooltip: 'Settings', onPressed: () => context.push('/settings'), icon: const Icon(Icons.settings_outlined)),
             ]),
-            const SizedBox(height: 24),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-              GoalRing(
-                progress: today.progress(goal),
-                label: '$value / ${goal.dailyTarget}',
-                sublabel: goal.unit == GoalUnit.cards ? 'cards today' : 'min today',
-              ),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                StreakBadge(days: streak, weekly: weekly),
-                const SizedBox(height: 6),
-                if (weekly)
-                  Text('${notifier.activeDaysThisWeek()} of ${goal.weeklyDays} days this week', style: theme.textTheme.bodySmall)
-                else
-                  Text('${notifier.freezesLeft()} streak freeze${notifier.freezesLeft() == 1 ? '' : 's'} left', style: theme.textTheme.bodySmall),
-                if (today.meets(goal)) ...[
-                  const SizedBox(height: 6),
-                  Text('Goal done ✓', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-                ],
-              ]),
-            ]),
-            const SizedBox(height: 28),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (current != null)
               Card(
                 child: Padding(
@@ -152,9 +190,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 ),
               ),
             ],
-          ],
+          ]),
         ),
-      ),
+      ]),
     );
   }
 

@@ -3,7 +3,7 @@
  * Model IDs are pinned here so upgrades are deliberate and evaluated.
  */
 export type Tier = "free" | "plus" | "pro" | "scholar";
-export type CardLength = "bite" | "standard" | "deep";
+export type CardLength = "snack" | "bite" | "standard" | "deep";
 export type ReadingLevel = "beginner" | "intermediate" | "advanced";
 export type Effort = "low" | "medium" | "high";
 
@@ -37,6 +37,7 @@ export function routeFor(tier: Tier, opts: { dense?: boolean } = {}): TierRoute 
 
 /** Card length bands in words; must match app/lib/core/segmentation/rule_segmenter.dart. */
 export const LENGTH_BANDS: Record<CardLength, { min: number; target: number; max: number }> = {
+  snack: { min: 12, target: 30, max: 55 },
   bite: { min: 45, target: 75, max: 110 },
   standard: { min: 70, target: 120, max: 180 },
   deep: { min: 120, target: 180, max: 240 },

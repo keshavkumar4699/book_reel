@@ -9,6 +9,7 @@ import '../../core/habit/habit_engine.dart';
 import '../../core/models/book.dart';
 import '../../core/models/reel_card.dart';
 import '../../core/segmentation/feed_builder.dart';
+import '../../core/segmentation/rule_segmenter.dart';
 import '../../core/text/lexicon.dart';
 import '../../data/api_client.dart';
 import '../../data/habit.dart';
@@ -21,6 +22,7 @@ import '../../data/settings_provider.dart';
 import '../../services/notifications.dart';
 import '../../services/tts.dart';
 import '../../ui/theme.dart';
+import '../../ui/vibes.dart';
 import '../share/share_sheet.dart';
 import 'cards/special_cards.dart';
 import 'cards/text_card.dart';
@@ -47,30 +49,27 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   BookContent? _sentencesFor;
   int _page = 0;
   DateTime _shownAt = DateTime.now();
-  bool _chrome = true;
-  Timer? _chromeTimer;
   bool _tts = false;
   int _textCardsThisSession = 0;
-  final Set<int> _requestedAi = {};
 
-  static const _hints = [
-    'Swipe up for the next card',
-    'Long-press any word to see its meaning',
-    'Double-tap a sentence to highlight it',
-  ];
+  /// Kept from initState: `ref` must not be used in dispose(), where the last
+  /// card's reading time is still recorded.
+  late final HabitNotifier _habit;
+  final Set<int> _requestedAi = {};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _scheduleChromeHide();
+    _habit = ref.read(habitProvider.notifier);
   }
 
   @override
   void dispose() {
-    _recordCurrent();
+    // Providers can't be modified while the tree is being torn down, so the
+    // last card's reading time is recorded right after.
+    _recordCurrent(deferred: true);
     WidgetsBinding.instance.removeObserver(this);
-    _chromeTimer?.cancel();
     _pager?.dispose();
     Tts.instance.stop();
     super.dispose();
@@ -110,7 +109,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final key = (segments, s.recallCards, s.reflectCards);
     if (_feedKey == key) return;
     final anchor = _feed.isEmpty ? (widget.startSid ?? meta?.positionSid) : _currentAnchorSid();
-    _feed = buildFeed(book, segments, FeedOptions(recallCards: s.recallCards, reflectCards: s.reflectCards));
+    _feed = buildFeed(
+      book,
+      segments,
+      FeedOptions(
+        recallCards: s.recallCards,
+        reflectCards: s.reflectCards,
+        // Short cards: a quick check every ~15 cards instead of ~10.
+        recallEvery: s.cardLength == CardLength.snack ? 15 : 10,
+      ),
+    );
     _feedKey = key;
     var index = feedIndexForSid(_feed, anchor);
     if (anchor == null) index = 0;
@@ -149,18 +157,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   // ---------------------------------------------------------------- tracking
 
   /// Records dwell time for the card currently on screen.
-  CardRecord? _recordCurrent() {
+  CardRecord? _recordCurrent({bool deferred = false}) {
     if (_feed.isEmpty || _page >= _feed.length) return null;
     final item = _feed[_page];
     final dwell = DateTime.now().difference(_shownAt).inMilliseconds;
     _shownAt = DateTime.now();
     if (item.kind != CardKind.text || item.card == null || dwell < 300) return null;
-    return ref.read(habitProvider.notifier).recordCard(
+    CardRecord record() => _habit.recordCard(
           words: item.card!.wordCount,
           dwellMs: dwell,
           bookId: widget.bookId,
           cardRef: '${widget.bookId.substring(0, 12)}:${item.card!.startSid}',
         );
+    if (deferred) {
+      scheduleMicrotask(record);
+      return null;
+    }
+    return record();
   }
 
   void _onPageChanged(int index, BookContent book, BookMeta? meta) {
@@ -206,6 +219,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final idea = _ideaOfTheDay();
     final choice = await showSessionComplete(
       context,
+      vibe: ref.read(settingsProvider).vibe,
       cards: today.verifiedCards,
       minutes: today.minutes,
       streak: record.streak,
@@ -244,20 +258,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       if (card != null && card.keySids.isNotEmpty) return _sentences[card.keySids.first]?.sentence.text;
     }
     return null;
-  }
-
-  // ---------------------------------------------------------------- chrome
-
-  void _scheduleChromeHide() {
-    _chromeTimer?.cancel();
-    _chromeTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (mounted) setState(() => _chrome = false);
-    });
-  }
-
-  void _toggleChrome() {
-    setState(() => _chrome = !_chrome);
-    if (_chrome) _scheduleChromeHide();
   }
 
   void _speak(FeedItem item) {
@@ -310,24 +310,38 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(saved ? 'Saved to your Notebook' : 'Removed from saved'), duration: const Duration(seconds: 2)));
+      ..showSnackBar(SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(saved ? 'Saved to your Notebook 🔖' : 'Removed from saved'),
+        duration: const Duration(milliseconds: 1600),
+      ));
   }
 
-  void _onDoubleTapSentence(BookContent book, Sentence s) {
-    HapticFeedback.lightImpact();
+  void _toggleHighlight(BookContent book, Sentence s) {
     final h = ref.read(notebookProvider.notifier).toggleHighlight(
           bookId: widget.bookId,
           bookTitle: book.title,
           sid: s.id,
           text: s.text,
         );
+    if (h == null) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
-        duration: const Duration(seconds: 3),
-        content: Text(h == null ? 'Highlight removed' : 'Highlighted'),
-        action: h == null ? null : SnackBarAction(label: 'Add note', onPressed: () => _editNote(h)),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1600),
+        content: const Text('Highlighted ✨'),
+        action: SnackBarAction(label: 'Add note', onPressed: () => _editNote(h)),
       ));
+  }
+
+  void _toggleTts() {
+    setState(() => _tts = !_tts);
+    if (_tts && _feed[_page].card != null) {
+      _speak(_feed[_page]);
+    } else {
+      Tts.instance.stop();
+    }
   }
 
   Future<void> _editNote(Highlight h) async {
@@ -459,11 +473,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(leading: const Icon(Icons.list), title: const Text('Contents'), onTap: () => Navigator.pop(context, 'toc')),
           ListTile(leading: const Icon(Icons.chrome_reader_mode_outlined), title: const Text('Page mode'), onTap: () => Navigator.pop(context, 'page')),
-          ListTile(
-            leading: Icon(_tts ? Icons.stop_circle_outlined : Icons.record_voice_over_outlined),
-            title: Text(_tts ? 'Stop reading aloud' : 'Read aloud'),
-            onTap: () => Navigator.pop(context, 'tts'),
-          ),
+          ListTile(leading: const Icon(Icons.touch_app_outlined), title: const Text('Gestures'), onTap: () => Navigator.pop(context, 'gestures')),
           ListTile(leading: const Icon(Icons.text_fields), title: const Text('Reading settings'), onTap: () => Navigator.pop(context, 'settings')),
           ListTile(leading: const Icon(Icons.content_cut), title: const Text('This cut feels wrong'), onTap: () => Navigator.pop(context, 'report')),
         ]),
@@ -475,13 +485,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         _openContents(book);
       case 'page':
         _openPageMode(book, s, theme);
-      case 'tts':
-        setState(() => _tts = !_tts);
-        if (_tts && _feed[_page].card != null) {
-          _speak(_feed[_page]);
-        } else {
-          Tts.instance.stop();
-        }
+      case 'gestures':
+        ref.read(settingsProvider.notifier).update((x) => x.copyWith(gestureTutorialSeen: false));
       case 'settings':
         context.push('/settings');
       case 'report':
@@ -495,7 +500,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
-    final readingTheme = ReadingTheme.of(effectiveReadingTheme(settings, MediaQuery.platformBrightnessOf(context)));
+    final paperTheme = ReadingTheme.of(effectiveReadingTheme(settings, MediaQuery.platformBrightnessOf(context)));
+    final readingTheme = readingThemeForVibe(settings.vibe, paperTheme);
     final meta = ref.watch(libraryProvider).where((b) => b.id == widget.bookId).firstOrNull;
     final contentAsync = ref.watch(bookContentProvider(widget.bookId));
     final segmentsAsync = ref.watch(segmentsProvider((bookId: widget.bookId, length: settings.cardLength)));
@@ -516,7 +522,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: readingTheme.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-      child: Scaffold(backgroundColor: readingTheme.background, body: body),
+      child: Scaffold(
+        backgroundColor: paperTheme.background,
+        body: Stack(children: [
+          Positioned.fill(
+            child: VibeBackground(
+              vibe: settings.vibe,
+              animate: settings.animatedBackground,
+              pager: _pager,
+              paperColor: paperTheme.background,
+            ),
+          ),
+          Positioned.fill(child: body),
+        ]),
+      ),
     );
   }
 
@@ -525,118 +544,108 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final habit = ref.watch(habitProvider);
     final today = habit.today(DateTime.now());
     final goal = s.goal;
-    final item = _feed.isEmpty ? null : _feed[_page.clamp(0, _feed.length - 1)];
-    final chapter = item == null ? null : book.chapters[item.chapterIndex];
     final padding = MediaQuery.paddingOf(context);
-    final firstChapter = book.chapters.first.index;
+    final style = vibeStyles[s.vibe]!;
+    final onScene = s.vibe != Vibe.paper;
+    final chromeColor = onScene ? Colors.white : t.text;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: _toggleChrome,
-      child: Stack(children: [
-        PageView.builder(
-          controller: _pager,
-          scrollDirection: Axis.vertical,
-          physics: const _ReelPagePhysics(),
-          itemCount: _feed.length,
-          onPageChanged: (i) => _onPageChanged(i, book, meta),
-          itemBuilder: (context, i) => _buildItem(book, meta, s, t, lexicon, notebook, _feed[i], firstChapter, padding),
+    return Stack(children: [
+      PageView.builder(
+        controller: _pager,
+        scrollDirection: Axis.vertical,
+        physics: const _ReelPagePhysics(),
+        itemCount: _feed.length,
+        onPageChanged: (i) => _onPageChanged(i, book, meta),
+        itemBuilder: (context, i) => _buildItem(book, meta, s, t, style, lexicon, notebook, _feed[i], i == _page, padding),
+      ),
+      // Segmented goal bar (Stories style): always visible, very thin.
+      Positioned(
+        top: padding.top + 6,
+        left: 16,
+        right: 16,
+        child: _GoalBar(
+          segments: goal.unit == GoalUnit.cards && goal.dailyTarget <= 40 ? goal.dailyTarget : 0,
+          done: goal.unit == GoalUnit.cards ? today.verifiedCards : 0,
+          progress: today.progress(goal),
+          color: style.accent,
+          track: chromeColor.withValues(alpha: 0.25),
         ),
-        // Segmented goal bar: always visible, very thin (goal-gradient effect).
-        Positioned(
-          top: padding.top + 6,
-          left: 16,
-          right: 16,
-          child: _GoalBar(
-            segments: goal.unit == GoalUnit.cards && goal.dailyTarget <= 30 ? goal.dailyTarget : 0,
-            done: goal.unit == GoalUnit.cards ? today.verifiedCards : 0,
-            progress: today.progress(goal),
-            color: ember,
-            track: t.muted.withValues(alpha: 0.25),
+      ),
+      Positioned(
+        top: padding.top + 14,
+        left: 4,
+        right: 4,
+        child: _TopBar(
+          color: chromeColor,
+          accent: style.accent,
+          streak: ref.read(habitProvider.notifier).displayStreak(),
+          goalLabel: goal.unit == GoalUnit.cards
+              ? '${today.verifiedCards}/${goal.dailyTarget}'
+              : '${today.minutes.floor()}/${goal.dailyTarget} min',
+          goalDone: today.meets(goal),
+          vibeEmoji: style.emoji,
+          onClose: () => context.canPop() ? context.pop() : context.go('/library'),
+          onVibe: _pickVibe,
+          onMore: () => _more(book, s, t),
+        ),
+      ),
+      if (!s.gestureTutorialSeen && _feed.isNotEmpty)
+        Positioned.fill(
+          child: _GestureGuide(
+            accent: style.accent,
+            onDone: () => ref.read(settingsProvider.notifier).update((x) => x.copyWith(gestureTutorialSeen: true)),
           ),
         ),
-        // Fading chrome: top labels.
-        Positioned(
-          top: padding.top + 14,
-          left: 0,
-          right: 0,
-          child: IgnorePointer(
-            ignoring: !_chrome,
-            child: AnimatedOpacity(
-              opacity: _chrome ? 1 : 0,
-              duration: const Duration(milliseconds: 200),
-              child: Row(children: [
-                IconButton(
-                  tooltip: 'Close',
-                  icon: Icon(Icons.close, color: t.muted),
-                  onPressed: () => context.canPop() ? context.pop() : context.go('/library'),
-                ),
-                Expanded(
-                  child: Text(
-                    chapter?.title ?? book.title,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: t.muted, fontSize: 13),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Text('${((meta?.progress ?? 0) * 100).round()}%', style: TextStyle(color: t.muted, fontSize: 13)),
-                ),
-              ]),
-            ),
-          ),
-        ),
-        // Fading chrome: bottom action row in the thumb zone.
-        if (item != null && item.kind == CardKind.text)
-          Positioned(
-            bottom: padding.bottom + 8,
-            left: 0,
-            right: 0,
-            child: IgnorePointer(
-              ignoring: !_chrome,
-              child: AnimatedOpacity(
-                opacity: _chrome ? 1 : 0.35,
-                duration: const Duration(milliseconds: 200),
-                child: _ActionRow(
-                  leftHanded: s.leftHanded,
-                  color: t.text,
-                  liked: notebook.liked.contains('${widget.bookId}|${item.card!.startSid}'),
-                  saved: notebook.isSaved(widget.bookId, item.card!.startSid),
-                  onLike: () {
-                    HapticFeedback.lightImpact();
-                    ref.read(notebookProvider.notifier).toggleLike(widget.bookId, item.card!.startSid);
-                  },
-                  onHighlight: () => _highlightSheet(book, item.card!),
-                  onSave: () => _toggleSave(book, item),
-                  onShare: () => _share(book, meta, item),
-                  onMore: () => _more(book, s, t),
-                ),
-              ),
-            ),
-          ),
-      ]),
-    );
+    ]);
   }
 
-  Widget _buildItem(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, Lexicon lexicon,
-      NotebookState notebook, FeedItem item, int firstChapter, EdgeInsets padding) {
+  Future<void> _pickVibe() async {
+    final current = ref.read(settingsProvider).vibe;
+    final picked = await showModalBottomSheet<Vibe>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Pick your vibe', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            VibePickerRow(selected: current, onSelected: (v) => Navigator.pop(context, v)),
+          ]),
+        ),
+      ),
+    );
+    if (picked != null) {
+      HapticFeedback.selectionClick();
+      ref.read(settingsProvider.notifier).update((x) => x.copyWith(vibe: picked));
+    }
+  }
+
+  Widget _buildItem(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, VibeStyle style, Lexicon lexicon,
+      NotebookState notebook, FeedItem item, bool active, EdgeInsets padding) {
     switch (item.kind) {
       case CardKind.text:
         final card = item.card!;
-        final hintIndex = !s.goalSetupDone && item.chapterIndex == firstChapter ? item.cardIndexInChapter! : 99;
-        return TextCardView(
+        return PostCard(
           key: ValueKey('${card.startSid}-${s.cardLength.name}'),
           card: card,
           sentences: [for (final sid in card.sentenceIds) if (_sentences[sid] != null) _sentences[sid]!],
+          bookTitle: book.title,
           chapterTitle: book.chapters[card.chapterIndex].title,
+          position: '${(item.cardIndexInChapter ?? 0) + 1} / ${item.cardsInChapter ?? 0}',
+          coverPath: meta?.coverPath,
           settings: s,
           theme: t,
+          accent: style.accent,
           lexicon: lexicon,
-          topPadding: padding.top + 64,
-          bottomPadding: padding.bottom + 88,
-          hint: hintIndex < _hints.length ? _hints[hintIndex] : null,
+          active: active,
+          liked: notebook.liked.contains('${widget.bookId}|${card.startSid}'),
+          saved: notebook.isSaved(widget.bookId, card.startSid),
+          listening: _tts,
+          topPadding: padding.top + 72,
+          bottomPadding: padding.bottom + 20,
           highlightFor: (sid) => notebook.highlightFor(widget.bookId, sid),
-          onDoubleTapSentence: (sentence) => _onDoubleTapSentence(book, sentence),
+          onToggleHighlight: (sentence) => _toggleHighlight(book, sentence),
           onLongPressWord: (word, sentence) {
             final meaning = card.hardWords
                 .where((h) => h.word.toLowerCase() == word.toLowerCase() && h.meaning != null)
@@ -645,6 +654,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
             showWordSheet(context,
                 word: word, sentence: sentence.text, bookTitle: book.title, lexicon: lexicon, contextMeaning: meaning);
           },
+          onLike: () => ref.read(notebookProvider.notifier).toggleLike(widget.bookId, card.startSid),
+          onSave: () => _toggleSave(book, item),
+          onShare: () => _share(book, meta, item),
+          onNote: () => _highlightSheet(book, card),
+          onListen: _toggleTts,
           onOverscroll: (dir) {
             if (dir > 0) {
               _pager?.nextPage(duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
@@ -694,10 +708,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
             ProgressShare(
               emoji: '🎉',
               headline: 'Finished ${book.title}',
-              lines: [
-                'by ${book.author}',
-                '${_feed.where((f) => f.kind == CardKind.text).length} reels',
-              ],
+              lines: ['by ${book.author}', '${_feed.where((f) => f.kind == CardKind.text).length} reels'],
             ),
           ),
           onDone: () => context.go('/library'),
@@ -706,8 +717,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   }
 }
 
-/// Page physics with slight resistance so cards feel like page turns, not a
-/// slippery feed (UX_DESIGN.md §5.2).
+/// Page physics with slight resistance so swipes feel deliberate.
 class _ReelPagePhysics extends PageScrollPhysics {
   const _ReelPagePhysics({super.parent});
 
@@ -715,7 +725,7 @@ class _ReelPagePhysics extends PageScrollPhysics {
   _ReelPagePhysics applyTo(ScrollPhysics? ancestor) => _ReelPagePhysics(parent: buildParent(ancestor));
 
   @override
-  SpringDescription get spring => const SpringDescription(mass: 1, stiffness: 120, damping: 22);
+  SpringDescription get spring => const SpringDescription(mass: 1, stiffness: 140, damping: 22);
 
   @override
   double get dragStartDistanceMotionThreshold => 6;
@@ -743,7 +753,7 @@ class _GoalBar extends StatelessWidget {
               )
             : Row(children: [
                 for (var i = 0; i < segments; i++) ...[
-                  if (i > 0) const SizedBox(width: 3),
+                  if (i > 0) const SizedBox(width: 2),
                   Expanded(
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 250),
@@ -757,47 +767,104 @@ class _GoalBar extends StatelessWidget {
   }
 }
 
-class _ActionRow extends StatelessWidget {
-  const _ActionRow({
-    required this.leftHanded,
+/// Top bar: close · streak flame · today's goal · vibe switcher · menu.
+class _TopBar extends StatelessWidget {
+  const _TopBar({
     required this.color,
-    required this.liked,
-    required this.saved,
-    required this.onLike,
-    required this.onHighlight,
-    required this.onSave,
-    required this.onShare,
+    required this.accent,
+    required this.streak,
+    required this.goalLabel,
+    required this.goalDone,
+    required this.vibeEmoji,
+    required this.onClose,
+    required this.onVibe,
     required this.onMore,
   });
 
-  final bool leftHanded;
   final Color color;
-  final bool liked;
-  final bool saved;
-  final VoidCallback onLike;
-  final VoidCallback onHighlight;
-  final VoidCallback onSave;
-  final VoidCallback onShare;
+  final Color accent;
+  final int streak;
+  final String goalLabel;
+  final bool goalDone;
+  final String vibeEmoji;
+  final VoidCallback onClose;
+  final VoidCallback onVibe;
   final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
-    final buttons = [
-      IconButton(
-          tooltip: liked ? 'Unlike' : 'Like',
-          onPressed: onLike,
-          icon: Icon(liked ? Icons.favorite : Icons.favorite_border, color: liked ? ember : color)),
-      IconButton(tooltip: 'Highlight & note', onPressed: onHighlight, icon: Icon(Icons.border_color_outlined, color: color)),
-      IconButton(
-          tooltip: saved ? 'Saved' : 'Save',
-          onPressed: onSave,
-          icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border, color: saved ? ember : color)),
-      IconButton(tooltip: 'Share', onPressed: onShare, icon: Icon(Icons.ios_share, color: color)),
-      IconButton(tooltip: 'More', onPressed: onMore, icon: Icon(Icons.more_horiz, color: color)),
+    const shadow = [Shadow(color: Color(0x66000000), blurRadius: 8)];
+    Widget pill(Widget child) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(color: const Color(0x33000000), borderRadius: BorderRadius.circular(20)),
+          child: child,
+        );
+    return Row(children: [
+      IconButton(tooltip: 'Close', icon: Icon(Icons.close, color: color, shadows: shadow), onPressed: onClose),
+      const Spacer(),
+      pill(Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.local_fire_department, size: 18, color: streak > 0 ? accent : color.withValues(alpha: 0.6)),
+        const SizedBox(width: 4),
+        Text('$streak', style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+      ])),
+      const SizedBox(width: 8),
+      pill(Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(goalDone ? Icons.check_circle : Icons.flag_outlined, size: 16, color: goalDone ? accent : color),
+        const SizedBox(width: 4),
+        Text(goalLabel, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+      ])),
+      const Spacer(),
+      IconButton(tooltip: 'Change vibe', onPressed: onVibe, icon: Text(vibeEmoji, style: const TextStyle(fontSize: 20))),
+      IconButton(tooltip: 'More', icon: Icon(Icons.more_horiz, color: color, shadows: shadow), onPressed: onMore),
+    ]);
+  }
+}
+
+/// One-time overlay that teaches the gestures (can be reopened from ⋯).
+class _GestureGuide extends StatelessWidget {
+  const _GestureGuide({required this.accent, required this.onDone});
+  final Color accent;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    const rows = [
+      (Icons.swipe_up_outlined, 'Swipe up', 'Next card'),
+      (Icons.favorite, 'Double-tap', 'Like'),
+      (Icons.touch_app_outlined, 'Tap a sentence', 'Highlight it'),
+      (Icons.swipe_left_outlined, 'Swipe left', 'Save'),
+      (Icons.swipe_right_outlined, 'Swipe right', 'Share'),
+      (Icons.translate, 'Long-press a word', 'See its meaning'),
     ];
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: leftHanded ? buttons.reversed.toList() : buttons,
+    return GestureDetector(
+      onTap: onDone,
+      child: Container(
+        color: const Color(0xCC0B0F14),
+        padding: const EdgeInsets.all(32),
+        child: SafeArea(
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Text('Read like you scroll',
+                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 24),
+            for (final r in rows)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(children: [
+                  CircleAvatar(radius: 22, backgroundColor: accent.withValues(alpha: 0.2), child: Icon(r.$1, color: accent)),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text.rich(TextSpan(children: [
+                      TextSpan(text: '${r.$2}  ', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      TextSpan(text: r.$3, style: const TextStyle(color: Colors.white70)),
+                    ]), style: const TextStyle(color: Colors.white, fontSize: 17)),
+                  ),
+                ]),
+              ),
+            const SizedBox(height: 28),
+            FilledButton(onPressed: onDone, style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.black), child: const Text('Got it')),
+          ]),
+        ),
+      ),
     );
   }
 }

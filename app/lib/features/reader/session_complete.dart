@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../data/settings.dart';
 import '../../ui/theme.dart';
+import '../../ui/vibes.dart';
 import '../../ui/widgets.dart';
 
 enum SessionChoice { keepReading, done, share }
@@ -9,6 +11,7 @@ enum SessionChoice { keepReading, done, share }
 /// offered, never pushed; stopping is framed as success.
 Future<SessionChoice?> showSessionComplete(
   BuildContext context, {
+  Vibe vibe = Vibe.paper,
   required int cards,
   required double minutes,
   required int streak,
@@ -21,9 +24,15 @@ Future<SessionChoice?> showSessionComplete(
     barrierDismissible: false,
     transitionDuration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 280),
     pageBuilder: (context, a1, a2) {
-      final theme = Theme.of(context);
-      return Scaffold(
-        body: SafeArea(
+      final theme = vibe == Vibe.paper ? Theme.of(context) : buildAppTheme(brightness: Brightness.dark);
+      return Theme(
+        data: theme,
+        child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(children: [
+          Positioned.fill(child: VibeBackground(vibe: vibe, paperColor: theme.colorScheme.surface)),
+          if (vibe != Vibe.paper) const Positioned.fill(child: ColoredBox(color: Color(0x66000000))),
+          SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(28),
             child: Column(children: [
@@ -79,6 +88,8 @@ Future<SessionChoice?> showSessionComplete(
             ]),
           ),
         ),
+        ]),
+      ),
       );
     },
   );

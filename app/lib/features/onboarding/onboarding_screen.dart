@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/library.dart';
+import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
+import '../../ui/vibes.dart';
 
-/// ≤ 60 seconds to the first card (UX_DESIGN.md §5.9): one value screen,
-/// interests, then straight into a starter book. The daily goal is asked
-/// later, after the first cards.
+/// ≤ 60 seconds to the first card: a welcome over a live scene, pick a study
+/// vibe, pick interests, then straight into a starter book. The daily goal is
+/// asked later, after the first cards.
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -17,6 +19,7 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _step = 0;
+  Vibe _vibe = Vibe.forest;
   final Set<String> _interests = {};
   bool _starting = false;
 
@@ -29,7 +32,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     setState(() => _starting = true);
     final library = ref.read(libraryProvider.notifier);
     final starter = await library.ensureStarterBook() ?? library.current;
-    ref.read(settingsProvider.notifier).update((s) => s.copyWith(onboardingDone: true, interests: _interests.toList()));
+    ref.read(settingsProvider.notifier).update(
+          (s) => s.copyWith(onboardingDone: true, interests: _interests.toList(), vibe: _vibe),
+        );
     if (!mounted) return;
     context.go('/today');
     if (starter != null) context.push('/read/${starter.id}');
@@ -37,56 +42,98 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: _step == 0
-              ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Spacer(),
-                  const Icon(Icons.auto_stories, size: 56, color: Color(0xFFE08A2E)),
-                  const SizedBox(height: 24),
-                  Text('Read books in bite-sized cards.', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 12),
-                  Text('Swipe through real books, a few minutes a day. Build a reading habit that sticks.',
-                      style: theme.textTheme.titleMedium),
-                  const Spacer(),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                      onPressed: () => setState(() => _step = 1),
-                      child: const Text('Get started'),
-                    ),
-                  ),
-                ])
-              : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const SizedBox(height: 24),
-                  Text('What do you like to read?', style: theme.textTheme.headlineSmall),
-                  const SizedBox(height: 4),
-                  Text('Pick a few. We’ll start you with a short classic.', style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 20),
-                  Wrap(spacing: 8, runSpacing: 8, children: [
-                    for (final o in _options)
-                      FilterChip(
-                        label: Text(o),
-                        selected: _interests.contains(o),
-                        onSelected: (v) => setState(() => v ? _interests.add(o) : _interests.remove(o)),
-                      ),
-                  ]),
-                  const Spacer(),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                      onPressed: _starting ? null : _start,
-                      child: Text(_starting ? 'Preparing your first cards…' : 'Start reading'),
-                    ),
-                  ),
-                ]),
+    final style = vibeStyles[_vibe]!;
+    final fg = style.dark ? Colors.white : const Color(0xFF1F1D1A);
+    final titleStyle = TextStyle(color: fg, fontSize: 30, fontWeight: FontWeight.w800, height: 1.15, shadows: const [
+      Shadow(color: Color(0x55000000), blurRadius: 12),
+    ]);
+    final bodyStyle = TextStyle(color: fg.withValues(alpha: 0.9), fontSize: 17, height: 1.4, shadows: const [
+      Shadow(color: Color(0x55000000), blurRadius: 10),
+    ]);
+    Widget primary(String label, VoidCallback? onPressed) => SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+              backgroundColor: style.accent,
+              foregroundColor: Colors.black,
+              textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+            onPressed: onPressed,
+            child: Text(label),
+          ),
+        );
+
+    final steps = [
+      // 1. Welcome
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Spacer(),
+        Text('Scroll books\nlike reels.', style: titleStyle),
+        const SizedBox(height: 14),
+        Text('Real books in short, beautiful cards. A few calm minutes a day, and a habit that sticks.', style: bodyStyle),
+        const SizedBox(height: 32),
+        primary('Get started', () => setState(() => _step = 1)),
+      ]),
+      // 2. Vibe
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Spacer(),
+        Text('Pick your study vibe', style: titleStyle),
+        const SizedBox(height: 8),
+        Text(style.tagline, style: bodyStyle),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+          decoration: BoxDecoration(color: const Color(0xCCFFFFFF), borderRadius: BorderRadius.circular(24)),
+          child: VibePickerRow(selected: _vibe, onSelected: (v) => setState(() => _vibe = v), height: 120),
         ),
-      ),
+        const SizedBox(height: 20),
+        primary('Next', () => setState(() => _step = 2)),
+      ]),
+      // 3. Interests
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Spacer(),
+        Text('What do you like to read?', style: titleStyle),
+        const SizedBox(height: 8),
+        Text('Pick a few. We’ll start you with a short classic.', style: bodyStyle),
+        const SizedBox(height: 20),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final o in _options)
+            FilterChip(
+              label: Text(o),
+              selected: _interests.contains(o),
+              onSelected: (v) => setState(() => v ? _interests.add(o) : _interests.remove(o)),
+            ),
+        ]),
+        const SizedBox(height: 28),
+        primary(_starting ? 'Preparing your first cards…' : 'Start reading', _starting ? null : _start),
+      ]),
+    ];
+
+    return Scaffold(
+      body: Stack(children: [
+        Positioned.fill(child: VibeBackground(vibe: _vibe)),
+        // Soft scrim so text stays readable over any scene.
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x00000000), Color(0x66000000)],
+              ),
+            ),
+          ),
+        ),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              child: KeyedSubtree(key: ValueKey(_step), child: steps[_step]),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }

@@ -13,16 +13,29 @@ TextStyle _serif(AppSettings s, ReadingTheme t, {double scale = 1, FontWeight? w
     );
 
 class _CardFrame extends StatelessWidget {
-  const _CardFrame({required this.child});
+  const _CardFrame({required this.child, required this.theme});
   final Widget child;
+  final ReadingTheme theme;
 
   @override
   Widget build(BuildContext context) {
+    final onScene = theme.glass.a > 0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 80, 28, 110),
+      padding: EdgeInsets.fromLTRB(14, MediaQuery.paddingOf(context).top + 96, 14, 24),
       child: Center(
-        child: SingleChildScrollView(
-          child: child,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: onScene ? theme.glass : theme.background,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: onScene ? const Color(0x24FFFFFF) : theme.muted.withValues(alpha: 0.18)),
+              boxShadow: onScene ? const [BoxShadow(color: Color(0x40000000), blurRadius: 30, offset: Offset(0, 12))] : null,
+            ),
+            child: SingleChildScrollView(child: child),
+          ),
         ),
       ),
     );
@@ -53,6 +66,7 @@ class ChapterTitleCardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _CardFrame(
+      theme: theme,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,6 +115,7 @@ class RecapCardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _CardFrame(
+      theme: theme,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         _AiChip(label: 'AI SUMMARY', theme: theme),
         const SizedBox(height: 16),
@@ -150,6 +165,7 @@ class _RecallCardViewState extends State<RecallCardView> {
     final t = widget.theme;
     final q = widget.question;
     return _CardFrame(
+      theme: t,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         _AiChip(label: q == null ? 'QUICK CHECK' : 'AI QUICK CHECK', theme: t),
         const SizedBox(height: 16),
@@ -270,6 +286,7 @@ class _ReflectCardViewState extends State<ReflectCardView> {
   Widget build(BuildContext context) {
     final t = widget.theme;
     return _CardFrame(
+      theme: t,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         _AiChip(label: 'REFLECT', theme: t),
         const SizedBox(height: 16),
@@ -338,6 +355,7 @@ class MilestoneCardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _CardFrame(
+      theme: theme,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('🎉', style: TextStyle(fontSize: 56)),
         const SizedBox(height: 16),

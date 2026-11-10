@@ -9,6 +9,13 @@
 
 ---
 
+> **Revision 2 (after first device tests).** Testing on a phone showed the "printed page" reader felt like a book and lost attention quickly. The reader now follows a **social-reel** style (§5.2 is superseded by this note):
+> - **Snack cards** by default: 1–3 sentences (12–55 words), larger sans text revealed line by line.
+> - Each card is a **post**: book avatar + title + chapter header, the author's words, and an always-visible action row (Like · Save · Note · Share · Listen) directly under the text.
+> - **Gestures**: double-tap = like (heart burst), tap a sentence = highlight, swipe left = save, swipe right = share, long-press a word = meaning; a one-time guide teaches them.
+> - **Calm study vibes**: hand-drawn animated scenes (forest, café, rain, ocean, night, paper) behind a tinted glass card, with gentle parallax while scrolling. Static under "Remove animations"; can be turned off.
+> The ethical guardrails in §8 still apply: finite sessions, the session-complete ending, no like counts or public comparisons on cards, calm notifications.
+
 ## 0. The answer in one paragraph
 
 The best UI for BookReel is **not** a copy of TikTok or Instagram Reels. Copy the *ease* of reels: one thing on screen, one swipe to move on, no decisions. Do **not** copy their *business model*: endless, variable-reward scrolling built to maximise time spent. We call the right approach a **"calm feed"**:

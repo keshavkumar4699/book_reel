@@ -6,6 +6,8 @@ import '../parsing/block_builder.dart';
 
 /// Card length preferences (DESIGN.md §2.4).
 enum CardLength {
+  /// Social-feed default: one striking idea, 1–3 sentences.
+  snack(min: 12, target: 30, max: 55),
   bite(min: 45, target: 75, max: 110),
   standard(min: 70, target: 120, max: 180),
   deep(min: 120, target: 180, max: 240);

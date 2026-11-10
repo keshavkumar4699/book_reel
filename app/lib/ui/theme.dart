@@ -16,6 +16,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
     required this.hardWordUnderline,
     required this.highlights,
     required this.isDark,
+    this.glass = const Color(0x00000000),
   });
 
   final Color background;
@@ -25,6 +26,9 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
   final Color hardWordUnderline;
   final List<Color> highlights;
   final bool isDark;
+
+  /// Tint of the card panel when text sits on a scene (transparent on paper).
+  final Color glass;
 
   static ReadingTheme of(ReadingThemeId id) => switch (id) {
         ReadingThemeId.paper => const ReadingTheme(

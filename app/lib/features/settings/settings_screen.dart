@@ -9,6 +9,7 @@ import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../services/notifications.dart';
 import '../../ui/theme.dart';
+import '../../ui/vibes.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -52,7 +53,22 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
         ),
+        header('Vibe'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: VibePickerRow(selected: s.vibe, onSelected: (v) => n.update((x) => x.copyWith(vibe: v))),
+        ),
+        SwitchListTile(
+          title: const Text('Animated backgrounds'),
+          subtitle: const Text('Gentle motion. Turns off automatically with the system “Remove animations” setting.'),
+          value: s.animatedBackground,
+          onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
+        ),
         header('Reading'),
+        ListTile(
+          title: const Text('Paper theme'),
+          subtitle: const Text('Used with the Paper vibe and in page mode'),
+        ),
         ListTile(
           title: const Text('Theme'),
           subtitle: Wrap(spacing: 8, children: [
@@ -116,8 +132,9 @@ class SettingsScreen extends ConsumerWidget {
           title: const Text('Card length'),
           subtitle: SegmentedButton<CardLength>(
             segments: const [
+              ButtonSegment(value: CardLength.snack, label: Text('Snack')),
               ButtonSegment(value: CardLength.bite, label: Text('Bite')),
-              ButtonSegment(value: CardLength.standard, label: Text('Standard')),
+              ButtonSegment(value: CardLength.standard, label: Text('Std')),
               ButtonSegment(value: CardLength.deep, label: Text('Deep')),
             ],
             selected: {s.cardLength},
@@ -186,7 +203,7 @@ class SettingsScreen extends ConsumerWidget {
         ListTile(
           title: const Text('Daily goal'),
           subtitle: Wrap(spacing: 8, children: [
-            for (final g in [5, 10, 20, 40])
+            for (final g in [10, 20, 40, 60])
               ChoiceChip(
                 label: Text('$g ${s.goalUnit == GoalUnit.cards ? 'cards' : 'min'}'),
                 selected: s.dailyGoal == g,

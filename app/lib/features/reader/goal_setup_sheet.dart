@@ -21,7 +21,7 @@ class _GoalSetup extends ConsumerStatefulWidget {
 }
 
 class _GoalSetupState extends ConsumerState<_GoalSetup> {
-  int _goal = 10;
+  int _goal = 20;
   final _anchor = TextEditingController();
   TimeOfDay _time = const TimeOfDay(hour: 20, minute: 0);
 
@@ -69,15 +69,15 @@ class _GoalSetupState extends ConsumerState<_GoalSetup> {
           const SizedBox(height: 16),
           SegmentedButton<int>(
             segments: const [
-              ButtonSegment(value: 5, label: Text('5 cards')),
               ButtonSegment(value: 10, label: Text('10 cards')),
               ButtonSegment(value: 20, label: Text('20 cards')),
+              ButtonSegment(value: 40, label: Text('40 cards')),
             ],
             selected: {_goal},
             onSelectionChanged: (v) => setState(() => _goal = v.first),
           ),
           const SizedBox(height: 4),
-          Text('≈ ${(_goal * 0.6).round()}–${(_goal * 0.8).round()} minutes a day', style: theme.textTheme.bodySmall),
+          Text('≈ ${(_goal * 0.15).round()}–${(_goal * 0.3).round()} minutes a day', style: theme.textTheme.bodySmall),
           const SizedBox(height: 24),
           Text('When will you read?', style: theme.textTheme.titleMedium),
           const SizedBox(height: 4),
