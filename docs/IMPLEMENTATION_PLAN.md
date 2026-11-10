@@ -29,20 +29,20 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 | 2 | Reel reader MVP | Library, import, Reel mode + Page mode, themes, typography, TOC, TTS | 1 | ✅ Done, except "Open with" from other apps |
 | 3 | Reader tools | Highlights, notes, saved cards, word sheet + offline dictionary, word list, Notebook tab | 2 | ✅ Done |
 | 4 | Habit engine | Dwell verification, daily/weekly goals, streaks & freezes, session complete, Today screen, reminders | 2 | ✅ Done |
-| 5 | Sharing | Card & progress images, templates, share sheet, short-quote limit | 3, 4 | ✅ Done, except deep links (need a domain + Phase 7) |
-| 6 | AI segmentation backend | Claude pipeline (Haiku/Sonnet/Opus), validator/repairer, content-hash cache, quotas, Batch API; app client | 1 | ✅ Done with in-memory stores; tested against a mocked Claude client, no live API call yet |
-| 7 | Accounts, sync & social | Firebase Auth, sync, friends, activity feed, kudos, leagues, clubs, challenges | 4, 6 | 🟡 Server logic and endpoints done (verification, streaks, leagues, friends, kudos); auth, persistence, app sync and social UI to do |
+| 5 | Sharing | Card & progress images, templates, share sheet, short-quote limit | 3, 4 | ✅ Done; share links added in Phase 7 |
+| 6 | AI segmentation backend | Claude pipeline (Haiku/Sonnet/Opus), validator/repairer, content-hash cache, quotas, Batch API; app client | 1 | ✅ Done, persisted in Postgres; tested against a mocked Claude client, no live API call yet |
+| 7 | Accounts, sync & social | Firebase Auth, sync, friends, activity feed, kudos, leagues, clubs, challenges | 4, 6 | 🟡 Mostly done: Postgres persistence, server-verified activity, leagues, invite-code friends, feed and kudos, notebook/position sync, share links with web previews, Friends tab. To do: Google sign-in in the app (needs a Firebase project), push notifications (FCM), App Links handling in the app, clubs and challenges |
 | 8 | Monetization & free-tier AI | Play Billing, entitlements, tier routing, regional pricing, on-device LLM | 6, 7 | 🟡 Tier routing and regional quotas done; billing and on-device model to do |
 | 9 | Quality & launch | Gold-set evaluation, accessibility audit, performance, closed beta, Play listing | all | ⬜ Not started |
 
 ### Verification so far
-- App: `flutter analyze` clean; 43 tests (parsers, segmenter, lexicon, habit engine, feed, data layer, AI client contract, reader widget test).
-- Server: `tsc` clean; 27 tests (rule segmenter, validator, prompt, Claude client against a mocked SDK, service incl. quota/refusal/batch, habit/leagues, HTTP API).
+- App: `flutter analyze` clean; 50 tests (parsers, segmenter, lexicon, habit engine, feed, data layer, AI client contract, two-device sync against a fake server, reader and Friends widget tests).
+- Server: `tsc` clean; 35 tests against real Postgres SQL via embedded PGlite (segmenter, validator, prompt, Claude client against a mocked SDK, service incl. quota/refusal/batch, activity/streaks/leagues/friends, sync, share pages, Firebase token verification, HTTP API, data surviving a restart).
 - Android: CI builds a debug APK (first green run: CI #2). `flutter_local_notifications` is pinned to 22.x because 23.0 needs compileSdk 37, which Flutter 3.47's Android Gradle plugin (9.1) doesn't support yet.
 - **Not yet verified:** the app on real devices (behaviour and performance), and a live Claude call with a real API key.
 
 ### Deviations from DESIGN.md
-- Local storage uses an atomic JSON-file store behind a small interface (`app/lib/data/json_store.dart`) instead of Drift. It is enough for single-device data; switch to Drift/SQLite when sync lands.
+- App-side local storage uses an atomic JSON-file store behind a small interface (`app/lib/data/json_store.dart`) instead of Drift. It is enough for single-device data; switch to Drift/SQLite when sync lands.
 - Material You dynamic colour was dropped: `dynamic_color` 2.1 targets the new standalone `material_ui` package and is type-incompatible with Flutter 3.47's built-in Material. The app uses a fixed ember seed scheme.
 
 
@@ -96,7 +96,7 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 - Share sheet with live preview; `share_plus`; copy text.
 - 75-word limit for copyrighted books (public-domain books unlimited).
 - Progress cards (streak, book finished, weekly recap).
-- Deep links (`bookreel.app/c/{id}`) arrive with the backend in Phase 7.
+- Share links with web previews (`/c/{id}`) are served by the backend (Phase 7); opening them directly in the app (App Links) is still to do.
 
 ## Phase 6 — AI segmentation backend (`server/`)
 - TypeScript + Fastify + Zod; `@anthropic-ai/sdk`.
@@ -107,8 +107,21 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 - App client: `AiSegmentationClient` swaps AI cards in for upcoming chapters without moving the reading position; falls back to rule cards on any failure.
 
 ## Phase 7 — Accounts, sync & social
-- **Done in this phase (server, in-memory):** reading-event verification, daily stats, streaks with freezes, weekly leagues (promotion and demotion), friends leaderboard, kudos.
-- **To do:** Firebase Auth (Google sign-in) → ID token verification; Postgres via a repository layer (schema in DESIGN.md §7); Redis leaderboards; sync endpoints for highlights, saved cards and positions; Friends tab UI (feed, league, clubs, challenges); FCM digest notifications; App Links deep links; share preview web page.
+**Done**
+- Server storage on Postgres (`server/src/db`): node-postgres when `DATABASE_URL` is set, otherwise embedded PGlite on disk (`./data/pglite`). Append-only migrations. All stores and services persist.
+- Identity: anonymous device accounts (`x-device-id`) work today. Firebase ID tokens are verified when `FIREBASE_PROJECT_ID` is set; the first sign-in on a device links to that device's existing account, so no progress is lost.
+- Reading events are queued on the phone (works offline) and uploaded in batches; the server re-verifies dwell time before anything counts toward streaks or leagues.
+- Weekly leagues (24 per group, ranked by goal days then minutes, top 5 up / bottom 5 down), invite-code friendships (mutual), friends board, activity feed with kudos only.
+- Sync of highlights, saved cards, words, reflections, likes and reading positions across devices of the same account (last write wins per item, deletions propagate).
+- Share links (`/c/:id`) with server-rendered preview pages and the 75-word limit enforced again on the server; invite page (`/i/:code`); `/.well-known/assetlinks.json` for App Links.
+- Friends tab: invite code + share, league table, friends board, feed with kudos, add friend by code, offline fallback.
+
+**To do (needs your accounts or a product decision)**
+- Google sign-in in the app: create a Firebase project, add the Android app (SHA-1/SHA-256 of the signing key), then add `firebase_auth` + `google_sign_in` and send the ID token as `Authorization: Bearer`. The server side is ready.
+- Push notifications for kudos/friend activity (FCM, same Firebase project). Today the daily reminder is local only.
+- App Links in the app (open `/c/…` and `/i/…` links directly in BookReel) once the domain is live: set `ANDROID_CERT_SHA256` on the server and add an intent filter.
+- Clubs and challenges (DESIGN.md §2.9).
+- Production hosting: Cloud Run + Cloud SQL (Postgres). Redis is not needed at current scale; league tables are computed from Postgres.
 
 ## Phase 8 — Monetization & free-tier AI
 - **Done:** tier → model routing, monthly AI-book quotas with regional limits (server).

@@ -10,6 +10,7 @@ import '../../core/models/book.dart';
 import '../../core/models/reel_card.dart';
 import '../../core/segmentation/feed_builder.dart';
 import '../../core/text/lexicon.dart';
+import '../../data/api_client.dart';
 import '../../data/habit.dart';
 import '../../data/lexicon_loader.dart';
 import '../../data/library.dart';
@@ -154,7 +155,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final dwell = DateTime.now().difference(_shownAt).inMilliseconds;
     _shownAt = DateTime.now();
     if (item.kind != CardKind.text || item.card == null || dwell < 300) return null;
-    return ref.read(habitProvider.notifier).recordCard(words: item.card!.wordCount, dwellMs: dwell);
+    return ref.read(habitProvider.notifier).recordCard(
+          words: item.card!.wordCount,
+          dwellMs: dwell,
+          bookId: widget.bookId,
+          cardRef: '${widget.bookId.substring(0, 12)}:${item.card!.startSid}',
+        );
   }
 
   void _onPageChanged(int index, BookContent book, BookMeta? meta) {
@@ -182,6 +188,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (item.kind == CardKind.milestone) {
       if (ref.read(libraryProvider.notifier).markFinished(widget.bookId)) {
         ref.read(habitProvider.notifier).bookFinished();
+        final api = ref.read(apiProvider);
+        if (api.enabled) unawaited(api.bookFinished(book.title).catchError((_) {}));
       }
     }
     if (_feed[index].chapterIndex != (index > 0 ? _feed[index - 1].chapterIndex : -1)) _maybeRequestAi(book);

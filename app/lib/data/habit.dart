@@ -87,9 +87,12 @@ class HabitNotifier extends Notifier<HabitState> {
 
   StreakEngine get _engine => StreakEngine(ref.read(settingsProvider).goal);
 
-  /// Records time spent on a text card and updates goal/streak.
-  CardRecord recordCard({required int words, required int dwellMs}) {
+  /// Records time spent on a text card and updates goal/streak. With a
+  /// [bookId] and [cardRef] the raw event is also queued for upload, so the
+  /// server can verify it for leagues (see SyncService).
+  CardRecord recordCard({required int words, required int dwellMs, String? bookId, String? cardRef}) {
     final now = clock();
+    if (bookId != null && cardRef != null) _enqueue(bookId, cardRef, words, dwellMs, now);
     final goal = ref.read(settingsProvider).goal;
     final result = evaluateDwell(words: words, dwellMs: dwellMs, wpm: state.wpm);
     final key = dateKey(now);
@@ -115,6 +118,20 @@ class HabitNotifier extends Notifier<HabitState> {
       celebratedMilestone: celebrated,
     ));
     return CardRecord(verified: result.verified, goalJustMet: justMet, streak: streak.current, milestone: milestone);
+  }
+
+  void _enqueue(String bookId, String cardRef, int words, int dwellMs, DateTime at) {
+    final store = ref.read(storeProvider);
+    final events = [...((store.doc('outbox')?['events'] as List?) ?? const [])];
+    events.add({
+      'book_id': bookId.length > 80 ? bookId.substring(0, 80) : bookId,
+      'card_ref': cardRef,
+      'words': words.clamp(0, 2000),
+      'dwell_ms': dwellMs.clamp(0, 3600000),
+      'ts': at.toUtc().toIso8601String(),
+    });
+    // Keep the queue bounded if the app stays offline for a long time.
+    store.saveDoc('outbox', {'events': events.length > 5000 ? events.sublist(events.length - 5000) : events});
   }
 
   void bookFinished() => _set(state.copyWith(booksFinished: state.booksFinished + 1));

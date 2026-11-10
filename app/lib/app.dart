@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'data/settings_provider.dart';
+import 'data/sync_service.dart';
 import 'features/friends/friends_screen.dart';
 import 'features/library/library_screen.dart';
 import 'features/notebook/notebook_screen.dart';
@@ -53,11 +54,37 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class BookReelApp extends ConsumerWidget {
+class BookReelApp extends ConsumerStatefulWidget {
   const BookReelApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BookReelApp> createState() => _BookReelAppState();
+}
+
+class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Background sync with the server, when one is configured.
+    WidgetsBinding.instance.addPostFrameCallback((_) => ref.read(syncServiceProvider).start());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed || state == AppLifecycleState.paused) {
+      ref.read(syncServiceProvider).syncNow();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'BookReel',

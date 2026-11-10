@@ -18,7 +18,7 @@ class JsonStore {
   final Map<String, Object?> _docs;
   final Map<String, Future<void>> _pending = {};
 
-  static const _docNames = ['settings', 'library', 'notebook', 'habit', 'device'];
+  static const _docNames = ['settings', 'library', 'notebook', 'habit', 'device', 'outbox', 'sync'];
 
   static Future<JsonStore> open(Directory root) async {
     await root.create(recursive: true);

@@ -4,10 +4,12 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/share/quote_limit.dart';
+import '../../data/api_client.dart';
 
 enum ShareTemplate { paper, dark, ember, minimal, ocean }
 
@@ -58,15 +60,15 @@ Future<void> showShareSheet(BuildContext context, ShareContent content) {
   );
 }
 
-class _ShareSheet extends StatefulWidget {
+class _ShareSheet extends ConsumerStatefulWidget {
   const _ShareSheet({required this.content});
   final ShareContent content;
 
   @override
-  State<_ShareSheet> createState() => _ShareSheetState();
+  ConsumerState<_ShareSheet> createState() => _ShareSheetState();
 }
 
-class _ShareSheetState extends State<_ShareSheet> {
+class _ShareSheetState extends ConsumerState<_ShareSheet> {
   final _boundaryKey = GlobalKey();
   ShareTemplate _template = ShareTemplate.paper;
   ShareAspect _aspect = ShareAspect.story;
@@ -81,16 +83,41 @@ class _ShareSheetState extends State<_ShareSheet> {
     };
   }
 
+  /// A short link to a web preview, when the server is available. Sharing
+  /// never waits more than a few seconds for it.
+  Future<String?> _link() async {
+    final api = ref.read(apiProvider);
+    if (!api.enabled) return null;
+    final c = widget.content;
+    final payload = switch (c) {
+      QuoteShare() => {
+          'type': 'quote',
+          'text': limitQuote(c.sentences, publicDomain: c.publicDomain).text,
+          'book_title': c.bookTitle,
+          'author': c.author,
+          'public_domain': c.publicDomain,
+        },
+      ProgressShare() => {'type': 'progress', 'headline': c.headline, 'lines': c.lines},
+    };
+    try {
+      return await api.createShare(payload).timeout(const Duration(seconds: 4));
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _share() async {
     setState(() => _busy = true);
     try {
+      final link = await _link();
       final boundary = _boundaryKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
       final image = await boundary.toImage(pixelRatio: 3);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/bookreel_share_${DateTime.now().millisecondsSinceEpoch}.png');
       await file.writeAsBytes(bytes!.buffer.asUint8List());
-      await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: 'image/png')], text: _plainText));
+      final text = link == null ? _plainText : '$_plainText\n$link';
+      await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: 'image/png')], text: text));
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {

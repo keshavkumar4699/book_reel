@@ -357,6 +357,9 @@ class NotebookNotifier extends Notifier<NotebookState> {
   }
 
   String newId() => _id();
+
+  /// Replaces the whole notebook (used when applying changes pulled from sync).
+  void replace(NotebookState next) => _set(next);
 }
 
 final notebookProvider = NotifierProvider<NotebookNotifier, NotebookState>(NotebookNotifier.new);

@@ -35,6 +35,8 @@ flutter run --dart-define=BOOKREEL_API=http://10.0.2.2:8787
 
 Then pick Plus, Pro or Scholar under **Settings → AI plan**. Billing is not live yet, so the plan setting only switches which Claude model the server uses.
 
+With a server configured the app also syncs your notebook and reading position, uploads reading activity, and turns on the Friends tab (league, friends board, feed with kudos, invite codes) and share links.
+
 What's in the app: library and EPUB/PDF import, a starter public-domain book, the reel reader (chapter, text, recap, recall, reflect and milestone cards), page mode, themes and typography, read-aloud, highlights and notes, saved cards, an offline dictionary with hard-word underlines, a word list with spaced review, a notebook with Markdown export, daily or weekly goals with streak freezes, a session-complete screen, gentle daily reminders, share images (quotes and progress), onboarding, settings and a progress profile.
 
 ## Server
@@ -50,14 +52,23 @@ ANTHROPIC_API_KEY=... npm run dev     # http://localhost:8787
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /v1/segment` | AI cards for 1–3 chapters (`priority: background` uses the Batch API and returns a job id) |
-| `GET /v1/segment/jobs/:id` | Poll a background job |
-| `POST /v1/activity/batch` | Reading events, re-verified server-side → streaks and leagues |
-| `GET /v1/me/streak`, `PUT /v1/me/profile`, `GET /v1/me/ai-usage` | Personal stats and quota |
+| `POST /v1/segment`, `GET /v1/segment/jobs/:id` | AI cards for 1–3 chapters (background chapters use the Batch API) |
+| `GET /v1/me`, `PUT /v1/me/profile`, `GET /v1/me/streak`, `GET /v1/me/ai-usage` | Account, invite code, streak, AI quota |
+| `POST /v1/activity/batch`, `POST /v1/activity/book-finished` | Reading events, re-verified server-side |
 | `GET /v1/leagues/current`, `GET /v1/leaderboards/friends` | Weekly league and friends board |
-| `POST/DELETE /v1/social/follow/:userId`, `GET /v1/feed`, `POST /v1/activities/:id/kudos` | Friends and kudos |
+| `POST /v1/social/follow-code`, `DELETE /v1/social/follow/:userId`, `GET /v1/feed`, `POST /v1/activities/:id/kudos` | Friends, feed and kudos |
+| `GET /v1/sync?since=`, `PUT /v1/sync` | Notebook and reading-position sync |
+| `POST /v1/share`, `GET /c/:id`, `GET /i/:code`, `GET /.well-known/assetlinks.json` | Share links, preview pages, invites, App Links |
 
-Callers identify with an `x-device-id` header for now; Firebase Auth replaces it in Phase 7. Storage is in memory behind interfaces (`server/src/stores`), to be replaced with Postgres/Redis.
+Configuration (all optional locally):
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | `postgres://…` for Postgres; otherwise an embedded PGlite database in `./data/pglite` |
+| `ANTHROPIC_API_KEY` | Claude credentials (needed only for AI cards) |
+| `FIREBASE_PROJECT_ID` | Enables Google sign-in (Firebase ID tokens); without it, accounts are per device |
+| `PUBLIC_BASE_URL` | Base URL for share and invite links |
+| `ANDROID_CERT_SHA256` | Signing-certificate fingerprints for Android App Links |
 
 Models by tier: Plus → `claude-haiku-5-5`, Pro → `claude-sonnet-5-5`, Scholar → `claude-opus-5-5` (`server/src/config.ts`).
 
