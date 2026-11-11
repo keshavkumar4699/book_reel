@@ -3,8 +3,6 @@ import Anthropic from "@anthropic-ai/sdk";
 import { buildApp } from "./app.js";
 import { Authenticator, FirebaseVerifier } from "./auth.js";
 import { openDb } from "./db/db.js";
-import { loadCatalog } from "./music/catalog.js";
-import { ClaudeTrackChooser } from "./music/picker.js";
 import { ClaudeVoiceChooser } from "./typography/profile.js";
 import { AnthropicBatchClient } from "./segmentation/batch.js";
 import { ClaudeSegmenter } from "./segmentation/claudeSegmenter.js";
@@ -18,7 +16,6 @@ import { SqlJobStore, SqlQuotaStore, SqlSegmentCache, SqlUsageLog } from "./stor
  * - FIREBASE_PROJECT_ID  enables Google sign-in (Firebase ID tokens)
  * - PUBLIC_BASE_URL      base for share/invite links (default http://localhost:PORT)
  * - ANDROID_CERT_SHA256  comma-separated signing-cert fingerprints for App Links
- * - MUSIC_CATALOG        soundtrack catalog JSON (default ./music/catalog.json); see music/catalog.example.json
  */
 const port = Number(process.env.PORT ?? 8787);
 const db = await openDb(process.env.DATABASE_URL ?? "./data/pglite");
@@ -32,8 +29,6 @@ const segments = new SegmentService({
   model: new ClaudeSegmenter(client),
   batch: new AnthropicBatchClient(client),
 });
-const music = loadCatalog(process.env.MUSIC_CATALOG ?? "./music/catalog.json");
-for (const e of music.errors) console.warn(`music catalog: ${e}`);
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const app = buildApp({
   db,
@@ -42,8 +37,6 @@ const app = buildApp({
   auth: new Authenticator(db, projectId ? new FirebaseVerifier(projectId) : undefined),
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? `http://localhost:${port}`,
   androidCertFingerprints: process.env.ANDROID_CERT_SHA256?.split(",").map((s) => s.trim()).filter(Boolean),
-  music: music.tracks,
-  musicChooser: new ClaudeTrackChooser(client),
   voiceChooser: new ClaudeVoiceChooser(client),
   logger: true,
 });

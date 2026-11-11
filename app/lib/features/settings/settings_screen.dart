@@ -8,7 +8,7 @@ import '../../data/ai_client.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../services/notifications.dart';
-import '../../services/soundtrack.dart';
+import '../../services/scene_sound.dart';
 import '../../ui/theme.dart';
 import '../../ui/vibes.dart';
 
@@ -65,26 +65,25 @@ class SettingsScreen extends ConsumerWidget {
           value: s.animatedBackground,
           onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
         ),
-        header('AI soundtrack'),
+        header('Scene sound'),
         SwitchListTile(
-          title: const Text('Mood music'),
-          subtitle: Text(s.tier == Tier.free
-              ? 'The AI reads each card’s mood and plays matching music. Plus, Pro and Scholar.'
-              : 'Follows the mood of each card. Track credits appear when the music changes.'),
-          value: s.soundtrack && s.tier != Tier.free,
-          onChanged: s.tier == Tier.free ? null : (v) => n.update((x) => x.copyWith(soundtrack: v)),
+          title: const Text('Play the scene’s sound'),
+          subtitle: Text('Each scene has its own calm sound: ${sceneSoundLabels[s.vibe]!.toLowerCase()} for '
+              '${vibeStyles[s.vibe]!.label}. Turn it off (or tap the speaker while reading) to play your own music.'),
+          value: s.sceneSound,
+          onChanged: (v) => n.update((x) => x.copyWith(sceneSound: v)),
         ),
-        if (s.tier != Tier.free)
+        if (s.sceneSound)
           _SliderTile(
-            label: 'Music volume',
-            value: s.musicVolume,
+            label: 'Sound volume',
+            value: s.sceneSoundVolume,
             min: 0.05,
             max: 1,
             divisions: 19,
-            display: '${(s.musicVolume * 100).round()}%',
+            display: '${(s.sceneSoundVolume * 100).round()}%',
             onChanged: (v) {
-              n.update((x) => x.copyWith(musicVolume: v));
-              ref.read(soundtrackProvider.notifier).applyVolume();
+              n.update((x) => x.copyWith(sceneSoundVolume: v));
+              ref.read(sceneSoundProvider.notifier).applyVolume();
             },
           ),
         header('Reading'),

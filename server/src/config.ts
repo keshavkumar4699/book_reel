@@ -61,13 +61,9 @@ export function quotaFor(tier: Tier, region: string | undefined): number {
 }
 
 /** Bump when prompts or validation change so cached segment maps are rebuilt. */
-export const SEGMENTER_VERSION = "seg-v4"; // v4: spotlight lines (level 3 = a sentence that gets its own reel)
+export const SEGMENTER_VERSION = "seg-v5"; // v5: no music cues or card moods (scenes bring their own ambient sound)
 
-/** The "soul" of a card, used to pick matching music (paid tiers). */
-export const MOODS = ["calm", "reflective", "hopeful", "joyful", "playful", "romantic", "mysterious", "tense", "sad", "epic"] as const;
-export type Mood = (typeof MOODS)[number];
-
-/** Background scenes the AI can choose (app/lib/ui/vibes.dart). */
+/** Background scenes the AI can choose (app/lib/ui/vibes.dart); each has its own ambient sound. */
 export const SCENES = ["forest", "cafe", "rain", "ocean", "night", "meadow", "snow", "city"] as const;
 export type Scene = (typeof SCENES)[number];
 
@@ -75,14 +71,11 @@ export type Scene = (typeof SCENES)[number];
 export const LAYOUTS = ["centered", "left", "staggered"] as const;
 
 /**
- * Per-card art direction (emphasis, layout, mood, word meanings) runs on the
+ * Per-card art direction (emphasis, layout, word meanings) runs on the
  * fast model for every paid tier: it is a light task and the bulk of the
  * output tokens, so this keeps cost per book low (DESIGN.md §5).
  */
 export const PRESENTATION_ROUTE: TierRoute = { model: MODELS.haiku, effort: "low", serverFallback: false };
-
-/** Music supervisor (picks catalog tracks for the AI's music cues). */
-export const MUSIC_PICK_ROUTE: TierRoute = { model: MODELS.haiku, effort: "low", serverFallback: false };
 
 /** Book typography: one small classification per book (cached by content hash). */
 export const PROFILE_ROUTE: TierRoute = { model: MODELS.haiku, effort: "low", serverFallback: false };
@@ -100,5 +93,4 @@ export const LIMITS = {
   /** Cards per art-direction request (keeps each response well under max_tokens). */
   presentationBatch: 60,
   maxSceneCues: 3,
-  maxMusicCues: 4,
 };

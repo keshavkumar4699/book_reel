@@ -45,7 +45,6 @@ describe("pass 1: structure", () => {
     expect(v.chapter.cards).toHaveLength(6);
     expect(v.chapter.cards.flatMap((c) => sidsOf(ch, c.start_sid, c.end_sid))).toEqual(ch.sentences.map((s) => s.sid));
     expect(v.chapter.scene).toBe("forest");
-    expect(v.chapter.music_cues).toEqual([{ at_card: 0, mood: "calm", energy: 2, description: "soft piano" }]);
     expect(v.chapter.recaps[0]!.after_card).toBe(5);
   });
 
@@ -73,28 +72,22 @@ describe("pass 1: structure", () => {
       { at_card: 8, scene: "night" }, // same as previous: dropped
       { at_card: 9, scene: "volcano" }, // unknown scene: dropped
     ];
-    out.music_cues = [
-      { at_card: 2, mood: "calm", energy: 9, description: "x".repeat(200) }, // first cue moves to card 0, energy clamped
-      { at_card: 7, mood: "tense", energy: 4, description: "pulsing synths" },
-      { at_card: 9, mood: "furious", energy: 3, description: "" }, // unknown mood: dropped
-    ];
+    out.scene_cues.push({ at_card: 10, scene: "rain" });
     out.recaps = [{ after_card: 5, bullets: ["a"] }];
     const v = validateStructure(0, ch.sentences, out, "bite");
     expect(v.chapter.cards).toHaveLength(12);
-    expect(v.chapter.scene_cues).toEqual([{ at_card: 6, scene: "night" }]);
-    expect(v.chapter.music_cues.map((c) => [c.at_card, c.mood, c.energy])).toEqual([
-      [0, "calm", 5],
-      [7, "tense", 4],
+    expect(v.chapter.scene_cues).toEqual([
+      { at_card: 6, scene: "night" },
+      { at_card: 10, scene: "rain" },
     ]);
-    expect(v.chapter.music_cues[0]!.description).toHaveLength(80);
     expect(v.chapter.recaps[0]!.after_card).toBe(5);
 
     // Merge two model cards into one by asking for a bigger band: card numbers shift.
     const merged = validateStructure(0, ch.sentences, out, "standard");
     expect(merged.chapter.cards.length).toBeLessThan(12);
-    const cue = merged.chapter.music_cues[1]!;
+    const cue = merged.chapter.scene_cues[1]!;
     const cueCard = merged.chapter.cards[cue.at_card]!;
-    expect(sidsOf(ch, cueCard.start_sid, cueCard.end_sid)).toContain(out.cards[7]!.start_sid);
+    expect(sidsOf(ch, cueCard.start_sid, cueCard.end_sid)).toContain(out.cards[10]!.start_sid);
   });
 
   it("rejects hallucinated sentence ids", () => {
@@ -110,14 +103,12 @@ describe("pass 2: art direction", () => {
   const chapter = validateStructure(0, ch.sentences, structureOutput(ch), "standard").chapter;
   const cards = cardSentences(chapter, ch.sentences).map((sentences, index) => ({ index, sentences }));
 
-  it("merges emphasis, layout, mood and words into the cards", () => {
+  it("merges emphasis, layout and words into the cards", () => {
     const r = applyPresentation(chapter, ch.sentences, presentationOutput(cards));
     expect(r.applied).toBe(6);
     expect(r.chapter.presented).toBe(6);
     expect(r.chapter.cards[0]).toMatchObject({
       layout: "centered",
-      mood: "reflective",
-      energy: 2,
       key_sids: ["c0.b0.s0"],
       emphasis: [{ sid: "c0.b0.s0", text: "quiet power", level: 3 }],
     });

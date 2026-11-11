@@ -1,8 +1,7 @@
-import { LAYOUTS, LENGTH_BANDS, LIMITS, MOODS, SCENES, type CardLength } from "../config.js";
+import { LAYOUTS, LENGTH_BANDS, LIMITS, SCENES, type CardLength } from "../config.js";
 import { boundaryScore, countWords, SCENE_BREAK, startsWithBackReference, toUnits } from "./ruleSegmenter.js";
 import type {
   Emphasis,
-  MusicCue,
   OutCard,
   OutChapter,
   PresentationOutput,
@@ -21,9 +20,7 @@ export interface StructureResult {
   repairRate: number;
 }
 
-const isMood = (m: string) => (MOODS as readonly string[]).includes(m);
 const isScene = (s: string) => (SCENES as readonly string[]).includes(s);
-const clampEnergy = (e: number) => Math.min(5, Math.max(1, Math.round(e)));
 
 /**
  * Validates and repairs pass 1 (DESIGN.md §4.2). Enforces in code what the
@@ -158,22 +155,10 @@ export function validateStructure(index: number, sentences: Sentence[], out: Str
     sceneCues.push({ at_card: at, scene: c.scene });
   }
 
-  const musicCues: MusicCue[] = [];
-  for (const c of [...out.music_cues].sort((a, b) => a.at_card - b.at_card)) {
-    let at = atCard(c.at_card);
-    if (at === undefined || !isMood(c.mood)) continue;
-    if (musicCues.length === 0) at = 0; // the score always starts with the chapter
-    const energy = clampEnergy(c.energy);
-    const previous = musicCues.at(-1);
-    if (previous && (previous.at_card === at || (previous.mood === c.mood && previous.energy === energy))) continue;
-    musicCues.push({ at_card: at, mood: c.mood, energy, description: c.description.trim().slice(0, 80) });
-  }
-
   const extras =
     out.recaps.length - recaps.length +
     (out.recalls.length - recalls.length) +
-    (out.scene_cues.length - sceneCues.length) +
-    (out.music_cues.length - musicCues.length);
+    (out.scene_cues.length - sceneCues.length);
 
   return {
     chapter: {
@@ -185,7 +170,6 @@ export function validateStructure(index: number, sentences: Sentence[], out: Str
       teaser: out.chapter_teaser ? clampWords(out.chapter_teaser, 30) : undefined,
       scene,
       scene_cues: sceneCues.slice(0, LIMITS.maxSceneCues),
-      music_cues: musicCues.slice(0, LIMITS.maxMusicCues),
       repaired: repairs + extras || undefined,
     },
     repairs: repairs + extras,
@@ -259,14 +243,11 @@ export function applyPresentation(chapter: OutChapter, sentences: Sentence[], ou
       if (level === 3) hero = true;
       emphasis.push({ sid: e.sid, text: sentence.slice(at, end), level, start: at, end });
     }
-    const mood = isMood(p.mood) ? p.mood : undefined;
     cards[p.card] = {
       ...cards[p.card]!,
       emphasis: emphasis.slice(0, 3).map(({ sid, text: t, level }) => ({ sid, text: t, level })),
       layout: (LAYOUTS as readonly string[]).includes(p.layout) ? p.layout : undefined,
       key_sids: p.key_sids.filter((s) => sids.has(s)).slice(0, 2),
-      mood,
-      energy: mood ? clampEnergy(p.energy) : undefined,
       hard_words: p.hard_words
         .filter((h) => sids.has(h.sid) && h.word.length > 1 && (text.get(h.sid) ?? "").toLowerCase().includes(h.word.toLowerCase()))
         .slice(0, 4)

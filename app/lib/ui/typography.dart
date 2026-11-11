@@ -25,12 +25,15 @@ const bundledFonts = <String, String>{
   'Fredoka': 'Fredoka',
 };
 
-/// Adds the font licences to the app's licences page (Settings → About).
+/// Adds the font and scene-sound licences to the app's licences page
+/// (Settings → About).
 void registerFontLicenses() {
   LicenseRegistry.addLicense(() async* {
     for (final font in bundledFonts.entries) {
       yield LicenseEntryWithLineBreaks(['${font.value} (font)'], await rootBundle.loadString('assets/fonts/OFL-${font.key}.txt'));
     }
+    // Several recordings are CC BY and must be credited.
+    yield LicenseEntryWithLineBreaks(['Scene sounds'], await rootBundle.loadString('assets/sounds/CREDITS.md'));
   });
 }
 

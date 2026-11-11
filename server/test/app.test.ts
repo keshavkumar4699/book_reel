@@ -59,7 +59,9 @@ describe("HTTP API", () => {
       layout: "centered",
       emphasis: [{ sid: "c0.b0.s0", text: "quiet power", level: 3 }],
     });
-    expect(json.chapters[0]).toMatchObject({ scene: "forest", music_cues: [{ at_card: 0, mood: "calm" }] });
+    expect(json.chapters[0]).toMatchObject({ scene: "forest", scene_cues: [] });
+    expect(json.chapters[0].music_cues).toBeUndefined();
+    expect(json.chapters[0].cards[0].mood).toBeUndefined();
     expect(json.quota).toEqual({ used: 1, limit: 12 });
     const again = (await a.inject({ method: "POST", url: "/v1/segment", headers: device, payload: body() })).json();
     expect(again.cached).toBe(1);

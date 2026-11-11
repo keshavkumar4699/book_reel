@@ -85,8 +85,8 @@ export class MemoryJobStore implements JobStore {
 /**
  * Two-pass AI pipeline (DESIGN.md §4):
  *  1. structure & direction with the tier's model (cards, recaps, recall,
- *     teaser, scenes, music cues), validated and repaired in code;
- *  2. art direction per card with the fast model (emphasis, layout, mood,
+ *     teaser, scenes), validated and repaired in code;
+ *  2. art direction per card with the fast model (emphasis, spotlights, layout,
  *     word meanings), in batches, validated phrase by phrase.
  * Pass 2 is best effort: a chapter without it still has good cards.
  */

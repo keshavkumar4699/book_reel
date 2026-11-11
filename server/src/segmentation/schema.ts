@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { LAYOUTS, MOODS, SCENES } from "../config.js";
+import { LAYOUTS, SCENES } from "../config.js";
 
 export const BlockTypeSchema = z.enum(["heading", "paragraph", "quote", "list", "dialogue", "preformatted"]);
 
@@ -37,7 +37,7 @@ export type SegmentRequest = z.infer<typeof SegmentRequestSchema>;
 
 // ---------------------------------------------------------------------------
 // Pass 1 — structure & direction (tier model): where cards start, recaps,
-// recall questions, teaser, the chapter's scenes and its music cues.
+// recall questions, teaser and the chapter's scenes.
 
 export const StructureOutputSchema = z.object({
   cards: z.array(z.object({ start_sid: z.string() })),
@@ -48,7 +48,6 @@ export const StructureOutputSchema = z.object({
   chapter_teaser: z.string(),
   scene: z.string(),
   scene_cues: z.array(z.object({ at_card: z.number().int(), scene: z.string() })),
-  music_cues: z.array(z.object({ at_card: z.number().int(), mood: z.string(), energy: z.number().int(), description: z.string() })),
 });
 export type StructureOutput = z.infer<typeof StructureOutputSchema>;
 
@@ -70,14 +69,11 @@ export const STRUCTURE_JSON_SCHEMA = obj({
   chapter_teaser: str,
   scene: { type: "string", enum: [...SCENES] },
   scene_cues: arr(obj({ at_card: int, scene: { type: "string", enum: [...SCENES] } })),
-  music_cues: arr(
-    obj({ at_card: int, mood: { type: "string", enum: [...MOODS] }, energy: { type: "integer", enum: [1, 2, 3, 4, 5] }, description: str }),
-  ),
 });
 
 // ---------------------------------------------------------------------------
-// Pass 2 — art direction per card (fast model): which phrases to make big,
-// layout, key sentences, mood/energy, hard words.
+// Pass 2 — art direction per card (fast model): which phrases to stress,
+// spotlight lines, layout, key sentences, hard words.
 
 export const PresentationOutputSchema = z.object({
   cards: z.array(
@@ -86,8 +82,6 @@ export const PresentationOutputSchema = z.object({
       layout: z.string(),
       emphasis: z.array(z.object({ sid: z.string(), text: z.string(), level: z.number().int() })),
       key_sids: z.array(z.string()),
-      mood: z.string(),
-      energy: z.number().int(),
       hard_words: z.array(z.object({ word: z.string(), sid: z.string(), meaning: z.string() })),
     }),
   ),
@@ -101,8 +95,6 @@ export const PRESENTATION_JSON_SCHEMA = obj({
       layout: { type: "string", enum: [...LAYOUTS] },
       emphasis: arr(obj({ sid: str, text: str, level: { type: "integer", enum: [2, 3] } })),
       key_sids: arr(str),
-      mood: { type: "string", enum: [...MOODS] },
-      energy: { type: "integer", enum: [1, 2, 3, 4, 5] },
       hard_words: arr(obj({ word: str, sid: str, meaning: str })),
     }),
   ),
@@ -115,7 +107,7 @@ export interface Emphasis {
   sid: string;
   /** Exact substring of the sentence. */
   text: string;
-  /** 2 = large, 3 = hero. */
+  /** 2 = stressed inline, 3 = spotlight (a reel of its own). */
   level: number;
 }
 
@@ -126,10 +118,6 @@ export interface OutCard {
   standalone: boolean;
   key_sids: string[];
   hard_words: { word: string; sid: string; meaning?: string }[];
-  /** Emotional tone of the card; absent for rule-based cards. */
-  mood?: string;
-  /** 1 (very quiet) – 5 (intense). */
-  energy?: number;
   emphasis?: Emphasis[];
   layout?: string;
   title?: string;
@@ -139,14 +127,6 @@ export interface OutCard {
 export interface SceneCue {
   at_card: number;
   scene: string;
-}
-
-export interface MusicCue {
-  at_card: number;
-  mood: string;
-  energy: number;
-  /** Ideal music in a few words, e.g. "soft lo-fi piano, curious". */
-  description: string;
 }
 
 export interface OutChapter {
@@ -159,7 +139,6 @@ export interface OutChapter {
   /** Default background scene for the chapter. */
   scene?: string;
   scene_cues: SceneCue[];
-  music_cues: MusicCue[];
   /** Set when the validator had to repair the structure. */
   repaired?: number;
   /** Number of cards that received art direction. */

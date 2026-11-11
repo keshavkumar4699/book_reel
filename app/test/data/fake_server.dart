@@ -12,10 +12,6 @@ class FakeServer {
   final Map<String, Map<String, dynamic>> profiles = {};
   final List<Map<String, dynamic>> shares = [];
   final List<String> kudos = [];
-  List<Map<String, dynamic>> musicTracks = [];
-  Map<String, String> planPicks = {};
-  bool failMusicPlan = false;
-  int musicPlanRequests = 0;
 
   /// Voice returned by /v1/book/profile; null makes the endpoint fail.
   String? profileVoice = 'suspense';
@@ -87,19 +83,6 @@ class FakeServer {
         if (path.startsWith('/v1/activities/') && path.endsWith('/kudos')) {
           kudos.add(path.split('/')[3]);
           return ok({'ok': true});
-        }
-        if (path == '/v1/music/tracks') {
-          if (req.url.queryParameters['tier'] == 'free') return http.Response('{"error":"tier_not_eligible"}', 403);
-          return ok({'tracks': musicTracks});
-        }
-        if (path == '/v1/music/plan') {
-          if (failMusicPlan) return http.Response('{"error":"down"}', 500);
-          final cues = (body()['cues'] as List).cast<Map<String, dynamic>>();
-          musicPlanRequests++;
-          return ok({
-            'picks': [for (final c in cues) {'at_card': c['at_card'], 'track_id': planPicks[c['mood']] ?? 'missing'}],
-            'source': 'ai',
-          });
         }
         if (path == '/v1/book/profile') {
           final b = body();

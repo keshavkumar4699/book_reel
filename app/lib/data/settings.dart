@@ -61,8 +61,8 @@ class AppSettings {
     this.animatedBackground = true,
     this.gestureTutorialSeen = false,
     this.layoutVersion = currentLayoutVersion,
-    this.soundtrack = true,
-    this.musicVolume = 0.35,
+    this.sceneSound = true,
+    this.sceneSoundVolume = 0.6,
     this.autoScene = true,
   });
 
@@ -102,9 +102,10 @@ class AppSettings {
   final bool gestureTutorialSeen;
   final int layoutVersion;
 
-  /// Mood-matched background music (paid tiers).
-  final bool soundtrack;
-  final double musicVolume;
+  /// The scene's own ambient sound (rain, café, waves…), for every tier.
+  /// Readers mute it to play their own music.
+  final bool sceneSound;
+  final double sceneSoundVolume;
 
   /// Let the AI pick the background per chapter (paid tiers).
   final bool autoScene;
@@ -150,8 +151,8 @@ class AppSettings {
     Vibe? vibe,
     bool? animatedBackground,
     bool? gestureTutorialSeen,
-    bool? soundtrack,
-    double? musicVolume,
+    bool? sceneSound,
+    double? sceneSoundVolume,
     bool? autoScene,
   }) =>
       AppSettings(
@@ -188,8 +189,8 @@ class AppSettings {
         animatedBackground: animatedBackground ?? this.animatedBackground,
         gestureTutorialSeen: gestureTutorialSeen ?? this.gestureTutorialSeen,
         layoutVersion: layoutVersion,
-        soundtrack: soundtrack ?? this.soundtrack,
-        musicVolume: musicVolume ?? this.musicVolume,
+        sceneSound: sceneSound ?? this.sceneSound,
+        sceneSoundVolume: sceneSoundVolume ?? this.sceneSoundVolume,
         autoScene: autoScene ?? this.autoScene,
       );
 
@@ -227,8 +228,8 @@ class AppSettings {
         'animatedBackground': animatedBackground,
         'gestureTutorialSeen': gestureTutorialSeen,
         'layoutVersion': layoutVersion,
-        'soundtrack': soundtrack,
-        'musicVolume': musicVolume,
+        'sceneSound': sceneSound,
+        'sceneSoundVolume': sceneSoundVolume,
         'autoScene': autoScene,
       };
 
@@ -281,8 +282,9 @@ class AppSettings {
       vibe: pick(Vibe.values, j['vibe'], d.vibe),
       animatedBackground: (j['animatedBackground'] as bool?) ?? d.animatedBackground,
       gestureTutorialSeen: (j['gestureTutorialSeen'] as bool?) ?? d.gestureTutorialSeen,
-      soundtrack: (j['soundtrack'] as bool?) ?? d.soundtrack,
-      musicVolume: num_(j['musicVolume'], d.musicVolume),
+      // Readers who turned the old soundtrack off keep their sound off.
+      sceneSound: (j['sceneSound'] as bool?) ?? (j['soundtrack'] as bool?) ?? d.sceneSound,
+      sceneSoundVolume: num_(j['sceneSoundVolume'], d.sceneSoundVolume).clamp(0.0, 1.0),
       autoScene: (j['autoScene'] as bool?) ?? d.autoScene,
     );
   }

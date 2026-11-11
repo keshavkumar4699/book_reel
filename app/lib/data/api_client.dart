@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../core/models/reel_card.dart' show MusicCue;
 import 'ai_client.dart' show bookreelApi;
 import 'segments.dart' show deviceIdProvider;
 
@@ -95,21 +94,6 @@ class BookReelApi {
       (await _send('PUT', '/v1/sync', {'items': items})) as Map<String, dynamic>;
 
   Future<Map<String, dynamic>> pullSync(int since) async => (await _send('GET', '/v1/sync?since=$since')) as Map<String, dynamic>;
-
-  /// Licensed soundtrack catalog (paid tiers; 403 on Free).
-  Future<List<Map<String, dynamic>>> musicTracks(String tier) async =>
-      (((await _send('GET', '/v1/music/tracks?tier=$tier')) as Map<String, dynamic>)['tracks'] as List).cast<Map<String, dynamic>>();
-
-  /// AI music supervisor: best catalog track per music cue (paid tiers).
-  Future<List<Map<String, dynamic>>> musicPlan(String tier, List<MusicCue> cues, {String? teaser, String? bookTitle}) async {
-    final res = (await _send('POST', '/v1/music/plan', {
-      'tier': tier,
-      'cues': [for (final c in cues) c.toJson()],
-      'teaser': ?teaser,
-      'book_title': ?bookTitle,
-    })) as Map<String, dynamic>;
-    return (res['picks'] as List).cast<Map<String, dynamic>>();
-  }
 
   /// Asks the AI which typographic voice fits a book (paid tiers); returns
   /// the voice name. Only metadata and a short opening sample are sent.

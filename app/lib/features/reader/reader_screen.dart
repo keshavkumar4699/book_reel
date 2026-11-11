@@ -22,7 +22,7 @@ import '../../data/segments.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../services/notifications.dart';
-import '../../services/soundtrack.dart';
+import '../../services/scene_sound.dart';
 import '../../services/tts.dart';
 import '../../ui/theme.dart';
 import '../../ui/typography.dart';
@@ -59,11 +59,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// Kept from initState: `ref` must not be used in dispose(), where the last
   /// card's reading time is still recorded.
   late final HabitNotifier _habit;
-  late final SoundtrackNotifier _soundtrack;
+  late final SceneSoundController _sound;
   Map<int, ChapterSegments>? _segments;
-  bool _showNowPlaying = false;
-  Timer? _nowPlayingTimer;
   final Set<int> _requestedAi = {};
+
+  /// The scene and on/off state the sound was last set for.
+  (Vibe, bool)? _soundFor;
 
   /// Dwell on the earlier reels of a split card, by feed index (the card is
   /// credited once, on its last reel).
@@ -75,32 +76,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _habit = ref.read(habitProvider.notifier);
-    _soundtrack = ref.read(soundtrackProvider.notifier);
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _soundtrack.loadCatalog();
-      _cueMusicForCurrent(chapterStart: true);
+    _sound = ref.read(sceneSoundProvider.notifier);
+  }
+
+  /// Keeps the scene's ambient sound in step with the scene on screen
+  /// (including the AI's Auto scenes) and the reader's on/off choice.
+  void _syncSound(Vibe scene, bool on) {
+    if (_soundFor == (scene, on)) return;
+    _soundFor = (scene, on);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      on ? unawaited(_sound.play(scene)) : unawaited(_sound.stop());
     });
-  }
-
-  /// Lets the AI soundtrack follow the card on screen (paid tiers).
-  void _cueMusicForCurrent({bool chapterStart = false}) {
-    if (!mounted || _feed.isEmpty) return;
-    _cueMusic(_feed[_page.clamp(0, _feed.length - 1)], chapterStart: chapterStart);
-  }
-
-  void _cueMusic(FeedItem item, {bool chapterStart = false}) {
-    final seg = _segments?[item.chapterIndex];
-    final card = item.card;
-    _soundtrack.onPosition(
-      chapterKey: '${widget.bookId}:${item.chapterIndex}:${seg?.source.name}',
-      cues: seg?.musicCues ?? const [],
-      cardIndex: item.cardIndexInChapter ?? 0,
-      mood: card?.mood,
-      energy: card?.energy,
-      chapterStart: chapterStart,
-      teaser: seg?.teaser,
-      bookTitle: _sentencesFor?.title,
-    );
   }
 
   /// The scene behind the card on screen: the AI's choice for this part of
@@ -112,50 +99,19 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     return Vibe.values.where((v) => v.name == name && v != Vibe.paper).firstOrNull ?? s.vibe;
   }
 
-  Future<void> _onMusic() async {
-    final settings = ref.read(settingsProvider);
-    if (!isPaidTier(settings.tier)) {
-      await showModalBottomSheet<void>(
-        context: context,
-        showDragHandle: true,
-        builder: (context) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('🎧 AI soundtrack', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              const Text('The AI reads the mood of every card and plays music that fits it: calm for quiet moments, '
-                  'tense for a chase, hopeful when things turn around. Available on Plus, Pro and Scholar.'),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  context.push('/settings');
-                },
-                child: const Text('See plans'),
-              ),
-            ]),
-          ),
-        ),
-      );
-      return;
-    }
-    final st = ref.read(soundtrackProvider);
-    if (st.loaded && st.tracks.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+  /// Speaker button: mute the scene's sound (to play your own music), or
+  /// bring it back.
+  void _toggleSound(Vibe scene) {
+    final on = !ref.read(settingsProvider).sceneSound;
+    HapticFeedback.selectionClick();
+    ref.read(settingsProvider.notifier).update((x) => x.copyWith(sceneSound: on));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
         behavior: SnackBarBehavior.floating,
-        content: Text(st.message ?? 'No soundtrack available yet.'),
+        duration: const Duration(milliseconds: 1800),
+        content: Text(on ? '🔊 ${sceneSoundLabels[scene]}' : 'Scene sound off. Play your own music if you like.'),
       ));
-      return;
-    }
-    final on = !settings.soundtrack;
-    ref.read(settingsProvider.notifier).update((x) => x.copyWith(soundtrack: on));
-    if (on) {
-      await _soundtrack.loadCatalog();
-      _cueMusicForCurrent(chapterStart: true);
-    } else {
-      await _soundtrack.stop();
-    }
   }
 
   @override
@@ -163,8 +119,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     // Providers can't be modified while the tree is being torn down, so the
     // last card's reading time is recorded right after.
     _recordCurrent(deferred: true);
-    _nowPlayingTimer?.cancel();
-    scheduleMicrotask(_soundtrack.stop);
+    scheduleMicrotask(_sound.stop);
     WidgetsBinding.instance.removeObserver(this);
     _pager?.dispose();
     Tts.instance.stop();
@@ -174,6 +129,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
+      // No scene sound while the app is in the background.
+      unawaited(_sound.pause());
       _recordCurrent();
       final habit = ref.read(habitProvider);
       final notifier = ref.read(habitProvider.notifier);
@@ -182,6 +139,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       }
     } else if (state == AppLifecycleState.resumed) {
       _shownAt = DateTime.now();
+      unawaited(_sound.resume());
     }
   }
 
@@ -344,8 +302,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         });
       }
       if (_tts) _speak(item);
-      final previous = index > 0 ? _feed[index - 1] : null;
-      _cueMusic(item, chapterStart: previous?.chapterIndex != item.chapterIndex);
     }
     if (item.kind == CardKind.milestone) {
       if (ref.read(libraryProvider.notifier).markFinished(widget.bookId)) {
@@ -411,9 +367,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
 
   void _speak(FeedItem item) {
     final text = _reelText(item);
-    _soundtrack.duck(true);
+    _sound.duck(true);
     Tts.instance.speak(text, onDone: () {
-      _soundtrack.duck(false);
+      _sound.duck(false);
       if (mounted && _tts && _pager != null && _page < _feed.length - 1) {
         _pager!.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       }
@@ -496,7 +452,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       _speak(_feed[_page]);
     } else {
       Tts.instance.stop();
-      _soundtrack.duck(false);
+      _sound.duck(false);
     }
   }
 
@@ -722,15 +678,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final style = vibeStyles[scene]!;
     final auto = s.autoScene && isPaidTier(s.tier) && s.vibe != Vibe.paper;
     final chromeColor = t.text;
-    final soundtrack = ref.watch(soundtrackProvider);
-    ref.listen(soundtrackProvider.select((x) => x.playing?.id), (prev, next) {
-      if (next == null || next == prev) return;
-      setState(() => _showNowPlaying = true);
-      _nowPlayingTimer?.cancel();
-      _nowPlayingTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted) setState(() => _showNowPlaying = false);
-      });
-    });
+    _syncSound(scene, s.sceneSound);
 
     return Stack(children: [
       PageView.builder(
@@ -772,41 +720,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
               : '${today.minutes.floor()}/${goal.dailyTarget} min',
           goalDone: today.meets(goal),
           vibeEmoji: auto ? '✨' : style.emoji,
-          music: !isPaidTier(s.tier)
-              ? _MusicButton.locked
-              : (s.soundtrack && soundtrack.playing != null)
-                  ? _MusicButton.playing
-                  : s.soundtrack
-                      ? _MusicButton.on
-                      : _MusicButton.off,
-          onMusic: _onMusic,
+          soundOn: s.sceneSound,
+          soundLabel: sceneSoundLabels[scene] ?? '',
+          onSound: () => _toggleSound(scene),
           onClose: () => context.canPop() ? context.pop() : context.go('/library'),
           onVibe: _pickVibe,
           onMore: () => _more(book, s, t),
-        ),
-      ),
-      // "Now playing" credit (attribution is required by music licenses).
-      Positioned(
-        top: padding.top + 64,
-        left: 0,
-        right: 0,
-        child: IgnorePointer(
-          child: AnimatedOpacity(
-            opacity: _showNowPlaying && soundtrack.playing != null ? 1 : 0,
-            duration: const Duration(milliseconds: 300),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(color: const Color(0x99000000), borderRadius: BorderRadius.circular(20)),
-                child: Text(
-                  soundtrack.playing == null ? '' : '♪ ${soundtrack.playing!.attribution}  ·  ${soundtrack.mood ?? ''}',
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-          ),
         ),
       ),
       if (!s.gestureTutorialSeen && _feed.isNotEmpty)
@@ -1004,9 +923,7 @@ class _GoalBar extends StatelessWidget {
   }
 }
 
-enum _MusicButton { locked, off, on, playing }
-
-/// Top bar: close · streak flame · today's goal · soundtrack · vibe switcher · menu.
+/// Top bar: close · streak flame · today's goal · scene sound · vibe switcher · menu.
 class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.color,
@@ -1017,8 +934,9 @@ class _TopBar extends StatelessWidget {
     required this.goalLabel,
     required this.goalDone,
     required this.vibeEmoji,
-    required this.music,
-    required this.onMusic,
+    required this.soundOn,
+    required this.soundLabel,
+    required this.onSound,
     required this.onClose,
     required this.onVibe,
     required this.onMore,
@@ -1036,8 +954,10 @@ class _TopBar extends StatelessWidget {
   final String goalLabel;
   final bool goalDone;
   final String vibeEmoji;
-  final _MusicButton music;
-  final VoidCallback onMusic;
+  /// The scene's ambient sound is on.
+  final bool soundOn;
+  final String soundLabel;
+  final VoidCallback onSound;
   final VoidCallback onClose;
   final VoidCallback onVibe;
   final VoidCallback onMore;
@@ -1066,22 +986,9 @@ class _TopBar extends StatelessWidget {
       ])),
       const Spacer(),
       IconButton(
-        tooltip: switch (music) {
-          _MusicButton.locked => 'AI soundtrack (paid plans)',
-          _MusicButton.off => 'Turn on soundtrack',
-          _ => 'Turn off soundtrack',
-        },
-        onPressed: onMusic,
-        icon: Icon(
-          switch (music) {
-            _MusicButton.playing => Icons.music_note,
-            _MusicButton.on => Icons.music_note_outlined,
-            _MusicButton.off => Icons.music_off_outlined,
-            _MusicButton.locked => Icons.headphones_outlined,
-          },
-          color: music == _MusicButton.playing ? accent : color,
-          shadows: shadow,
-        ),
+        tooltip: soundOn ? 'Mute scene sound ($soundLabel)' : 'Play scene sound ($soundLabel)',
+        onPressed: onSound,
+        icon: Icon(soundOn ? Icons.volume_up_rounded : Icons.volume_off_rounded, color: color, shadows: shadow),
       ),
       IconButton(tooltip: 'Change vibe', onPressed: onVibe, icon: Text(vibeEmoji, style: const TextStyle(fontSize: 20))),
       IconButton(tooltip: 'More', icon: Icon(Icons.more_horiz, color: color, shadows: shadow), onPressed: onMore),
@@ -1104,6 +1011,7 @@ class _GestureGuide extends StatelessWidget {
       (Icons.swipe_left_outlined, 'Swipe left', 'Save'),
       (Icons.swipe_right_outlined, 'Swipe right', 'Share'),
       (Icons.translate, 'Long-press a word', 'See its meaning'),
+      (Icons.volume_up_rounded, 'Speaker', 'Mute the scene sound to play your own music'),
     ];
     return GestureDetector(
       onTap: onDone,
@@ -1111,7 +1019,10 @@ class _GestureGuide extends StatelessWidget {
         color: const Color(0xCC0B0F14),
         padding: const EdgeInsets.all(32),
         child: SafeArea(
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          // Scrolls on short screens (landscape, large text).
+          child: Center(
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Text('Read like you scroll',
                 style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
             const SizedBox(height: 24),
@@ -1131,7 +1042,9 @@ class _GestureGuide extends StatelessWidget {
               ),
             const SizedBox(height: 28),
             FilledButton(onPressed: onDone, style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.black), child: const Text('Got it')),
-          ]),
+              ]),
+            ),
+          ),
         ),
       ),
     );

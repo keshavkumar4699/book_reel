@@ -32,6 +32,8 @@
 >
 > Revision 3's "text fitted to the screen" and "very large phrase on the same card" are superseded. Everything else stands: full-screen reels, the right-hand action rail, gestures, AI scenes and soundtrack.
 
+> **Revision 5 (scene sounds instead of AI music).** The AI soundtrack is gone: licensing music for use inside an app is costly and uncertain. Instead **each scene has its own ambient sound** (rain on the window for Rain, café murmur for Café, waves for Ocean, a crackling fire for Snow, soft brown noise for Paper). It is on for every tier, follows the scene (including Auto scenes) with a crossfade, never pauses the reader's own music app, and one tap on the speaker mutes it for readers who prefer their own music. Steady natural sound also doesn't compete with the words the way speech or music with lyrics can (the "irrelevant speech effect"), so it suits reading better than songs. §6.5 is superseded.
+
 ## 0. The answer in one paragraph
 
 The best UI for BookReel is **not** a copy of TikTok or Instagram Reels. Copy the *ease* of reels: one thing on screen, one swipe to move on, no decisions. Do **not** copy their *business model*: endless, variable-reward scrolling built to maximise time spent. We call the right approach a **"calm feed"**:
@@ -283,7 +285,7 @@ No red badge counts on the app icon. Quiet hours by default from 22:00 to 08:00.
 - Haptics: `selectionClick` on each card, `mediumImpact` on goal completion, none for errors.
 
 ### 6.5 Sound
-Silent by default. Optional ambient sounds (rain, café, library) for focus, with their own volume control.
+Each scene's own ambient sound, on by default, with its own volume control and a one-tap mute in the reader (see Revision 5).
 
 ### 6.6 Voice & tone
 - Warm, short, encouraging. Talk about the user, not the app ("You read 3 books this month", not "BookReel helped you…").

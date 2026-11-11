@@ -26,7 +26,6 @@ export function structureOutput(ch: ChapterInput, perCard = 8): StructureOutput 
     chapter_teaser: "What if the smallest change mattered most?",
     scene: "forest",
     scene_cues: [],
-    music_cues: [{ at_card: 0, mood: "calm", energy: 2, description: "soft piano" }],
   };
 }
 
@@ -38,8 +37,6 @@ export function presentationOutput(cards: { index: number; sentences: Sentence[]
       layout: "centered",
       emphasis: [{ sid: c.sentences[0]!.sid, text: "quiet power", level: 3 }],
       key_sids: [c.sentences[0]!.sid],
-      mood: "reflective",
-      energy: 2,
       hard_words: [{ word: "habits", sid: c.sentences[0]!.sid, meaning: "repeated behaviours" }],
     })),
   };

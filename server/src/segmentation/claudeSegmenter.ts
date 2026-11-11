@@ -44,7 +44,7 @@ export class ModelFailure extends Error {}
 
 /** Abstraction so the service can be tested without network access. */
 export interface ModelSegmenter {
-  /** Pass 1: cards, recaps, recalls, teaser, scenes, music cues. */
+  /** Pass 1: cards, recaps, recalls, teaser, scenes. */
   structure(job: StructureJob): Promise<ModelResult<StructureOutput>>;
   /** Pass 2: per-card art direction. */
   present(job: PresentationJob): Promise<ModelResult<PresentationOutput>>;

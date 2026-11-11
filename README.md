@@ -66,7 +66,6 @@ ANTHROPIC_API_KEY=... npm run dev     # http://localhost:8787
 | `POST /v1/social/follow-code`, `DELETE /v1/social/follow/:userId`, `GET /v1/feed`, `POST /v1/activities/:id/kudos` | Friends, feed and kudos |
 | `GET /v1/sync?since=`, `PUT /v1/sync` | Notebook and reading-position sync |
 | `POST /v1/share`, `GET /c/:id`, `GET /i/:code`, `GET /.well-known/assetlinks.json` | Share links, preview pages, invites, App Links |
-| `GET /v1/music/tracks`, `POST /v1/music/plan` | Soundtrack catalog and the AI's track picks (paid plans) |
 | `POST /v1/book/profile` | The AI's choice of fonts for a book (paid plans) |
 
 Configuration (all optional locally):
@@ -78,20 +77,33 @@ Configuration (all optional locally):
 | `FIREBASE_PROJECT_ID` | Enables Google sign-in (Firebase ID tokens); without it, accounts are per device |
 | `PUBLIC_BASE_URL` | Base URL for share and invite links |
 | `ANDROID_CERT_SHA256` | Signing-certificate fingerprints for Android App Links |
-| `MUSIC_CATALOG` | Soundtrack catalog JSON (default `./music/catalog.json`; see `music/catalog.example.json`) |
 
 ### AI direction (paid tiers)
 
-Each chapter goes through two AI passes. The tier's model (Haiku, Sonnet or Opus) reads the chapter: where cards start, recaps, quick checks, the background **scene** (and scene changes), and **music cues** like a film score. Then Haiku art-directs every card: which phrases to stress and which short sentence deserves a spotlight reel (verified word-for-word against the text), the layout, mood and word meanings. One more small request per book picks its fonts (`POST /v1/book/profile`; only the title, author, genre tags and about 900 words of the opening pages are sent). In **Auto** mode the app crossfades to the scene the AI chose, with that scene's text colours.
+Each chapter goes through two AI passes. The tier's model (Haiku, Sonnet or Opus) reads the chapter: where cards start, recaps, quick checks, and the background **scene** (and scene changes). Then Haiku art-directs every card: which phrases to stress and which short sentence deserves a spotlight reel (verified word-for-word against the text), the layout and word meanings. One more small request per book picks its fonts (`POST /v1/book/profile`; only the title, author, genre tags and about 900 words of the opening pages are sent). In **Auto** mode the app crossfades to the scene the AI chose, with that scene's text colours.
 
-### AI soundtrack (paid tiers)
+### Scene sounds (every plan)
 
-During segmentation Claude also plans **music cues** for each chapter (mood, energy, a description of the ideal music); an AI music supervisor (`POST /v1/music/plan`) picks the best licensed track for each cue. Cards also carry a **mood** (calm, reflective, hopeful, joyful, playful, romantic, mysterious, tense, sad, epic) and an **energy** (1–5). The app picks a matching track from the server's catalog, changes music only when a new mood holds for two cards (or a chapter starts) and at most every 30 seconds, crossfades, lowers the volume during read-aloud, and shows each track's credit when it starts.
+Each scene has its own ambient sound, mixed from looping field recordings bundled with the app (`app/assets/sounds/`, about 5.6 MB):
 
-**Licensing:** the catalog ships empty. Only add tracks you have the rights to stream inside the app. NoCopyrightSounds (NCS) music is free for online videos and streams, but use in an app or a paid feature needs a license from NCS. Every catalog entry must include a license note and the attribution text; entries without them are rejected.
+| Scene | Sound |
+|---|---|
+| Forest | wind in the pines, birds, crickets |
+| Café | café murmur, rain outside |
+| Rain | rain, a little distant city |
+| Ocean | waves, sea wind |
+| Night | crickets, night wind |
+| Meadow | birdsong, a breeze |
+| Snow | crackling fire, wind |
+| City | distant traffic |
+| Paper | soft brown noise |
+
+It is on by default and follows the scene, including the AI's **Auto** scenes, with a crossfade. The speaker button in the reader (or **Settings → Scene sound**) mutes it, so readers can play their own music instead. The sound mixes with other apps rather than pausing them, stops when the app goes to the background, and gets quieter during read-aloud.
+
+The recordings are public domain, CC0 or CC BY; sources and credits are in `app/assets/sounds/CREDITS.md` and on the app's licences page. `app/tool/build_scene_sounds.py` rebuilds the loops.
 
 Models by tier: Plus → `claude-haiku-5-5`, Pro → `claude-sonnet-5-5`, Scholar → `claude-opus-5-5` (`server/src/config.ts`).
 
 ## Licenses of bundled data
 
-Fonts (all SIL Open Font License, unmodified, licence texts in `app/assets/fonts/`): Literata, Atkinson Hyperlegible, DM Serif Display, Lora, Playfair Display, Alegreya, Cinzel, Exo 2, Orbitron, Libre Baskerville, Oswald, Outfit, Nunito and Fredoka. Dictionary: WordNet 3.0 (WordNet License). Word frequencies: wordfreq (CC BY-SA 4.0). Starter book: *Alice's Adventures in Wonderland* (public domain). See `app/assets/lexicon/README.md`.
+Fonts (all SIL Open Font License, unmodified, licence texts in `app/assets/fonts/`): Literata, Atkinson Hyperlegible, DM Serif Display, Lora, Playfair Display, Alegreya, Cinzel, Exo 2, Orbitron, Libre Baskerville, Oswald, Outfit, Nunito and Fredoka. Scene sounds: public domain, CC0 and CC BY recordings, credited in `app/assets/sounds/CREDITS.md`. Dictionary: WordNet 3.0 (WordNet License). Word frequencies: wordfreq (CC BY-SA 4.0). Starter book: *Alice's Adventures in Wonderland* (public domain). See `app/assets/lexicon/README.md`.

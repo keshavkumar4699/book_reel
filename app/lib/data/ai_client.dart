@@ -131,8 +131,6 @@ ChapterSegments? parseServerChapter(Chapter chapter, Map<String, dynamic> json) 
         for (final h in ((c['hard_words'] as List?) ?? const []).cast<Map<String, dynamic>>())
           if (sids.contains(h['sid'])) HardWord.fromJson(h),
       ],
-      mood: c['mood'] as String?,
-      energy: (c['energy'] as num?)?.toInt(),
       emphasis: [
         for (final e in ((c['emphasis'] as List?) ?? const []).cast<Map<String, dynamic>>())
           if (sids.contains(e['sid'])) Emphasis.fromJson(e),
@@ -151,10 +149,6 @@ ChapterSegments? parseServerChapter(Chapter chapter, Map<String, dynamic> json) 
     sceneCues: [
       for (final c in ((json['scene_cues'] as List?) ?? const []).cast<Map<String, dynamic>>())
         if ((c['at_card'] as num).toInt() < cards.length) SceneCue.fromJson(c),
-    ],
-    musicCues: [
-      for (final c in ((json['music_cues'] as List?) ?? const []).cast<Map<String, dynamic>>())
-        if ((c['at_card'] as num).toInt() < cards.length) MusicCue.fromJson(c),
     ],
     recaps: {
       for (final r in ((json['recaps'] as List?) ?? const []).cast<Map<String, dynamic>>())

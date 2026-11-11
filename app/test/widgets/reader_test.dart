@@ -14,6 +14,7 @@ import 'package:book_reel/data/store_provider.dart';
 import 'package:book_reel/features/reader/cards/text_card.dart';
 import 'package:book_reel/features/reader/reader_screen.dart';
 import 'package:book_reel/features/share/share_sheet.dart';
+import 'package:book_reel/services/scene_sound.dart';
 import 'package:book_reel/ui/theme.dart';
 import 'package:book_reel/ui/typography.dart';
 import 'package:book_reel/ui/vibes.dart';
@@ -21,7 +22,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// Records what would be played (tests have no audio plugin).
+class SilentLoop implements LoopPlayer {
+  SilentLoop(this.log);
+  final List<String> log;
+  @override
+  Future<void> load(String asset) async => log.add(asset);
+  @override
+  Future<void> setVolume(double volume) async {}
+  @override
+  Future<void> play() async {}
+  @override
+  Future<void> pause() async {}
+  @override
+  Future<void> dispose() async => log.add('released');
+}
+
 void main() {
+  final sounds = <String>[];
+  setUp(() {
+    sounds.clear();
+    SceneSoundController.playerFactory = () => SilentLoop(sounds);
+    SceneSoundController.fade = Duration.zero;
+  });
+
   testWidgets('reader opens the starter book and swipes from the chapter card to text', (tester) async {
     final dir = Directory.systemTemp.createTempSync('bookreel_widget');
     late ProviderContainer container;
@@ -47,12 +71,33 @@ void main() {
     expect(find.text('Down the Rabbit-Hole'), findsOneWidget);
     expect(find.text('Swipe up to begin'), findsOneWidget);
 
+    // The scene's own sound plays (forest: wind, birds, crickets), for free users too.
+    expect(sounds, ['assets/sounds/wind.ogg', 'assets/sounds/birds.ogg', 'assets/sounds/crickets.ogg']);
+
     // First run shows the gesture guide once.
     expect(find.text('Read like you scroll'), findsOneWidget);
     await tester.tap(find.text('Got it'));
     await tester.pump();
     expect(find.text('Read like you scroll'), findsNothing);
     expect(container.read(settingsProvider).gestureTutorialSeen, isTrue);
+
+    // The speaker mutes the scene sound (to play your own music) and brings it back.
+    await tester.tap(find.byTooltip('Mute scene sound (Wind in the pines, birds and crickets)'));
+    await tester.pump();
+    await tester.pump();
+    expect(container.read(settingsProvider).sceneSound, isFalse);
+    expect(sounds.where((x) => x == 'released'), hasLength(3));
+    expect(find.text('Scene sound off. Play your own music if you like.'), findsOneWidget);
+    await tester.tap(find.byTooltip('Play scene sound (Wind in the pines, birds and crickets)'));
+    await tester.pump();
+    await tester.pump();
+    expect(container.read(settingsProvider).sceneSound, isTrue);
+    expect(sounds.where((x) => x.endsWith('.ogg')), hasLength(6));
+    // Let the snackbar finish its entrance, time out and leave.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(find.byType(SnackBar), findsNothing);
 
     await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));

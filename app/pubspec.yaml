@@ -78,6 +78,8 @@ flutter:
 
   assets:
     - assets/books/
+    # Scene sounds (licences in assets/sounds/CREDITS.md).
+    - assets/sounds/
     - assets/lexicon/zipf.tsv.gz
     - assets/lexicon/wordnet.json.gz
     # Font licences, shown on the app's licences page.
