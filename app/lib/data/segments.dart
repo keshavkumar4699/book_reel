@@ -8,6 +8,7 @@ import '../core/models/reel_card.dart';
 import '../core/segmentation/rule_segmenter.dart';
 import 'ai_client.dart';
 import 'library.dart';
+import 'local_ai.dart';
 import 'settings_provider.dart';
 import 'store_provider.dart';
 
@@ -25,8 +26,8 @@ Map<int, ChapterSegments> _decodeSegments(String s) => (jsonDecode(s) as Map<Str
     .map((k, v) => MapEntry(int.parse(k), ChapterSegments.fromJson(v as Map<String, dynamic>)));
 
 /// Rule segments for every chapter, with AI segments (when cached) replacing
-/// them chapter by chapter. Rule segments are computed in a background isolate
-/// and cached on disk.
+/// them chapter by chapter, and on-device extras added to rule chapters. Rule
+/// segments are computed in a background isolate and cached on disk.
 final segmentsProvider = FutureProvider.family<Map<int, ChapterSegments>, SegmentsKey>((ref, key) async {
   final store = ref.read(storeProvider);
   final book = await ref.watch(bookContentProvider(key.bookId).future);
@@ -40,9 +41,10 @@ final segmentsProvider = FutureProvider.family<Map<int, ChapterSegments>, Segmen
     await store.writeBlob(rulesName, await compute(_encodeSegments, rules));
   }
   final aiRaw = await store.readBlob('${key.bookId}.ai.${key.length.name}.json');
-  if (aiRaw == null) return rules;
-  final ai = await compute(_decodeSegments, aiRaw);
-  return {...rules, ...ai};
+  final merged = aiRaw == null ? rules : {...rules, ...await compute(_decodeSegments, aiRaw)};
+  // Free: recaps, quick checks and teasers the on-device model wrote.
+  final localRaw = await store.readBlob(localBlobName(key.bookId, key.length));
+  return localRaw == null ? merged : mergeLocal(merged, decodeLocal(localRaw));
 });
 
 final deviceIdProvider = Provider<String>((ref) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'data/settings.dart';
 import 'data/settings_provider.dart';
 import 'data/sync_service.dart';
 import 'services/billing.dart';
@@ -65,11 +66,9 @@ class BookReelApp extends ConsumerStatefulWidget {
 }
 
 class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingObserver {
-  ThemeData? _theme;
-  Object? _themeKey;
-
-  @override
-  void didChangePlatformBrightness() => setState(() {});
+  // Screens outside the reader: plain light and dark (the reader wears its scene).
+  static final _light = buildAppTheme(Kit.appLight);
+  static final _dark = buildAppTheme(Kit.appDark);
 
   @override
   void initState() {
@@ -99,19 +98,17 @@ class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
-    // The whole app wears the reader's scene. Only rebuild the theme when
-    // something it depends on changes (not on every settings tweak).
-    final look = ref.watch(settingsProvider.select((s) => (s.vibe, s.theme, s.followSystemDark, s.animatedBackground)));
-    final brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
-    final key = (look, brightness);
-    if (key != _themeKey) {
-      _themeKey = key;
-      _theme = buildAppTheme(Kit.fromSettings(ref.read(settingsProvider), brightness));
-    }
+    final appearance = ref.watch(settingsProvider.select((s) => s.appearance));
     return MaterialApp.router(
       title: 'BookReel',
       debugShowCheckedModeBanner: false,
-      theme: _theme,
+      theme: _light,
+      darkTheme: _dark,
+      themeMode: switch (appearance) {
+        AppAppearance.system => ThemeMode.system,
+        AppAppearance.light => ThemeMode.light,
+        AppAppearance.dark => ThemeMode.dark,
+      },
       routerConfig: router,
     );
   }

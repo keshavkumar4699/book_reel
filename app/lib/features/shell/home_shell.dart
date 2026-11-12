@@ -5,9 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../data/notebook.dart';
 import '../../ui/kit.dart';
 
-/// Four destinations on one scene (UX_DESIGN.md §4, Revision 6): the
-/// reader's scene stays behind every tab and a floating dock switches them.
-/// The scene moves only on Today; lists sit on a still frame of it.
+/// Four destinations and a floating dock (UX_DESIGN.md §4, Revision 8): the
+/// tabs use the app's light or dark theme; scenes belong to the reader.
 class HomeShell extends ConsumerWidget {
   const HomeShell({super.key, required this.shell});
 
@@ -22,7 +21,6 @@ class HomeShell extends ConsumerWidget {
       child: Scaffold(
         backgroundColor: kit.base,
         body: Stack(children: [
-          Positioned.fill(child: SceneBackdrop(animate: shell.currentIndex == 0)),
           Positioned.fill(child: shell),
           Positioned(
             left: 0,

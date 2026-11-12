@@ -17,11 +17,13 @@ import '../../data/book_voice.dart';
 import '../../data/habit.dart';
 import '../../data/lexicon_loader.dart';
 import '../../data/library.dart';
+import '../../data/local_ai.dart';
 import '../../data/notebook.dart';
 import '../../data/segments.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../services/notifications.dart';
+import '../../services/on_device_ai.dart';
 import '../../services/scene_sound.dart';
 import '../../services/read_aloud.dart';
 import '../../ui/kit.dart';
@@ -64,6 +66,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   late final ReadAloud _readAloud;
   Map<int, ChapterSegments>? _segments;
   final Set<int> _requestedAi = {};
+
+  /// The chapter and block of cards the on-device model last wrote ahead for.
+  (int, int)? _localBlock;
 
   /// The scene and on/off state the sound was last set for.
   (Vibe, bool)? _soundFor;
@@ -226,7 +231,46 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     return (null, 0);
   }
 
+  /// Cards between recaps and quick checks.
+  int get _blockSize => ref.read(settingsProvider).cardLength == CardLength.snack ? 15 : 10;
+
+  /// Free with the on-device model: writes the next recaps, quick checks and
+  /// the chapter teaser just ahead of the reader, a block at a time.
+  void _maybeRequestLocal(BookContent book) {
+    if (_feed.isEmpty || !ref.read(onDeviceAiProvider.notifier).usable) return;
+    // The text card on screen, or the last one before it.
+    FeedItem? item;
+    for (var i = _page.clamp(0, _feed.length - 1); i >= 0; i--) {
+      if (_feed[i].cardIndexInChapter != null) {
+        item = _feed[i];
+        break;
+      }
+    }
+    final ch = item?.chapterIndex ?? _feed[_page.clamp(0, _feed.length - 1)].chapterIndex;
+    final fromCard = item?.cardIndexInChapter ?? 0;
+    final seg = _segments?[ch];
+    if (seg == null) return;
+    final block = (ch, fromCard ~/ _blockSize);
+    if (block == _localBlock) return;
+    _localBlock = block;
+    final length = ref.read(settingsProvider).cardLength;
+    final writer = ref.read(localAiSegmenterProvider);
+    void reload(bool changed) {
+      if (!changed || !mounted) return;
+      _localBlock = null; // look again from wherever the reader is now
+      ref.invalidate(segmentsProvider((bookId: widget.bookId, length: length)));
+    }
+
+    writer.ensure(bookId: widget.bookId, book: book, seg: seg, fromCard: fromCard, length: length, every: _blockSize).then(reload);
+    // In a chapter's last block, get the next chapter's teaser and first recap ready.
+    final next = _segments?[ch + 1];
+    if (next != null && fromCard >= seg.cards.length - _blockSize) {
+      writer.ensure(bookId: widget.bookId, book: book, seg: next, fromCard: 0, length: length, every: _blockSize).then(reload);
+    }
+  }
+
   void _maybeRequestAi(BookContent book) async {
+    _maybeRequestLocal(book);
     if (_feed.isEmpty) return;
     final ch = _feed[_page.clamp(0, _feed.length - 1)].chapterIndex;
     final wanted = [ch, ch + 1].where((c) => c < book.chapters.length && !_requestedAi.contains(c)).toList();
@@ -314,6 +358,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       }
       if (_tts) _speak(item);
     }
+    _maybeRequestLocal(book);
     if (item.kind == CardKind.milestone) {
       if (ref.read(libraryProvider.notifier).markFinished(widget.bookId)) {
         ref.read(habitProvider.notifier).bookFinished();
@@ -636,13 +681,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       body = _buildReader(book, meta, settings, readingTheme, type, lexicon);
     }
 
-    // The reader's own kit follows the scene on screen (Auto scenes included).
-    final theme = Theme.of(context);
-    final kit = Kit.forScene(scene, paperTheme, motion: settings.animatedBackground);
+    // The reader wears the scene on screen (Auto scenes included): its sheets,
+    // menus and controls take the scene's colours, whatever the app's
+    // light or dark theme is.
+    final theme = cachedAppTheme(
+      ('reader', scene, paperTheme, settings.animatedBackground),
+      () => Kit.forScene(scene, paperTheme, motion: settings.animatedBackground),
+    );
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: readingTheme.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: Theme(
-        data: theme.copyWith(extensions: [kit]),
+        data: theme,
         child: Builder(builder: (context) {
           _themed = context;
           return _scaffold(scene, settings, paperTheme, readingTheme, body);
@@ -807,8 +856,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
                 .where((h) => h.word.toLowerCase() == word.toLowerCase() && h.meaning != null)
                 .map((h) => h.meaning)
                 .firstOrNull;
+            final local = ref.read(onDeviceAiProvider.notifier);
             showWordSheet(_ui,
-                word: word, sentence: sentence.text, bookTitle: book.title, lexicon: lexicon, contextMeaning: meaning);
+                word: word,
+                sentence: sentence.text,
+                bookTitle: book.title,
+                lexicon: lexicon,
+                contextMeaning: meaning,
+                // Free with the on-device model: asked now, ahead of background work.
+                onDeviceMeaning: local.usable
+                    ? () => local.run<String?>(
+                          (llm) => const LocalWriter().meaning(llm, word: word, sentence: sentence.text),
+                          urgent: true,
+                        )
+                    : null);
           },
           onLike: () => ref.read(notebookProvider.notifier).toggleLike(widget.bookId, item.anchorSid!),
           onSave: () => _toggleSave(book, item),

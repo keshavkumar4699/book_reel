@@ -10,6 +10,7 @@ import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../data/api_client.dart';
 import '../../services/billing.dart';
+import '../../services/on_device_ai.dart';
 import '../../services/read_aloud.dart';
 import '../../services/scene_sound.dart';
 import '../../ui/kit.dart';
@@ -27,6 +28,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
+    final ai = ref.watch(onDeviceAiProvider);
     final style = vibeStyles[s.vibe]!;
     final auto = s.autoScene && s.tier.paid && s.vibe != Vibe.paper;
     final time = MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay(hour: s.reminderHour, minute: s.reminderMinute),
@@ -35,6 +37,19 @@ class SettingsScreen extends ConsumerWidget {
     return KitPage(
       title: 'Settings',
       children: [
+        KitGroup(label: 'App', children: [
+          KitRow(
+            icon: switch (s.appearance) {
+              AppAppearance.system => Icons.brightness_auto_rounded,
+              AppAppearance.light => Icons.light_mode_rounded,
+              AppAppearance.dark => Icons.dark_mode_rounded,
+            },
+            title: 'Appearance',
+            value: s.appearance.label,
+            onTap: () => showKitSheet<void>(context,
+                title: 'Appearance', subtitle: 'For every screen except the reader, which wears its scene', builder: (_) => const AppearanceSettings()),
+          ),
+        ]),
         KitGroup(label: 'Reading', children: [
           KitRow(
             emoji: auto ? '✨' : style.emoji,
@@ -68,6 +83,24 @@ class SettingsScreen extends ConsumerWidget {
             value: '${_lengthName(s.cardLength)} · ${_levelName(s.readingLevel)}',
             onTap: () => showKitSheet<void>(context, title: 'Cards', builder: (_) => const CardSettings()),
           ),
+          // Paid plans get the same help from Claude.
+          if (!s.tier.paid)
+            KitRow(
+              icon: Icons.auto_awesome_rounded,
+              title: 'On-device AI',
+              value: switch (ai.phase) {
+                LocalAiPhase.checking => '…',
+                LocalAiPhase.unsupported => 'Not on this phone',
+                LocalAiPhase.absent => 'Off',
+                LocalAiPhase.downloading => 'Downloading ${ai.progress}%',
+                LocalAiPhase.ready => s.onDeviceAi ? 'On · ${ai.model?.name ?? ''}' : 'Paused',
+                LocalAiPhase.failed => 'Needs attention',
+              },
+              onTap: () => showKitSheet<void>(context,
+                  title: 'On-device AI',
+                  subtitle: 'Recaps, quick checks and word meanings, written on your phone',
+                  builder: (_) => const OnDeviceAiSettings()),
+            ),
         ]),
         KitGroup(label: 'Habit', children: [
           KitRow(
@@ -120,6 +153,157 @@ class SettingsScreen extends ConsumerWidget {
         ]),
       ],
     );
+  }
+}
+
+/// The Free plan's on-device model: what it does, whether this phone can run
+/// it, the download, and switching it off or removing it.
+class OnDeviceAiSettings extends ConsumerStatefulWidget {
+  const OnDeviceAiSettings({super.key});
+
+  @override
+  ConsumerState<OnDeviceAiSettings> createState() => _OnDeviceAiSettingsState();
+}
+
+class _OnDeviceAiSettingsState extends ConsumerState<OnDeviceAiSettings> {
+  LocalModelOption? _choice;
+
+  static int _gb(int bytes) => (bytes / (1024 * 1024 * 1024)).ceil();
+
+  @override
+  Widget build(BuildContext context) {
+    final kit = Kit.of(context);
+    final ai = ref.watch(onDeviceAiProvider);
+    final s = ref.watch(settingsProvider);
+    final ctl = ref.read(onDeviceAiProvider.notifier);
+    final choice = _choice ?? ai.model ?? localModels.first;
+    Widget column(List<Widget> children) =>
+        Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+          Text(
+            'A small AI model on your phone writes a recap and a quick check every few minutes of reading, a teaser '
+            'for each chapter, and what a tapped word means in its sentence. It\'s free and private: your books never '
+            'leave your phone, and it works offline.',
+            style: kit.caption,
+          ),
+          const SizedBox(height: 14),
+          ...children,
+        ]);
+
+    switch (ai.phase) {
+      case LocalAiPhase.checking:
+        return column([const Center(child: KitSpinner())]);
+      case LocalAiPhase.unsupported:
+        return column([
+          KitPanel(child: Text(ai.message ?? 'This phone can\'t run it.', style: kit.body)),
+          const SizedBox(height: 10),
+          Text('Free reading keeps working with on-device rules.', style: kit.caption),
+        ]);
+      case LocalAiPhase.downloading:
+        final m = ai.model!;
+        return column([
+          Text('Downloading ${m.name}… ${ai.progress}%', style: kit.strong),
+          const SizedBox(height: 10),
+          KitProgress(value: ai.progress / 100),
+          const SizedBox(height: 10),
+          Text('${m.sizeLabel} in all. Keep reading: it switches on when it\'s done.', style: kit.caption),
+          const SizedBox(height: 14),
+          KitButton.secondary(label: 'Cancel', expand: true, onPressed: ctl.cancelDownload),
+        ]);
+      case LocalAiPhase.ready:
+        final m = ai.model!;
+        return column([
+          KitGroup(children: [
+            KitSwitchRow(
+              icon: Icons.auto_awesome_rounded,
+              title: 'Use on-device AI',
+              subtitle: '${m.name} · ${m.sizeLabel} on your phone',
+              value: s.onDeviceAi,
+              onChanged: (v) => ref.read(settingsProvider.notifier).update((x) => x.copyWith(onDeviceAi: v)),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          KitButton(
+            label: 'Remove model (frees ${m.sizeLabel})',
+            kind: KitButtonKind.danger,
+            expand: true,
+            onPressed: () async {
+              final ok = await showKitConfirm(context,
+                  title: 'Remove ${m.name}?', message: 'You can download it again any time.', confirm: 'Remove', destructive: true);
+              if (ok) await ctl.remove();
+            },
+          ),
+        ]);
+      case LocalAiPhase.absent:
+      case LocalAiPhase.failed:
+        final installed = localModelById(s.localModel);
+        return column([
+          if (ai.phase == LocalAiPhase.failed && ai.message != null) ...[
+            KitPanel(child: Text(ai.message!, style: kit.body)),
+            const SizedBox(height: 12),
+          ],
+          if (ai.phase == LocalAiPhase.failed && installed != null) ...[
+            // Downloaded, but it would not load.
+            KitButton(label: 'Try again', expand: true, onPressed: ctl.retry),
+            const SizedBox(height: 8),
+            KitButton.secondary(label: 'Remove model', expand: true, onPressed: ctl.remove),
+          ] else ...[
+            KitGroup(children: [
+              for (final o in localModels)
+                KitRow(
+                  title: o.name,
+                  subtitle: ai.fits(o)
+                      ? '${o.sizeLabel} · ${o.blurb}'
+                      : '${o.sizeLabel} · Needs a phone with ${_gb(o.minRamBytes)} GB of memory or more.',
+                  selected: choice.id == o.id,
+                  chevron: false,
+                  trailing: choice.id == o.id ? null : Icon(Icons.radio_button_unchecked_rounded, color: kit.inkSoft),
+                  onTap: ai.fits(o) ? () => setState(() => _choice = o) : null,
+                ),
+            ]),
+            const SizedBox(height: 10),
+            Text('A one-time download (Wi-Fi is best). Open model weights under the ${choice.licence} licence.', style: kit.caption),
+            const SizedBox(height: 14),
+            KitButton(
+              label: 'Download · ${choice.sizeLabel}',
+              icon: Icons.download_rounded,
+              expand: true,
+              onPressed: ai.fits(choice) ? () => ctl.download(choice) : null,
+            ),
+          ],
+        ]);
+    }
+  }
+}
+
+/// System default, light or dark for the screens outside the reader.
+class AppearanceSettings extends ConsumerWidget {
+  const AppearanceSettings({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final s = ref.watch(settingsProvider);
+    return KitGroup(children: [
+      for (final a in AppAppearance.values)
+        KitRow(
+          icon: switch (a) {
+            AppAppearance.system => Icons.brightness_auto_rounded,
+            AppAppearance.light => Icons.light_mode_rounded,
+            AppAppearance.dark => Icons.dark_mode_rounded,
+          },
+          title: a.label,
+          subtitle: a == AppAppearance.system ? 'Follow the phone’s light or dark mode' : null,
+          selected: s.appearance == a,
+          chevron: false,
+          trailing: s.appearance == a ? null : Icon(Icons.radio_button_unchecked_rounded, color: kit.inkSoft),
+          onTap: () {
+            ref.read(settingsProvider.notifier).update((x) => x.copyWith(appearance: a));
+            // The sheet keeps the colours it opened with; close it so the
+            // whole screen shows the new look at once.
+            Navigator.of(context).pop();
+          },
+        ),
+    ]);
   }
 }
 

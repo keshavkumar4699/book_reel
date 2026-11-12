@@ -80,7 +80,7 @@ class _PageModeViewState extends State<PageModeView> {
       },
       // Page mode is plain paper: its controls wear the paper theme.
       child: Theme(
-        data: Theme.of(context).copyWith(extensions: [Kit.forScene(Vibe.paper, t)]),
+        data: cachedAppTheme(('page', t), () => Kit.forScene(Vibe.paper, t)),
         child: Builder(builder: (context) => Scaffold(
         backgroundColor: t.background,
         body: SafeArea(

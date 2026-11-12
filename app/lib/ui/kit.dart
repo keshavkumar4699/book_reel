@@ -1,9 +1,11 @@
-/// BookReel's own UI kit (UX_DESIGN.md Revision 6).
+/// BookReel's own UI kit (UX_DESIGN.md Revisions 6 and 8).
 ///
-/// Every screen, sheet, dialog, menu, toast and control is drawn in the
-/// colours of the reader's scene (forest, café, rain…), on top of that scene,
-/// so the app feels like one calm place instead of a stack of system popups.
-/// Nothing here uses Material's surfaces, ripples or popups.
+/// The reader wears its scene (forest, café, rain…): there every sheet,
+/// dialog, menu, toast and control is drawn in the scene's colours, on top of
+/// it, so reading feels like one calm place. Every other screen uses a plain
+/// light or dark kit ([Kit.appLight], [Kit.appDark]), as the reader chooses in
+/// Settings → Appearance. Nothing here uses Material's surfaces, ripples or
+/// popups.
 library;
 
 import 'dart:math' as math;
@@ -108,8 +110,46 @@ class Kit extends ThemeExtension<Kit> {
   factory Kit.fromSettings(AppSettings s, Brightness platform) =>
       Kit.forScene(s.vibe, ReadingTheme.of(effectiveReadingTheme(s, platform)), motion: s.animatedBackground);
 
-  static Kit of(BuildContext context) =>
-      Theme.of(context).extension<Kit>() ?? Kit.forScene(Vibe.paper, ReadingTheme.of(ReadingThemeId.paper));
+  /// Light chrome for screens outside the reader: warm paper white, ember accent.
+  static const appLight = Kit(
+    vibe: Vibe.paper,
+    dark: false,
+    motion: false,
+    ink: Color(0xFF1D1B18),
+    inkSoft: Color(0xFF625D55), // 5.8:1 on [base]
+    accent: Color(0xFFA4511A), // 5.0:1 on [base], 5.6:1 on white
+    onAccent: Color(0xFFFFFFFF),
+    glass: Color(0xFFFFFFFF),
+    sheet: Color(0xFFFFFFFF),
+    stroke: Color(0x17000000),
+    field: Color(0x0D000000),
+    barrier: Color(0x66000000),
+    base: Color(0xFFF5F2EC),
+    danger: Color(0xFFB3261E),
+  );
+
+  /// Dark chrome for screens outside the reader: warm near-black, amber accent.
+  static const appDark = Kit(
+    vibe: Vibe.paper,
+    dark: true,
+    motion: false,
+    ink: Color(0xFFECE7DF),
+    inkSoft: Color(0xFFA59E94), // 7.1:1 on [base]
+    accent: Color(0xFFE9A85A), // 9.2:1 on [base]
+    onAccent: Color(0xFF1E1408),
+    glass: Color(0xFF1E1C1A),
+    sheet: Color(0xFF242220),
+    stroke: Color(0x1FFFFFFF),
+    field: Color(0x14FFFFFF),
+    barrier: Color(0x99000000),
+    base: Color(0xFF121110),
+    danger: Color(0xFFFF8A80),
+  );
+
+  /// The app kit for [brightness].
+  static Kit app(Brightness brightness) => brightness == Brightness.dark ? appDark : appLight;
+
+  static Kit of(BuildContext context) => Theme.of(context).extension<Kit>() ?? appLight;
 
   final Vibe vibe;
   final ScenePalette? palette;
@@ -175,6 +215,12 @@ class Kit extends ThemeExtension<Kit> {
   Kit lerp(ThemeExtension<Kit>? other, double t) => t < 0.5 ? this : (other as Kit? ?? this);
 }
 
+final _themes = <Object, ThemeData>{};
+
+/// [buildAppTheme] for a kit, cached by [key] (building a colour scheme from a
+/// seed is not free, and the reader rebuilds often).
+ThemeData cachedAppTheme(Object key, Kit Function() kit) => _themes[key] ??= buildAppTheme(kit());
+
 /// The app's ThemeData: Material defaults neutralised (no ripples, no Roboto),
 /// the kit attached, and calm fade transitions between pages.
 ThemeData buildAppTheme(Kit kit) {
@@ -217,8 +263,8 @@ ThemeData buildAppTheme(Kit kit) {
   );
 }
 
-/// Pages share the same scene, so a cross-fade reads as the content changing
-/// in place rather than a new screen sliding in.
+/// A calm cross-fade between pages: the content changes in place rather than
+/// a new screen sliding in.
 class KitPageTransitions extends PageTransitionsBuilder {
   const KitPageTransitions();
 
@@ -234,8 +280,9 @@ class KitPageTransitions extends PageTransitionsBuilder {
 
 // ---------------------------------------------------------------- backdrop
 
-/// The reader's scene behind app screens, under an even veil so panels and
-/// headings read clearly anywhere on it. Still unless [animate].
+/// The page background: the scene under an even veil when the kit has one
+/// (the reader, its session-end screen), else the kit's plain [Kit.base].
+/// Still unless [animate].
 class SceneBackdrop extends StatelessWidget {
   const SceneBackdrop({super.key, this.animate = false, this.veil = 0.28});
 
@@ -268,7 +315,7 @@ class SceneBackdrop extends StatelessWidget {
 
 // ---------------------------------------------------------------- pages
 
-/// A screen: scene backdrop, top bar and scrolling content.
+/// A screen: background, top bar and scrolling content.
 class KitPage extends StatelessWidget {
   const KitPage({
     super.key,
@@ -296,7 +343,7 @@ class KitPage extends StatelessWidget {
   /// Instead of [children], for long lists.
   final List<Widget>? slivers;
 
-  /// Draw the scene (pushed screens); tab screens sit on the shell's scene.
+  /// Paint the background (pushed screens); tab screens sit on the shell's.
   final bool backdrop;
 
   /// Leave room for the floating tab dock.

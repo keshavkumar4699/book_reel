@@ -9,8 +9,18 @@ enum ReadingFont { book, literata, atkinson, system }
 
 enum KeyPointStyle { off, subtle, bold }
 
-/// Calm animated backgrounds for the reader and Today screen.
+/// Calm animated backgrounds behind the reader's reels.
 enum Vibe { forest, cafe, rain, ocean, night, meadow, snow, city, paper }
+
+/// Light or dark for every screen except the reader (which wears its scene).
+enum AppAppearance {
+  system('System default'),
+  light('Light'),
+  dark('Dark');
+
+  const AppAppearance(this.label);
+  final String label;
+}
 
 /// Bump when defaults change in a way existing users should get.
 const currentLayoutVersion = 3;
@@ -84,6 +94,9 @@ class AppSettings {
     this.naturalVoice = true,
     this.voiceName = 'af_heart',
     this.voiceSpeed = 1.0,
+    this.appearance = AppAppearance.system,
+    this.onDeviceAi = true,
+    this.localModel,
     this.username = '',
     this.pronouns = '',
     this.bio = '',
@@ -136,6 +149,15 @@ class AppSettings {
   /// The natural voice (a Kokoro voice name) and the reading speed.
   final String voiceName;
   final double voiceSpeed;
+
+  /// Light, dark or the phone's setting, for screens outside the reader.
+  final AppAppearance appearance;
+
+  /// Use the on-device model on the Free plan once it is downloaded.
+  final bool onDeviceAi;
+
+  /// The on-device model that is downloaded (an id from on_device_ai.dart).
+  final String? localModel;
 
   /// Profile (Instagram-style): @username, pronouns and a short bio.
   final String username;
@@ -199,6 +221,10 @@ class AppSettings {
     bool? naturalVoice,
     String? voiceName,
     double? voiceSpeed,
+    AppAppearance? appearance,
+    bool? onDeviceAi,
+    String? localModel,
+    bool clearLocalModel = false,
     String? username,
     String? pronouns,
     String? bio,
@@ -245,6 +271,9 @@ class AppSettings {
         naturalVoice: naturalVoice ?? this.naturalVoice,
         voiceName: voiceName ?? this.voiceName,
         voiceSpeed: voiceSpeed ?? this.voiceSpeed,
+        appearance: appearance ?? this.appearance,
+        onDeviceAi: onDeviceAi ?? this.onDeviceAi,
+        localModel: clearLocalModel ? null : (localModel ?? this.localModel),
         username: username ?? this.username,
         pronouns: pronouns ?? this.pronouns,
         bio: bio ?? this.bio,
@@ -292,6 +321,9 @@ class AppSettings {
         'naturalVoice': naturalVoice,
         'voiceName': voiceName,
         'voiceSpeed': voiceSpeed,
+        'appearance': appearance.name,
+        'onDeviceAi': onDeviceAi,
+        'localModel': localModel,
         'username': username,
         'pronouns': pronouns,
         'bio': bio,
@@ -363,6 +395,9 @@ class AppSettings {
       naturalVoice: (j['naturalVoice'] as bool?) ?? d.naturalVoice,
       voiceName: (j['voiceName'] as String?) ?? d.voiceName,
       voiceSpeed: num_(j['voiceSpeed'], d.voiceSpeed).clamp(0.7, 1.4),
+      appearance: pick(AppAppearance.values, j['appearance'], d.appearance),
+      onDeviceAi: (j['onDeviceAi'] as bool?) ?? d.onDeviceAi,
+      localModel: j['localModel'] as String?,
       username: (j['username'] as String?) ?? d.username,
       pronouns: (j['pronouns'] as String?) ?? d.pronouns,
       bio: (j['bio'] as String?) ?? d.bio,

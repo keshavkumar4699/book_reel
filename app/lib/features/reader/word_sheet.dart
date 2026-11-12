@@ -7,7 +7,9 @@ import '../../services/tts.dart';
 import '../../ui/kit.dart';
 
 /// Word sheet (UX_DESIGN.md §5.4): meaning in this sentence first, then
-/// dictionary senses, pronunciation and "add to word list".
+/// dictionary senses, pronunciation and "add to word list". The meaning in
+/// context comes from the AI cards (paid plans) or, on Free with the
+/// on-device model, from [onDeviceMeaning], asked when the sheet opens.
 Future<void> showWordSheet(
   BuildContext context, {
   required String word,
@@ -15,6 +17,7 @@ Future<void> showWordSheet(
   required String bookTitle,
   required Lexicon lexicon,
   String? contextMeaning,
+  Future<String?> Function()? onDeviceMeaning,
 }) {
   final entry = lexicon.lookup(word);
   return showKitSheet<void>(
@@ -28,17 +31,19 @@ Future<void> showWordSheet(
       bookTitle: bookTitle,
       entry: entry,
       contextMeaning: contextMeaning,
+      onDeviceMeaning: contextMeaning == null ? onDeviceMeaning : null,
     ),
   );
 }
 
-class _WordSheet extends ConsumerWidget {
+class _WordSheet extends ConsumerStatefulWidget {
   const _WordSheet({
     required this.word,
     required this.sentence,
     required this.bookTitle,
     required this.entry,
     this.contextMeaning,
+    this.onDeviceMeaning,
   });
 
   final String word;
@@ -46,28 +51,71 @@ class _WordSheet extends ConsumerWidget {
   final String bookTitle;
   final DictionaryEntry? entry;
   final String? contextMeaning;
+  final Future<String?> Function()? onDeviceMeaning;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_WordSheet> createState() => _WordSheetState();
+}
+
+class _WordSheetState extends ConsumerState<_WordSheet> {
+  /// The on-device model's answer: pending, then the meaning or null.
+  bool _asking = false;
+  String? _local;
+
+  @override
+  void initState() {
+    super.initState();
+    final ask = widget.onDeviceMeaning;
+    if (ask != null) {
+      _asking = true;
+      ask().then((m) {
+        if (!mounted) return;
+        setState(() {
+          _asking = false;
+          _local = m;
+        });
+      }, onError: (Object _) {
+        if (mounted) setState(() => _asking = false);
+      });
+    }
+  }
+
+  Widget _inContext(Kit kit, String text, {String label = 'IN THIS SENTENCE'}) => KitPanel(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: kit.label.copyWith(color: kit.accent)),
+          const SizedBox(height: 6),
+          Text(text, style: kit.heading),
+        ]),
+      );
+
+  @override
+  Widget build(BuildContext context) {
     final kit = Kit.of(context);
+    final word = widget.word;
+    final entry = widget.entry;
     final saved = ref.watch(notebookProvider).hasWord(word);
+    final contextMeaning = widget.contextMeaning ?? _local;
     final meaning = contextMeaning ?? entry?.senses.first.definition;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      if (contextMeaning != null)
+      if (widget.contextMeaning != null)
+        _inContext(kit, widget.contextMeaning!)
+      else if (_local != null)
+        _inContext(kit, _local!, label: 'IN THIS SENTENCE · ON-DEVICE AI')
+      else if (_asking)
         KitPanel(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('IN THIS SENTENCE', style: kit.label.copyWith(color: kit.accent)),
-            const SizedBox(height: 6),
-            Text(contextMeaning!, style: kit.heading),
+          child: Row(children: [
+            KitSpinner(size: 18, color: kit.accent),
+            const SizedBox(width: 12),
+            Expanded(child: Text('Working out what it means here, on your phone…', style: kit.caption)),
           ]),
         ),
       const SizedBox(height: 14),
       if (entry == null && contextMeaning == null)
-        Text('No offline definition for “$word”.', style: kit.body)
+        Text(_asking ? '' : 'No offline definition for “$word”.', style: kit.body)
       else if (entry != null) ...[
         Text('DICTIONARY', style: kit.label),
         const SizedBox(height: 8),
-        for (final s in entry!.senses)
+        for (final s in entry.senses)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -93,8 +141,8 @@ class _WordSheet extends ConsumerWidget {
             : () => ref.read(notebookProvider.notifier).addWord(
                   word: entry?.lemma ?? word.toLowerCase(),
                   meaning: meaning,
-                  sentence: sentence,
-                  bookTitle: bookTitle,
+                  sentence: widget.sentence,
+                  bookTitle: widget.bookTitle,
                 ),
       ),
     ]);

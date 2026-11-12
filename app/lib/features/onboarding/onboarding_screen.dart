@@ -9,9 +9,10 @@ import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/vibes.dart';
 
-/// ≤ 60 seconds to the first card: a welcome over a live scene, pick a study
-/// vibe, pick interests, then straight into a starter book. The daily goal is
-/// asked later, after the first cards.
+/// ≤ 60 seconds to the first card: a welcome, pick a study vibe (a live
+/// window onto the scene you will read in), pick interests, then straight
+/// into a starter book. The daily goal is asked later, after the first cards.
+/// Onboarding wears the app's light or dark theme; scenes belong to reading.
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -41,12 +42,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final kit = Kit.of(context);
     final style = vibeStyles[_vibe]!;
     final palette = scenePalettes[_vibe];
-    final fg = palette?.ink ?? const Color(0xFF1F1D1A);
-    final shadows = palette?.textShadows;
-    final titleStyle = TextStyle(color: fg, fontSize: 30, fontWeight: FontWeight.w800, height: 1.15, shadows: shadows);
-    final bodyStyle = TextStyle(color: fg.withValues(alpha: 0.92), fontSize: 17, height: 1.4, shadows: shadows);
+    final titleStyle = kit.display;
+    final bodyStyle = kit.body.copyWith(fontSize: 17, color: kit.inkSoft);
     Widget primary(String label, VoidCallback? onPressed) => KitButton(label: label, expand: true, onPressed: onPressed);
 
     final steps = [
@@ -64,8 +64,42 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const Spacer(),
         Text('Pick your study vibe', style: titleStyle),
         const SizedBox(height: 8),
-        Text(style.tagline, style: bodyStyle),
-        const SizedBox(height: 20),
+        Text('The scene and sound behind your reels. ${style.tagline}', style: bodyStyle),
+        const SizedBox(height: 16),
+        // A window onto the scene you'll read in.
+        ClipRRect(
+          borderRadius: BorderRadius.circular(26),
+          child: SizedBox(
+            height: 190,
+            child: Stack(fit: StackFit.expand, children: [
+              RepaintBoundary(
+                child: VibeBackground(
+                  vibe: _vibe,
+                  animate: !MediaQuery.disableAnimationsOf(context),
+                  paperColor: ReadingTheme.of(ReadingThemeId.paper).background,
+                ),
+              ),
+              if (palette != null) DecoratedBox(decoration: BoxDecoration(gradient: palette.scrim)),
+              Padding(
+                padding: const EdgeInsets.all(22),
+                child: Center(
+                  child: Text(
+                    'It is a truth universally acknowledged…',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Literata',
+                      fontSize: 21,
+                      height: 1.35,
+                      color: palette?.ink ?? const Color(0xFF1F1D1A),
+                      shadows: palette?.textShadows,
+                    ),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 12),
         KitPanel(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
           radius: 26,
@@ -94,17 +128,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       ]),
     ];
 
-    // The whole screen wears the scene being picked.
-    final kit = Kit.forScene(_vibe, ReadingTheme.of(ReadingThemeId.paper));
-    return Theme(
-      data: Theme.of(context).copyWith(extensions: [kit]),
+    return AnnotatedRegion(
+      value: kit.statusBar,
       child: Scaffold(
-      backgroundColor: kit.base,
-      body: Stack(children: [
-        Positioned.fill(child: VibeBackground(vibe: _vibe)),
-        // The scene's own calibrated shade keeps text readable on it.
-        if (palette != null) Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(gradient: palette.scrim))),
-        SafeArea(
+        backgroundColor: kit.base,
+        body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
             child: AnimatedSwitcher(
@@ -113,7 +141,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
           ),
         ),
-      ]),
       ),
     );
   }
