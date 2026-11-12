@@ -1,10 +1,10 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 
 import { AuthError, Authenticator } from "./auth.js";
 import { isPaidTier, quotaFor } from "./config.js";
 import type { Db } from "./db/db.js";
-import { ActivityBatchSchema, ActivityService } from "./habit/activity.js";
+import { ActivityBatchSchema, ActivityService, HandleTaken, InvalidHandle } from "./habit/activity.js";
 import { localDateKey, weekKey } from "./habit/engine.js";
 import { LeagueService } from "./habit/leagues.js";
 import { SegmentRequestSchema } from "./segmentation/schema.js";
@@ -13,6 +13,16 @@ import { landingPage, ShareSchema, ShareService } from "./social/shares.js";
 import { SyncPushSchema, SyncService } from "./social/sync.js";
 import type { QuotaStore } from "./stores/memory.js";
 import { BookProfiler, BookProfileRequestSchema, type VoiceChooser } from "./typography/profile.js";
+
+const ProfileBodySchema = z.object({
+  display_name: z.string().max(80).optional(),
+  daily_goal_cards: z.number().optional(),
+  freezes_per_week: z.number().optional(),
+  handle: z.string().max(40).optional(),
+  pronouns: z.string().max(60).optional(),
+  bio: z.string().max(400).optional(),
+  avatar: z.string().max(32).optional(),
+});
 
 export interface AppDeps {
   db: Db;
@@ -55,6 +65,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (err instanceof AuthError) return reply.code(401).send({ error: "unauthorized", message: err.message });
     if (err instanceof QuotaExceeded) return reply.code(402).send({ error: "quota_exceeded", limit: err.limit });
     if (err instanceof TierNotEligible) return reply.code(403).send({ error: "tier_not_eligible", message: err.message });
+    if (err instanceof HandleTaken) return reply.code(409).send({ error: "handle_taken", message: err.message });
+    if (err instanceof InvalidHandle) return reply.code(400).send({ error: "invalid_handle", message: err.message });
     const status = (err as { statusCode?: number }).statusCode;
     if (status && status < 500) return reply.code(status).send({ error: (err as Error).message });
     app.log.error(err);
@@ -97,6 +109,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return {
       user_id: u.id,
       display_name: u.display_name,
+      handle: u.handle,
+      pronouns: u.pronouns,
+      bio: u.bio,
+      avatar: u.avatar,
       invite_code: u.invite_code,
       invite_url: `${baseUrl}/i/${u.invite_code}`,
       daily_goal_cards: u.daily_goal_cards,
@@ -104,13 +120,26 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     };
   });
 
-  app.put<{ Body: { display_name?: string; daily_goal_cards?: number; freezes_per_week?: number } }>("/v1/me/profile", async (req) => {
+  app.put("/v1/me/profile", async (req) => {
+    const b = ProfileBodySchema.parse(req.body ?? {});
     const u = await activity.setProfile((await caller(req)).userId, {
-      displayName: req.body?.display_name,
-      dailyGoalCards: req.body?.daily_goal_cards,
-      freezesPerWeek: req.body?.freezes_per_week,
+      displayName: b.display_name,
+      dailyGoalCards: b.daily_goal_cards,
+      freezesPerWeek: b.freezes_per_week,
+      handle: b.handle,
+      pronouns: b.pronouns,
+      bio: b.bio,
+      avatar: b.avatar,
     });
-    return { display_name: u.display_name, daily_goal_cards: u.daily_goal_cards, freezes_per_week: u.freezes_per_week };
+    return {
+      display_name: u.display_name,
+      handle: u.handle,
+      pronouns: u.pronouns,
+      bio: u.bio,
+      avatar: u.avatar,
+      daily_goal_cards: u.daily_goal_cards,
+      freezes_per_week: u.freezes_per_week,
+    };
   });
 
   app.post("/v1/activity/batch", async (req) => {

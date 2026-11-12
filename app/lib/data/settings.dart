@@ -15,6 +15,15 @@ enum Vibe { forest, cafe, rain, ocean, night, meadow, snow, city, paper }
 /// Bump when defaults change in a way existing users should get.
 const currentLayoutVersion = 3;
 
+/// Genres a reader can pick (onboarding, profile).
+const readingGenres = [
+  'Classics', 'Self-improvement', 'Science', 'History', 'Business', 'Fiction', 'Philosophy', 'Psychology',
+  'Biography', 'Fantasy', 'Health', 'Poetry',
+];
+
+/// Usernames: 3–24 of a–z, 0–9, dot and underscore (as on the server).
+final usernamePattern = RegExp(r'^[a-z0-9._]{3,24}$');
+
 /// Bump when the plan ladder changes, so saved plans can be mapped.
 const currentPlanVersion = 2;
 
@@ -72,6 +81,11 @@ class AppSettings {
     this.goalSetupDone = false,
     this.tier = Tier.free,
     this.displayName = 'Reader',
+    this.username = '',
+    this.pronouns = '',
+    this.bio = '',
+    this.avatarEmoji = '',
+    this.avatarPath,
     this.interests = const [],
     this.vibe = Vibe.forest,
     this.animatedBackground = true,
@@ -112,6 +126,15 @@ class AppSettings {
   final bool goalSetupDone;
   final Tier tier;
   final String displayName;
+
+  /// Profile (Instagram-style): @username, pronouns and a short bio.
+  final String username;
+  final String pronouns;
+  final String bio;
+
+  /// Avatar: a photo kept on the phone, or else an emoji, or else initials.
+  final String avatarEmoji;
+  final String? avatarPath;
   final List<String> interests;
   final Vibe vibe;
   final bool animatedBackground;
@@ -163,6 +186,12 @@ class AppSettings {
     bool? goalSetupDone,
     Tier? tier,
     String? displayName,
+    String? username,
+    String? pronouns,
+    String? bio,
+    String? avatarEmoji,
+    String? avatarPath,
+    bool clearAvatarPath = false,
     List<String>? interests,
     Vibe? vibe,
     bool? animatedBackground,
@@ -200,6 +229,11 @@ class AppSettings {
         goalSetupDone: goalSetupDone ?? this.goalSetupDone,
         tier: tier ?? this.tier,
         displayName: displayName ?? this.displayName,
+        username: username ?? this.username,
+        pronouns: pronouns ?? this.pronouns,
+        bio: bio ?? this.bio,
+        avatarEmoji: avatarEmoji ?? this.avatarEmoji,
+        avatarPath: clearAvatarPath ? null : (avatarPath ?? this.avatarPath),
         interests: interests ?? this.interests,
         vibe: vibe ?? this.vibe,
         animatedBackground: animatedBackground ?? this.animatedBackground,
@@ -239,6 +273,11 @@ class AppSettings {
         'goalSetupDone': goalSetupDone,
         'tier': tier.name,
         'displayName': displayName,
+        'username': username,
+        'pronouns': pronouns,
+        'bio': bio,
+        'avatarEmoji': avatarEmoji,
+        'avatarPath': avatarPath,
         'interests': interests,
         'vibe': vibe.name,
         'animatedBackground': animatedBackground,
@@ -302,6 +341,11 @@ class AppSettings {
       goalSetupDone: (j['goalSetupDone'] as bool?) ?? d.goalSetupDone,
       tier: savedTier,
       displayName: (j['displayName'] as String?) ?? d.displayName,
+      username: (j['username'] as String?) ?? d.username,
+      pronouns: (j['pronouns'] as String?) ?? d.pronouns,
+      bio: (j['bio'] as String?) ?? d.bio,
+      avatarEmoji: (j['avatarEmoji'] as String?) ?? d.avatarEmoji,
+      avatarPath: j['avatarPath'] as String?,
       interests: ((j['interests'] as List?) ?? const []).cast<String>(),
       vibe: pick(Vibe.values, j['vibe'], d.vibe),
       animatedBackground: (j['animatedBackground'] as bool?) ?? d.animatedBackground,

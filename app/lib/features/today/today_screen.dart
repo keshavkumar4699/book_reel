@@ -10,6 +10,7 @@ import '../../data/settings_provider.dart';
 import '../../ui/kit.dart';
 import '../../ui/vibes.dart';
 import '../../ui/widgets.dart';
+import '../profile/profile_screen.dart';
 import '../reader/goal_setup_sheet.dart';
 
 /// Today (home): one main action, today's goal ring and streak, one social
@@ -60,7 +61,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       title: '${_greeting()}${settings.displayName == 'Reader' ? '' : ','}',
       subtitle: settings.displayName == 'Reader' ? '${style.emoji} ${style.tagline}' : settings.displayName,
       actions: [
-        KitIconButton(icon: Icons.person_outline_rounded, semanticLabel: 'Your progress', onPressed: () => context.push('/profile')),
+        KitIconButton(
+          icon: Icons.person_outline_rounded,
+          semanticLabel: 'Your profile',
+          onPressed: () => context.push('/profile'),
+          child: ReaderAvatar(settings: settings, size: 40, ring: today.meets(goal)),
+        ),
         KitIconButton(icon: Icons.tune_rounded, semanticLabel: 'Settings', onPressed: () => context.push('/settings')),
       ],
       children: [

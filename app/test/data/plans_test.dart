@@ -10,6 +10,17 @@ void main() {
     expect(Tier.values.where((t) => t.paid), [Tier.lite, Tier.plus, Tier.pro, Tier.scholar]);
   });
 
+  test('the profile is kept with the settings', () {
+    const s = AppSettings(
+        displayName: 'Asha', username: 'asha.reads', pronouns: 'she/her', bio: 'Classics.', avatarEmoji: '🦉', avatarPath: '/a.jpg');
+    final back = AppSettings.fromJson(s.toJson());
+    expect((back.username, back.pronouns, back.bio, back.avatarEmoji, back.avatarPath), ('asha.reads', 'she/her', 'Classics.', '🦉', '/a.jpg'));
+    expect(back.copyWith(clearAvatarPath: true).avatarPath, isNull);
+    expect(AppSettings.fromJson(const {}).username, '');
+    expect(usernamePattern.hasMatch('asha.reads'), isTrue);
+    expect(usernamePattern.hasMatch('Asha Reads'), isFalse);
+  });
+
   test('a plan saved before Lite existed keeps its price', () {
     Tier saved(String tier, [int? planVersion]) =>
         AppSettings.fromJson({'tier': tier, 'planVersion': ?planVersion}).tier;

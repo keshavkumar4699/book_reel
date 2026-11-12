@@ -99,4 +99,12 @@ export const MIGRATIONS: string[] = [
     created_at timestamptz not null default now()
   )
   `,
+  // v-next: an Instagram-style profile (username, pronouns, bio, avatar emoji).
+  `
+  alter table users add column handle text;
+  alter table users add column pronouns text not null default '';
+  alter table users add column bio text not null default '';
+  alter table users add column avatar text not null default '';
+  create unique index users_handle_lower on users (lower(handle)) where handle is not null;
+  `,
 ];

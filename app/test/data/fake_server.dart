@@ -10,6 +10,9 @@ class FakeServer {
   int seq = 0;
   final List<Map<String, dynamic>> activity = [];
   final Map<String, Map<String, dynamic>> profiles = {};
+
+  /// Usernames that belong to someone else (PUT /v1/me/profile answers 409).
+  final Set<String> takenHandles = {};
   final List<Map<String, dynamic>> shares = [];
   final List<String> kudos = [];
 
@@ -53,8 +56,10 @@ class FakeServer {
           return ok({'accepted': events.length, 'verified': events.length, 'streak': 1, 'wpm': 230});
         }
         if (path == '/v1/me/profile') {
-          profiles[user] = body();
-          return ok(body());
+          final b = body();
+          if (takenHandles.contains(b['handle'])) return http.Response('{"error":"handle_taken"}', 409);
+          profiles[user] = {...?profiles[user], ...b};
+          return ok(profiles[user]!);
         }
         if (path == '/v1/me') {
           return ok({'user_id': 'device:$user', 'display_name': 'Asha', 'invite_code': '7PA756JQ', 'invite_url': 'https://bookreel.app/i/7PA756JQ', 'signed_in': false});

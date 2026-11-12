@@ -25,10 +25,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final Set<String> _interests = {};
   bool _starting = false;
 
-  static const _options = [
-    'Classics', 'Self-improvement', 'Science', 'History', 'Business', 'Fiction', 'Philosophy', 'Psychology',
-    'Biography', 'Fantasy', 'Health', 'Poetry',
-  ];
+  static const _options = readingGenres;
 
   Future<void> _start() async {
     setState(() => _starting = true);

@@ -76,6 +76,24 @@ describe("HTTP API", () => {
     expect((await usage("?tier=gold")).books_limit).toBe(12); // unknown tiers read as Lite, never crash
   });
 
+  it("profile: username (unique, any case), pronouns, bio and avatar emoji", async () => {
+    const a = app();
+    const put = (headers: Record<string, string>, payload: object) => a.inject({ method: "PUT", url: "/v1/me/profile", headers, payload });
+    const res = await put(device, { display_name: "Asha", handle: "@Asha.Reads", pronouns: "she/her", bio: "Classics on the commute.  ", avatar: "🦉" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ handle: "asha.reads", pronouns: "she/her", bio: "Classics on the commute.", avatar: "🦉" });
+    expect((await a.inject({ url: "/v1/me", headers: device })).json()).toMatchObject({ display_name: "Asha", handle: "asha.reads", bio: "Classics on the commute." });
+    // Someone else cannot take it, in any letter case; a bad name is refused.
+    expect((await put(friend, { handle: "ASHA.reads" })).statusCode).toBe(409);
+    expect((await put(friend, { handle: "no spaces!" })).statusCode).toBe(400);
+    expect((await put(friend, { handle: "ravi_99" })).statusCode).toBe(200);
+    // Keeping your own name, or changing only the bio, is fine.
+    expect((await put(device, { handle: "asha.reads", bio: "" })).json()).toMatchObject({ handle: "asha.reads", bio: "" });
+    // An empty username clears it and frees it.
+    expect((await put(device, { handle: "" })).json().handle).toBeNull();
+    expect((await put(friend, { handle: "asha.reads" })).statusCode).toBe(200);
+  });
+
   it("friends: invite code, activity, league, friends board, feed and kudos", async () => {
     const a = app();
     await a.inject({ method: "PUT", url: "/v1/me/profile", headers: device, payload: { display_name: "Asha", daily_goal_cards: 2 } });

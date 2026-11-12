@@ -32,6 +32,11 @@ export type ActivityBatch = z.infer<typeof ActivityBatchSchema>;
 export interface UserRow {
   id: string;
   display_name: string;
+  handle: string | null;
+  pronouns: string;
+  bio: string;
+  /** An emoji (photos stay on the phone). */
+  avatar: string;
   invite_code: string;
   wpm: number;
   daily_goal_cards: number;
@@ -53,6 +58,28 @@ export function newInviteCode(): string {
  * Re-verifies reading events, keeps daily stats and streaks, and produces
  * friend activity (IMPLEMENTATION_PLAN.md Phase 7). Backed by Postgres.
  */
+/** Usernames: 3–24 of a–z, 0–9, dot and underscore (stored lower case). */
+export const HANDLE_PATTERN = /^[a-z0-9._]{3,24}$/;
+
+export class HandleTaken extends Error {
+  constructor(readonly handle: string) {
+    super(`@${handle} is taken`);
+  }
+}
+
+export class InvalidHandle extends Error {}
+
+export interface ProfileUpdate {
+  displayName?: string;
+  dailyGoalCards?: number;
+  freezesPerWeek?: number;
+  /** "" clears the username. */
+  handle?: string;
+  pronouns?: string;
+  bio?: string;
+  avatar?: string;
+}
+
 export class ActivityService {
   constructor(private readonly db: Db) {}
 
@@ -73,22 +100,47 @@ export class ActivityService {
     throw new Error("could not allocate an invite code");
   }
 
-  async setProfile(userId: string, p: { displayName?: string; dailyGoalCards?: number; freezesPerWeek?: number }) {
+  async setProfile(userId: string, p: ProfileUpdate) {
     await this.user(userId);
-    const rows = await this.db.query<UserRow>(
-      `update users set
-         display_name = coalesce($2, display_name),
-         daily_goal_cards = coalesce($3, daily_goal_cards),
-         freezes_per_week = coalesce($4, freezes_per_week)
-       where id = $1 returning *`,
-      [
-        userId,
-        p.displayName ? p.displayName.trim().slice(0, 40) || null : null,
-        p.dailyGoalCards ? Math.min(200, Math.max(1, Math.trunc(p.dailyGoalCards))) : null,
-        p.freezesPerWeek !== undefined ? Math.min(7, Math.max(0, Math.trunc(p.freezesPerWeek))) : null,
-      ],
-    );
-    return rows[0]!;
+    let handle: string | null | undefined;
+    if (p.handle !== undefined) {
+      handle = p.handle.trim().replace(/^@/, "").toLowerCase() || null;
+      if (handle !== null && !HANDLE_PATTERN.test(handle)) throw new InvalidHandle("Usernames are 3–24 letters, numbers, dots or underscores.");
+      if (handle !== null) {
+        const taken = await this.db.query<{ id: string }>(`select id from users where lower(handle) = $1 and id <> $2`, [handle, userId]);
+        if (taken.length > 0) throw new HandleTaken(handle);
+      }
+    }
+    const clean = (v: string | undefined, max: number) => (v === undefined ? null : v.replace(/\s+$/g, "").slice(0, max));
+    try {
+      const rows = await this.db.query<UserRow>(
+        `update users set
+           display_name = coalesce($2, display_name),
+           daily_goal_cards = coalesce($3, daily_goal_cards),
+           freezes_per_week = coalesce($4, freezes_per_week),
+           handle = case when $5::boolean then $6 else handle end,
+           pronouns = coalesce($7, pronouns),
+           bio = coalesce($8, bio),
+           avatar = coalesce($9, avatar)
+         where id = $1 returning *`,
+        [
+          userId,
+          p.displayName ? p.displayName.trim().slice(0, 40) || null : null,
+          p.dailyGoalCards ? Math.min(200, Math.max(1, Math.trunc(p.dailyGoalCards))) : null,
+          p.freezesPerWeek !== undefined ? Math.min(7, Math.max(0, Math.trunc(p.freezesPerWeek))) : null,
+          handle !== undefined,
+          handle ?? null,
+          clean(p.pronouns, 30),
+          clean(p.bio, 150),
+          p.avatar === undefined ? null : [...p.avatar.trim()].slice(0, 4).join(""),
+        ],
+      );
+      return rows[0]!;
+    } catch (e) {
+      // Two people claiming the same name at once: the unique index decides.
+      if (handle && String((e as Error).message).includes("users_handle_lower")) throw new HandleTaken(handle);
+      throw e;
+    }
   }
 
   async ingest(userId: string, batch: ActivityBatch) {

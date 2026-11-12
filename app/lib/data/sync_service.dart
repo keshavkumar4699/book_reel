@@ -107,16 +107,32 @@ class SyncService {
       'name': s.displayName,
       'goal': s.goalUnit == GoalUnit.cards ? s.dailyGoal : 10,
       'freezes': s.tier.freezes,
+      'handle': s.username,
+      'pronouns': s.pronouns,
+      'bio': s.bio,
+      'avatar': s.avatarEmoji,
     };
     final store = ref.read(storeProvider);
     final syncDoc = Map<String, dynamic>.from(store.doc('sync') ?? const {});
     final h = _hash(profile);
     if (syncDoc['profile'] == h) return;
-    await _api.updateProfile(
-      displayName: profile['name'] as String,
-      dailyGoalCards: profile['goal'] as int,
-      freezesPerWeek: profile['freezes'] as int,
-    );
+    Future<void> send({required bool withHandle}) => _api.updateProfile(
+          displayName: profile['name'] as String,
+          dailyGoalCards: profile['goal'] as int,
+          freezesPerWeek: profile['freezes'] as int,
+          handle: withHandle ? profile['handle'] as String : null,
+          pronouns: profile['pronouns'] as String,
+          bio: profile['bio'] as String,
+          avatar: profile['avatar'] as String,
+        );
+    try {
+      await send(withHandle: true);
+    } on ApiException catch (e) {
+      // Someone took the username meanwhile: keep it on the phone and sync the
+      // rest, so the other syncs aren't blocked. (Profile edits check names first.)
+      if (e.status != 409 && e.status != 400) rethrow;
+      await send(withHandle: false);
+    }
     await store.saveDoc('sync', {...syncDoc, 'profile': h});
   }
 

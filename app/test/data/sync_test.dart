@@ -95,9 +95,34 @@ void main() {
     habit.recordCard(words: 120, dwellMs: 30000, bookId: 'bk', cardRef: 'bk:c0.b2.s0');
     await a.read(syncServiceProvider).syncNow();
     expect(server.activity.map((e) => e['card_ref']), ['bk:c0.b0.s0', 'bk:c0.b2.s0']);
-    expect(server.profiles['dev1'], {'display_name': 'Asha', 'daily_goal_cards': 5, 'freezes_per_week': 1});
+    expect(server.profiles['dev1'], {
+      'display_name': 'Asha',
+      'daily_goal_cards': 5,
+      'freezes_per_week': 1,
+      'handle': '',
+      'pronouns': '',
+      'bio': '',
+      'avatar': '',
+    });
     await a.read(syncServiceProvider).syncNow();
     expect(server.activity, hasLength(2), reason: 'the outbox is emptied after upload');
+  });
+
+  test('profile: username, pronouns, bio and avatar emoji sync; a taken username never blocks syncing', () async {
+    final server = FakeServer()..takenHandles.add('taken');
+    final a = await device(server, 'dev1');
+    a.read(settingsProvider.notifier).update((s) => s.copyWith(username: 'asha.reads', pronouns: 'she/her', bio: 'Classics.', avatarEmoji: '🦉'));
+    await a.read(syncServiceProvider).syncNow();
+    expect(server.profiles['dev1'], containsPair('handle', 'asha.reads'));
+    expect(server.profiles['dev1'], containsPair('bio', 'Classics.'));
+    expect(server.profiles['dev1'], containsPair('avatar', '🦉'));
+    // Someone took the name in the meantime: the rest still syncs, and reading uploads too.
+    a.read(settingsProvider.notifier).update((s) => s.copyWith(username: 'taken', bio: 'Still syncing.'));
+    a.read(habitProvider.notifier).recordCard(words: 120, dwellMs: 30000, bookId: 'bk', cardRef: 'bk:c0.b0.s0');
+    await a.read(syncServiceProvider).syncNow();
+    expect(server.profiles['dev1'], containsPair('bio', 'Still syncing.'));
+    expect(server.profiles['dev1'], containsPair('handle', 'asha.reads'));
+    expect(server.activity, hasLength(1));
   });
 
   test('reading positions sync to the device that read less recently', () async {

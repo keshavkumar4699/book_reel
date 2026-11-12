@@ -48,10 +48,25 @@ class BookReelApi {
 
   Future<Map<String, dynamic>> me() async => (await _send('GET', '/v1/me')) as Map<String, dynamic>;
 
-  Future<void> updateProfile({String? displayName, int? dailyGoalCards, int? freezesPerWeek}) => _send('PUT', '/v1/me/profile', {
+  /// Updates the server's copy of the profile. Throws [ApiException] 409
+  /// when [handle] belongs to someone else.
+  Future<void> updateProfile({
+    String? displayName,
+    int? dailyGoalCards,
+    int? freezesPerWeek,
+    String? handle,
+    String? pronouns,
+    String? bio,
+    String? avatar,
+  }) =>
+      _send('PUT', '/v1/me/profile', {
         'display_name': ?displayName,
         'daily_goal_cards': ?dailyGoalCards,
         'freezes_per_week': ?freezesPerWeek,
+        'handle': ?handle,
+        'pronouns': ?pronouns,
+        'bio': ?bio,
+        'avatar': ?avatar,
       });
 
   Future<Map<String, dynamic>> uploadActivity(List<Map<String, dynamic>> events) async =>
