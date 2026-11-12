@@ -123,4 +123,18 @@ export const MIGRATIONS: string[] = [
     primary key (user_id, day)
   );
   `,
+  // Google Play subscriptions, verified with the Play Developer API.
+  `
+  create table entitlements (
+    purchase_token text primary key,
+    user_id text,
+    product_id text not null,
+    tier text not null,
+    state text not null,
+    expires_at timestamptz,
+    test boolean not null default false,
+    updated_at timestamptz not null default now()
+  );
+  create index entitlements_user on entitlements (user_id);
+  `,
 ];

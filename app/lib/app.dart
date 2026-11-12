@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'data/settings_provider.dart';
 import 'data/sync_service.dart';
+import 'services/billing.dart';
 import 'features/friends/friends_screen.dart';
 import 'features/library/library_screen.dart';
 import 'features/notebook/notebook_screen.dart';
@@ -75,7 +76,11 @@ class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     // Background sync with the server, when one is configured.
-    WidgetsBinding.instance.addPostFrameCallback((_) => ref.read(syncServiceProvider).start());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(syncServiceProvider).start();
+      // Listen for Play purchases from the start (some complete while the app is closed).
+      ref.read(billingProvider);
+    });
   }
 
   @override

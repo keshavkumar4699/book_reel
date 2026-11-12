@@ -2,6 +2,13 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 
 import { AuthError, Authenticator } from "./auth.js";
+import {
+  BillingService,
+  BillingUnavailable,
+  InvalidPurchase,
+  purchaseTokenFromRtdn,
+  VerifyPurchaseSchema,
+} from "./billing/play.js";
 import { isPaidTier, quotaFor } from "./config.js";
 import type { Db } from "./db/db.js";
 import { ActivityBatchSchema, ActivityService, HandleTaken, InvalidHandle } from "./habit/activity.js";
@@ -38,6 +45,10 @@ export interface AppDeps {
   voiceChooser?: VoiceChooser;
   /** Natural read-aloud voice; without it the app uses the phone's voice. */
   speech?: SpeechService;
+  /** Play Billing; without it plans are not verified (development). */
+  billing?: BillingService;
+  /** Shared secret in the Pub/Sub push URL for Play notifications (?secret=…). */
+  rtdnSecret?: string;
   logger?: boolean;
 }
 
@@ -52,6 +63,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const shares = new ShareService(deps.db, baseUrl);
   const auth = deps.auth ?? new Authenticator(deps.db);
   const profiler = new BookProfiler(deps.voiceChooser);
+  const billing = deps.billing ?? new BillingService(deps.db, undefined);
+  const entitlementJson = (e: { tier: string; productId: string | null; expiresAt: Date | null; state: string | null }) => ({
+    tier: e.tier,
+    product_id: e.productId,
+    expires_at: e.expiresAt?.toISOString() ?? null,
+    state: e.state,
+    enforced: billing.enforced,
+  });
+
   const caller = async (req: FastifyRequest): Promise<Caller> => {
     const c = await auth.resolve(req);
     await activity.user(c.userId);
@@ -70,6 +90,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (err instanceof TierNotEligible) return reply.code(403).send({ error: "tier_not_eligible", message: err.message });
     if (err instanceof HandleTaken) return reply.code(409).send({ error: "handle_taken", message: err.message });
     if (err instanceof SpeechQuotaExceeded) return reply.code(429).send({ error: "speech_quota", limit: err.limit });
+    if (err instanceof InvalidPurchase) return reply.code(400).send({ error: "invalid_purchase", message: err.message });
+    if (err instanceof BillingUnavailable) return reply.code(503).send({ error: "billing_unavailable", message: err.message });
     if (err instanceof SpeechUnavailable) return reply.code(503).send({ error: "tts_unavailable", message: err.message });
     if (err instanceof InvalidHandle) return reply.code(400).send({ error: "invalid_handle", message: err.message });
     const status = (err as { statusCode?: number }).statusCode;
@@ -84,6 +106,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.post("/v1/segment", async (req, reply) => {
     const c = await caller(req);
     const body = SegmentRequestSchema.parse(req.body);
+    body.tier = await billing.tierFor(c.userId, body.tier);
     if (body.priority === "background") {
       const res = await deps.segments.submitBackground(body, c);
       if ("jobId" in res) return reply.code(202).send({ job_id: res.jobId });
@@ -100,7 +123,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.get<{ Querystring: { tier?: string } }>("/v1/me/ai-usage", async (req) => {
     const c = await caller(req);
-    const asked = req.query.tier ?? "";
+    const asked = await billing.tierFor(c.userId, req.query.tier ?? "");
     const tier = isPaidTier(asked) ? asked : "lite";
     const period = new Date().toISOString().slice(0, 7);
     const used = await deps.quota.booksUsed(c.userId, period);
@@ -203,16 +226,35 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.post("/v1/book/profile", async (req, reply) => {
     await caller(req);
     const body = BookProfileRequestSchema.parse(req.body);
+    body.tier = await billing.tierFor((await caller(req)).userId, body.tier);
     if (!isPaidTier(body.tier)) {
       return reply.code(403).send({ error: "tier_not_eligible", message: "AI book design is available on Lite, Plus, Pro and Scholar." });
     }
     return profiler.profile(body);
   });
 
+  // ------------------------------------------------------------ billing
+  app.post("/v1/billing/verify", async (req) => {
+    const c = await caller(req);
+    const body = VerifyPurchaseSchema.parse(req.body);
+    return entitlementJson(await billing.verify(c.userId, body.product_id, body.purchase_token));
+  });
+
+  app.get("/v1/billing/entitlement", async (req) => entitlementJson(await billing.current((await caller(req)).userId)));
+
+  // Play real-time developer notifications, pushed by Pub/Sub.
+  app.post<{ Querystring: { secret?: string } }>("/v1/billing/rtdn", async (req, reply) => {
+    if (!deps.rtdnSecret || req.query.secret !== deps.rtdnSecret) return reply.code(403).send({ error: "forbidden" });
+    const token = purchaseTokenFromRtdn(req.body);
+    if (token) await billing.refresh(token);
+    return reply.code(204).send();
+  });
+
   // ------------------------------------------------------------ read aloud
   app.post("/v1/tts", async (req, reply) => {
     const c = await caller(req);
     const body = SpeechRequestSchema.parse(req.body);
+    body.tier = await billing.tierFor(c.userId, body.tier);
     if (!deps.speech) return reply.code(503).send({ error: "tts_unavailable", message: "No speech provider is configured." });
     const out = await deps.speech.speak(c.userId, body);
     return reply

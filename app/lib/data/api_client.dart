@@ -49,6 +49,13 @@ class BookReelApi {
 
   Future<Map<String, dynamic>> me() async => (await _send('GET', '/v1/me')) as Map<String, dynamic>;
 
+  /// Has the server check a Play purchase; returns the account's plan.
+  Future<Map<String, dynamic>> verifyPurchase({required String productId, required String purchaseToken}) async =>
+      (await _send('POST', '/v1/billing/verify', {'product_id': productId, 'purchase_token': purchaseToken})) as Map<String, dynamic>;
+
+  /// The plan the server has on record for this account.
+  Future<Map<String, dynamic>> entitlement() async => (await _send('GET', '/v1/billing/entitlement')) as Map<String, dynamic>;
+
   /// Natural read-aloud audio (MP3) for [text]. Throws [ApiException] 503
   /// when the server has no voice provider, 429 over the daily allowance.
   Future<Uint8List> speech({required String text, required String voice, required double speed, required String tier}) async {

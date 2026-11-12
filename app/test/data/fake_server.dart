@@ -16,6 +16,11 @@ class FakeServer {
   final List<Map<String, dynamic>> shares = [];
   final List<String> kudos = [];
 
+  /// Play purchase tokens the "server" accepts, by plan; verified plans by user.
+  final Map<String, String> playTokens = {};
+  final Map<String, String> entitled = {};
+  bool billingEnforced = true;
+
   /// Texts sent to /v1/tts; [speechStatus] other than 200 makes it fail.
   final List<Map<String, dynamic>> speechRequests = [];
   int speechStatus = 200;
@@ -58,6 +63,16 @@ class FakeServer {
           final events = (body()['events'] as List).cast<Map<String, dynamic>>();
           activity.addAll(events);
           return ok({'accepted': events.length, 'verified': events.length, 'streak': 1, 'wpm': 230});
+        }
+        if (path == '/v1/billing/verify') {
+          final b = body();
+          final tier = playTokens[b['purchase_token']];
+          if (tier == null) return http.Response('{"error":"invalid_purchase"}', 400);
+          entitled[user] = tier;
+          return ok({'tier': tier, 'product_id': b['product_id'], 'expires_at': '2027-01-01T00:00:00.000Z', 'enforced': billingEnforced});
+        }
+        if (path == '/v1/billing/entitlement') {
+          return ok({'tier': entitled[user] ?? 'free', 'expires_at': null, 'enforced': billingEnforced});
         }
         if (path == '/v1/tts') {
           if (speechStatus != 200) return http.Response('{"error":"tts_unavailable"}', speechStatus);

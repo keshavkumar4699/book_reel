@@ -7,6 +7,7 @@ import { ClaudeVoiceChooser } from "./typography/profile.js";
 import { AnthropicBatchClient } from "./segmentation/batch.js";
 import { ClaudeSegmenter } from "./segmentation/claudeSegmenter.js";
 import { SegmentService } from "./segmentation/service.js";
+import { BillingService, verifierFromEnv } from "./billing/play.js";
 import { SpeechService, speechProviderFromEnv } from "./speech/tts.js";
 import { SqlJobStore, SqlQuotaStore, SqlSegmentCache, SqlUsageLog } from "./stores/sql.js";
 
@@ -20,6 +21,10 @@ import { SqlJobStore, SqlQuotaStore, SqlSegmentCache, SqlUsageLog } from "./stor
  * - TTS_API_KEY          enables the natural read-aloud voice (secret: set it in the host's secret store)
  * - TTS_BASE_URL         OpenAI-compatible speech API (default https://api.deepinfra.com/v1/openai)
  * - TTS_MODEL            speech model (default hexgrad/Kokoro-82M)
+ * - PLAY_PACKAGE_NAME    Android package name, for Play Billing
+ * - PLAY_SERVICE_ACCOUNT_JSON  service-account key with Play Console access (secret)
+ * - PLAY_RTDN_SECRET     secret in the Pub/Sub push URL for Play notifications (secret)
+ * - BILLING_ENFORCED=1   serve the verified plan instead of the one the app asks for
  */
 const port = Number(process.env.PORT ?? 8787);
 const db = await openDb(process.env.DATABASE_URL ?? "./data/pglite");
@@ -44,6 +49,8 @@ const app = buildApp({
   androidCertFingerprints: process.env.ANDROID_CERT_SHA256?.split(",").map((s) => s.trim()).filter(Boolean),
   voiceChooser: new ClaudeVoiceChooser(client),
   speech: speechProvider ? new SpeechService(db, speechProvider) : undefined,
+  billing: new BillingService(db, verifierFromEnv(), { enforced: process.env.BILLING_ENFORCED === "1" }),
+  rtdnSecret: process.env.PLAY_RTDN_SECRET,
   logger: true,
 });
 await app.listen({ port, host: "0.0.0.0" });

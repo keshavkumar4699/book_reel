@@ -9,6 +9,7 @@ import '../../data/ai_client.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../data/api_client.dart';
+import '../../services/billing.dart';
 import '../../services/read_aloud.dart';
 import '../../services/scene_sound.dart';
 import '../../ui/kit.dart';
@@ -488,8 +489,10 @@ class CardSettings extends ConsumerWidget {
   }
 }
 
-/// The five plans, cheapest first (DESIGN.md §6.1).
-class PlanPicker extends ConsumerWidget {
+/// The five plans, cheapest first (DESIGN.md §6.1). With Play Billing live,
+/// each plan shows Play's local price and subscribes; otherwise (development
+/// builds) picking a plan just switches the AI model.
+class PlanPicker extends ConsumerStatefulWidget {
   const PlanPicker({super.key});
 
   static String blurb(Tier t) => switch (t) {
@@ -501,29 +504,81 @@ class PlanPicker extends ConsumerWidget {
       };
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PlanPicker> createState() => _PlanPickerState();
+}
+
+class _PlanPickerState extends ConsumerState<PlanPicker> {
+  bool _yearly = false;
+
+  @override
+  Widget build(BuildContext context) {
     final kit = Kit.of(context);
     final s = ref.watch(settingsProvider);
+    final billing = ref.watch(billingProvider);
+    final store = ref.read(billingProvider.notifier);
+    if (!billing.live) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        KitGroup(children: [
+          for (final t in Tier.values)
+            KitRow(
+              title: t.paid ? '${t.label} · \$${t.usdPerMonth.toStringAsFixed(2)}/mo' : 'Free',
+              subtitle: PlanPicker.blurb(t),
+              selected: s.tier == t,
+              chevron: false,
+              trailing: s.tier == t ? null : Icon(Icons.radio_button_unchecked_rounded, color: kit.inkSoft),
+              onTap: () => ref.read(settingsProvider.notifier).update((x) => x.copyWith(tier: t)),
+            ),
+        ]),
+        const SizedBox(height: 10),
+        Text(
+          bookreelApi.isEmpty
+              ? 'AI cards need the BookReel server. This build has none configured, so on-device cards are used.'
+              : 'Google Play subscriptions aren\u2019t set up for this build, so choosing a plan here only switches '
+                  'which AI model the server uses. US prices; local prices are shown at checkout.',
+          style: kit.caption,
+        ),
+      ]);
+    }
+    final expires = billing.expiresAt;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      KitSegmented<bool>(
+        values: const [false, true],
+        selected: _yearly,
+        label: (y) => y ? 'Yearly' : 'Monthly',
+        onChanged: (y) => setState(() => _yearly = y),
+      ),
+      const SizedBox(height: 12),
       KitGroup(children: [
-        for (final t in Tier.values)
-          KitRow(
-            title: t.paid ? '${t.label} · \$${t.usdPerMonth.toStringAsFixed(2)}/mo' : 'Free',
-            subtitle: blurb(t),
-            selected: s.tier == t,
-            chevron: false,
-            trailing: s.tier == t ? null : Icon(Icons.radio_button_unchecked_rounded, color: kit.inkSoft),
-            onTap: () => ref.read(settingsProvider.notifier).update((x) => x.copyWith(tier: t)),
-          ),
+        KitRow(title: 'Free', subtitle: PlanPicker.blurb(Tier.free), selected: s.tier == Tier.free, chevron: false),
+        for (final t in Tier.values.where((t) => t.paid))
+          Builder(builder: (context) {
+            final offer = billing.offer(t, yearly: _yearly);
+            final current = s.tier == t;
+            return KitRow(
+              title: offer == null ? t.label : '${t.label} · ${offer.price}/${_yearly ? 'yr' : 'mo'}',
+              subtitle: [PlanPicker.blurb(t), if (offer?.trial != null && !current) 'Try it free for ${offer!.trial}.'].join(' '),
+              selected: current,
+              chevron: false,
+              trailing: current || offer == null ? null : Text(s.tier.paid ? 'Switch' : 'Subscribe', style: kit.strong.copyWith(color: kit.accent)),
+              onTap: current || offer == null || billing.busy ? null : () => store.buy(offer),
+            );
+          }),
       ]),
+      if (billing.message != null) ...[
+        const SizedBox(height: 10),
+        Text(billing.message!, style: kit.caption.copyWith(color: kit.accent)),
+      ],
       const SizedBox(height: 10),
       Text(
-        bookreelApi.isEmpty
-            ? 'AI cards need the BookReel server. This build has none configured, so on-device cards are used.'
-            : 'Billing is not live yet: choosing a plan here only switches which AI model the server uses. US prices; '
-                'local prices are shown at checkout.',
+        [
+          if (s.tier.paid && expires != null)
+            'Your ${s.tier.label} plan renews or ends on ${MaterialLocalizations.of(context).formatMediumDate(expires.toLocal())}.',
+          'Subscriptions renew automatically until you cancel in Google Play. Switching plans credits the time left on the old one.',
+        ].join(' '),
         style: kit.caption,
       ),
+      const SizedBox(height: 6),
+      KitButton.ghost(label: 'Restore purchases', icon: Icons.restore_rounded, onPressed: billing.busy ? null : store.restore),
     ]);
   }
 }
