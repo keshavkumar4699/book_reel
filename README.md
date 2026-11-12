@@ -52,6 +52,8 @@ How a reel looks (details and sources in `docs/UX_DESIGN.md`, Revision 4):
 - **Room around the text.** Text sits in the middle of the screen at your chosen size; text too long for one reel continues on the next.
 - **Fonts fit the book.** Seven voices (classic, romance, fantasy, sci-fi, suspense, modern, playful) pair a body and a display font. The app picks one from the book's genre tags, title and opening pages; on paid plans the AI picks. **Settings → Font** can use one font for every book instead.
 
+Screens use a light or dark theme (**Settings → Appearance**: system default, light or dark); scenes appear only while reading. On the Free plan, **Settings → On-device AI** downloads a small model (Qwen3 0.6B, 345 MB, or Gemma 4 E2B, 2 GB, via LiteRT-LM) that writes recaps, quick checks, chapter teasers and word meanings on the phone. It needs Android 11+ and the arm64 APK; its native library is fetched (SHA-256-pinned) from the `flutter_edge_ai` GitHub releases when the app is built.
+
 What's in the app: library and EPUB/PDF import, a starter public-domain book, the reel reader (chapter, text, recap, recall, reflect and milestone cards), page mode, themes and typography, read-aloud, highlights and notes, saved cards, an offline dictionary with hard-word underlines, a word list with spaced review, a notebook with Markdown export, daily or weekly goals with streak freezes, a session-complete screen, gentle daily reminders, share images (quotes and progress), onboarding, settings and a progress profile.
 
 ## Server

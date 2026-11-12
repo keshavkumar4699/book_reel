@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Companion to** | [`DESIGN.md`](./DESIGN.md) |
-| **Status** | Draft v1.0 (Revision 7) |
+| **Status** | Draft v1.0 (Revision 8) |
 | **Date** | 2026-11-12 |
 | **Lenses** | Behavioural psychology · Interaction & visual design · Flutter engineering |
 
@@ -56,6 +56,14 @@
 > | **Highlights you can shape** | A tap still highlights the sentence at once, and now shows two handles (a caret with a round knob, like text selection) and a small toolbar: four colours, note, copy, remove, done. Dragging a handle snaps to whole words and can run across sentences on the reel; dragging one past the other swaps them. The reel holds still while adjusting; a tap elsewhere finishes. Tapping a highlight picks it up again; overlapping highlights merge (notes kept). |
 > | **Profile, Instagram style** | Avatar (photo, emoji or initial; a ring once today's goal is done), books / streak / saved, name and pronouns, @username, bio, what you're reading, favourite genres, Edit profile and Share profile, a shelf of book circles with progress rings, and tabs for saved quotes (a grid), books and stats. No follower counts, no public likes: the ethical guardrails (§8) still hold. |
 > | **A natural reading voice** | Listen uses a neural voice that sounds close to a person reading, with four voices and a speed setting. Audio is kept on the phone (instant, offline replays) and the next reel is fetched while one plays, so listening flows. The phone's best installed voice takes over offline. |
+
+> **Revision 8 (a light or dark app; scenes are for reading; on-device AI on Free).**
+>
+> | Change | What the reader sees |
+> |---|---|
+> | **Appearance** | Today, Library, Notebook, Friends, Settings, Profile and onboarding use a plain theme: warm paper-white with an ember accent, or warm near-black with an amber one. **Settings → Appearance** offers *System default* (follows the phone), *Light* or *Dark*. |
+> | **Scenes belong to reading** | The forest, café or rain appears only in the reader (and its session-end screen), so opening a book feels like stepping into it. Sheets opened while reading still wear the scene. Onboarding shows the scene you pick in a small window. |
+> | **On-device AI (Free)** | Settings → On-device AI downloads a small model once (345 MB; a 2 GB one on phones with 8 GB of memory). It then adds recaps and quick checks every few minutes of reading, a teaser for the next chapter and "in this sentence" word meanings, all on the phone, free and offline. It can be paused or removed; phones that can't run it say why. |
 
 ## 0. The answer in one paragraph
 

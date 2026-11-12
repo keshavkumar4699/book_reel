@@ -231,7 +231,7 @@ Reading (card length, AI hook titles on/off, key-point highlight style, hard-wor
 | EPUB parsing | Unzip + parse OPF/NCX/nav + XHTML → own block model | Evaluate `epubx`; own parser likely needed for fine control |
 | PDF text | PDFium-based (e.g. `pdfrx`) | Text extraction plus layout heuristics: header/footer removal, de-hyphenation, column order |
 | Sentence splitting | Rule-based splitter (abbreviations list, quotes, ellipses) on device | Gives stable sentence IDs |
-| On-device LLM | Small open-weight model (Gemma-class, 1–2B, 4-bit) via MediaPipe LLM Inference / `flutter_gemma` | Optional ~0.6–1.5 GB download; only on devices with ≥ 6 GB RAM |
+| On-device LLM | Qwen3 0.6B (345 MB, default) or Gemma 4 E2B (2.0 GB) via LiteRT-LM (`flutter_edge_ai` + `flutter_edge_ai_litertlm`, formerly `flutter_gemma`) | Optional download from Settings; Android 11+, 64-bit ARM, ≥ 4 GB RAM (8 GB for Gemma 4). Apache-2.0, ungated, SHA-256-pinned. Adds the LiteRT-LM native library to the arm64 APK |
 | TTS | Server `/v1/tts` (Kokoro-82M via an OpenAI-compatible speech API) + `just_audio`; `flutter_tts` fallback | On-device neural voices were rejected for now: Kokoro runs slower than real time on mid-range phones and its espeak-ng phonemiser is GPL; Supertonic is OpenRAIL-restricted |
 | Share | `share_plus` + Instagram Stories intent via a small platform channel | Images rendered with `RepaintBoundary.toImage` at 1080×1920 |
 | Deep links | Android App Links (own domain) | Do not use Firebase Dynamic Links (shut down 2025) |
@@ -362,7 +362,7 @@ One more tiny step runs on the fast model:
 
 | Tier | Pass 1: structure & direction | Pass 2: art direction | Book designer |
 |---|---|---|---|
-| **Free** | Rules on device | Rules on device (a short key sentence is stressed, or gets a spotlight reel) | Rules on device |
+| **Free** | Rules on device; with the optional on-device model: recaps, quick checks, chapter teasers and word meanings | Rules on device (a short key sentence is stressed, or gets a spotlight reel) | Rules on device |
 | **Lite** | `claude-haiku-5-5`, effort `low` | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
 | **Plus** | `claude-sonnet-5-5`, effort `medium` | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
 | **Pro** | `claude-opus-5-5`, effort `medium` (`high` for dense non-fiction) | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
@@ -603,7 +603,7 @@ Leaderboards live in Redis sorted sets: `lb:{scope}:{scopeId}:{metric}:{period}`
 | AI costs exceed revenue | ID-only output, just-in-time + Batch, content-hash cache, per-tier quotas, regional quotas, live cost dashboard with alerts |
 | Copyright complaints over shared content | Short-quote limit with attribution, no sharing of book text between users, DRM-free user-owned files only, takedown process |
 | Gamification encourages skimming | Dwell-verified reading, consistency-based segments, daily cap on leaderboard minutes |
-| On-device model too heavy for low-end phones | Optional download, device capability check, rules-only fallback |
+| On-device model too heavy for low-end phones | Optional download, device check (Android 11+, arm64, memory, free space), released when idle, rules-only fallback; a model that fails to load is reported once and left off |
 | PDF extraction quality (columns, footnotes) | Layout heuristics, per-book "report bad formatting", PDF marked beta in v1 |
 | Model refusals on mature fiction | Server-side fallbacks (Sonnet/Opus), Haiku → Sonnet retry, rules fallback; never blocks reading |
 | Play policy (subscriptions, kids) | Follow Play Billing rules; teen-safe social defaults; age gate for public leaderboards |
