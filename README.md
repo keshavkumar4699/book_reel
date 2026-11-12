@@ -33,11 +33,11 @@ Without a server the app runs in **Free** mode: cards are cut on the device by t
 flutter run --dart-define=BOOKREEL_API=http://10.0.2.2:8787
 ```
 
-Then pick Lite, Plus, Pro or Scholar under **Settings → Plan**. Billing is not live yet, so the plan setting only switches which Claude model the server uses.
+Then pick Lite, Plus, Pro or Scholar under **Settings → Plan**. Until the Play subscriptions exist (`docs/IMPLEMENTATION_PLAN.md`, "Launch checklist"), the plan setting only switches which Claude model the server uses; once they do, the same sheet sells them through Google Play. Start the server with `TTS_API_KEY` set to hear the natural read-aloud voice.
 
 ### Try it on a phone
 
-Every CI run builds release APKs (artifact **bookreel-release-apk** on the run's page under *Actions → CI*). Install `app-arm64-v8a-release.apk` on most phones, or `app-armeabi-v7a-release.apk` on older ones. They are signed with the debug key for now. Judge smoothness on these: debug builds (`flutter run` without `--release`) run several times slower. To build one yourself:
+Every CI run builds release APKs (artifact **bookreel-release-apk** on the run's page under *Actions → CI*). Install `app-arm64-v8a-release.apk` on most phones, or `app-armeabi-v7a-release.apk` on older ones. They are signed with the debug key for now. Judge smoothness on these: debug builds (`flutter run` without `--release`) run several times slower. They run without a server unless you set the repository variable `BOOKREEL_API` (GitHub → Settings → Secrets and variables → Actions → Variables) to your deployed server's `https://` address; the next CI run builds it in. To build one yourself:
 
 ```bash
 flutter build apk --release --split-per-abi

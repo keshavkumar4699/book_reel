@@ -43,7 +43,11 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build apk --release --split-per-abi
+      # Set the repository variable BOOKREEL_API (your server's https address)
+      # to build APKs that use it; unset builds the offline Free app.
+      - run: flutter build apk --release --split-per-abi --dart-define=BOOKREEL_API="$BOOKREEL_API"
+        env:
+          BOOKREEL_API: ${{ vars.BOOKREEL_API }}
       - uses: actions/upload-artifact@v4
         with:
           name: bookreel-release-apk
