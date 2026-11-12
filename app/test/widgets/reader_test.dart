@@ -148,6 +148,81 @@ void main() {
     await tester.runAsync(() async => dir.deleteSync(recursive: true));
   });
 
+  testWidgets('tapping text highlights it; handles adjust the range word by word', (tester) async {
+    tester.view.physicalSize = const Size(1236, 2745);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final dir = Directory.systemTemp.createTempSync('bookreel_handles');
+    late ProviderContainer container;
+    late String bookId;
+    await tester.runAsync(() async {
+      final store = await JsonStore.open(dir);
+      container = ProviderContainer(overrides: [storeProvider.overrideWithValue(store)]);
+      container.read(settingsProvider.notifier).update((s) => s.copyWith(
+          onboardingDone: true, goalSetupDone: true, gestureTutorialSeen: true, animatedBackground: false, cardLength: CardLength.standard));
+      bookId = (await container.read(libraryProvider.notifier).ensureStarterBook())!.id;
+    });
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(theme: buildAppTheme(Kit.forScene(Vibe.forest, ReadingTheme.of(ReadingThemeId.paper))), home: ReaderScreen(bookId: bookId)),
+    ));
+    for (var i = 0; i < 20 && find.text('Swipe up to begin').evaluate().isEmpty; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+      await tester.pump();
+    }
+    await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    final lines = find.descendant(of: find.byType(ReelText), matching: find.byType(RichText));
+    final first = tester.getRect(lines.first);
+
+    // One tap: the sentence is highlighted, with handles and a toolbar.
+    await tester.tapAt(first.topLeft + const Offset(30, 12));
+    await tester.pump(const Duration(milliseconds: 400)); // past the double-tap window
+    await tester.pump(const Duration(milliseconds: 400));
+    final created = container.read(notebookProvider).highlights.single;
+    expect(created.start, isNull, reason: 'a tap highlights the whole sentence first');
+    expect(find.bySemanticsLabel('Start of highlight'), findsOneWidget);
+    expect(find.bySemanticsLabel('End of highlight'), findsOneWidget);
+    expect(find.bySemanticsLabel('Done'), findsOneWidget);
+    final page = tester.state<State>(find.byType(PageView)).context;
+    expect((tester.widget<PageView>(find.byType(PageView)).physics), isA<NeverScrollableScrollPhysics>(),
+        reason: 'the reel holds still while the highlight is adjusted');
+
+    // Drag the end handle back to the first line: the highlight shrinks to whole words.
+    final end = tester.getCenter(find.bySemanticsLabel('End of highlight'));
+    final target = first.topLeft + Offset(first.width * 0.45, first.height / 2);
+    final gesture = await tester.startGesture(end);
+    for (var k = 1; k <= 8; k++) {
+      await gesture.moveTo(Offset.lerp(end, target, k / 8)!);
+      await tester.pump();
+    }
+    await gesture.up();
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('Done'));
+    await tester.pump();
+    final saved = container.read(notebookProvider).highlights.single;
+    expect(saved.id, created.id);
+    expect(saved.start, 0);
+    expect(saved.end, isNotNull);
+    expect(saved.text.length, lessThan(created.text.length));
+    expect(created.text, startsWith(saved.text));
+    expect(saved.text, isNot(endsWith(' ')), reason: 'snapped to the end of a word');
+    expect(find.bySemanticsLabel('Done'), findsNothing);
+    expect((tester.widget<PageView>(find.byType(PageView)).physics), isNot(isA<NeverScrollableScrollPhysics>()));
+    expect(page.mounted, isTrue);
+
+    // Tapping the highlight picks it up again; the toolbar removes it.
+    await tester.tapAt(first.topLeft + const Offset(30, 12));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(container.read(notebookProvider).highlights, hasLength(1), reason: 'no second highlight');
+    await tester.tap(find.bySemanticsLabel('Remove highlight'));
+    await tester.pump();
+    expect(container.read(notebookProvider).highlights, isEmpty);
+
+    await tester.runAsync(() async => dir.deleteSync(recursive: true));
+  });
+
   testWidgets('a hero line gets its own reel; text reels keep one size, the book fonts and room to breathe', (tester) async {
     // A phone-sized screen (412 x 915 dp).
     tester.view.physicalSize = const Size(1236, 2745);

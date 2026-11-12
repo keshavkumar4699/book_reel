@@ -10,6 +10,7 @@ import 'package:book_reel/data/segments.dart';
 import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:book_reel/core/models/book.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -116,6 +117,41 @@ void main() {
     expect(md, contains('**sanguine**: optimistic'));
     expect(md, contains('Start small.'));
     expect(n.toggleHighlight(bookId: 'b', bookTitle: 'Book', sid: 'c0.b0.s0', text: 'A key idea.'), isNull);
+  });
+
+  test('highlights cover a range of words, possibly over several sentences', () {
+    final at = DateTime(2026, 11, 12);
+    // "quiet power" inside c0.b1.s2, and from c0.b1.s2[10] to c0.b2.s0[5].
+    final word = Highlight(id: 'w', bookId: 'b', bookTitle: 'B', sid: 'c0.b1.s2', start: 4, end: 15, text: 'quiet power', createdAt: at);
+    final span = Highlight(id: 's', bookId: 'b', bookTitle: 'B', sid: 'c0.b1.s2', endSid: 'c0.b2.s0', start: 10, end: 5, text: '…', createdAt: at);
+    final whole = Highlight(id: 'h', bookId: 'b', bookTitle: 'B', sid: 'c0.b1.s2', text: 'All of it.', createdAt: at);
+    expect(word.spanIn('c0.b1.s2', 40), (from: 4, to: 15));
+    expect(word.spanIn('c0.b1.s3', 40), isNull);
+    expect(span.spanIn('c0.b1.s2', 40), (from: 10, to: 40));
+    expect(span.spanIn('c0.b1.s9', 30), (from: 0, to: 30), reason: 'sentences in between are covered whole');
+    expect(span.spanIn('c0.b2.s0', 30), (from: 0, to: 5));
+    expect(span.spanIn('c0.b2.s1', 30), isNull);
+    expect(whole.spanIn('c0.b1.s2', 12), (from: 0, to: 12), reason: 'older highlights cover their whole sentence');
+    // Order is by chapter, then block, then sentence (not string order).
+    expect(compareSids('c0.b2.s0', 'c0.b10.s0'), lessThan(0));
+    // Ranges survive storage and sync.
+    final back = Highlight.fromJson(span.toJson());
+    expect((back.sid, back.endSid, back.start, back.end), ('c0.b1.s2', 'c0.b2.s0', 10, 5));
+    expect(Highlight.fromJson(whole.toJson()).start, isNull);
+    expect(whole.toJson().containsKey('end_sid'), isFalse);
+  });
+
+  test('adjusted highlights are saved over the ones they absorbed', () {
+    final n = container.read(notebookProvider.notifier);
+    final a = n.addHighlight(bookId: 'b', bookTitle: 'Book', sid: 'c0.b0.s0', text: 'First.');
+    final b = n.addHighlight(bookId: 'b', bookTitle: 'Book', sid: 'c0.b0.s1', text: 'Second.');
+    expect(container.read(notebookProvider).highlightsIn('b', 'c0.b0.s1').map((h) => h.id), [b.id]);
+    final merged = a.withRange(sid: 'c0.b0.s0', endSid: 'c0.b0.s1', start: 0, end: 7, text: 'First. Second.');
+    n.saveHighlight(merged, absorbed: {b.id});
+    final all = container.read(notebookProvider).highlights;
+    expect(all.map((h) => h.id), [a.id]);
+    expect((all.single.endSid, all.single.text), ('c0.b0.s1', 'First. Second.'));
+    expect(container.read(notebookProvider).highlightsIn('b', 'c0.b0.s1').single.id, a.id);
   });
 
   test('word review moves words through spaced intervals', () {

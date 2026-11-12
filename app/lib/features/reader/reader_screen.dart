@@ -72,6 +72,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   final Map<int, int> _partDwell = {};
   bool _voiceChecked = false;
 
+  /// A highlight is being adjusted with its handles.
+  bool _selecting = false;
+
   /// A context under the reader's own theme: sheets and toasts opened from
   /// here wear the scene on screen (which can differ from the app's when the
   /// AI picks scenes).
@@ -432,22 +435,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     );
   }
 
-  void _toggleHighlight(BookContent book, Sentence s) {
-    final h = ref.read(notebookProvider.notifier).toggleHighlight(
-          bookId: widget.bookId,
-          bookTitle: book.title,
-          sid: s.id,
-          text: s.text,
-        );
-    if (h == null) return;
-    showKitToast(
-      _ui,
-      'Highlighted ✨',
-      icon: Icons.border_color_rounded,
-      duration: const Duration(milliseconds: 1600),
-      actionLabel: 'Add note',
-      onAction: () => _editNote(h),
-    );
+  /// A highlight's range is being adjusted: the page holds still.
+  void _setSelecting(bool on) {
+    if (_selecting != on && mounted) setState(() => _selecting = on);
   }
 
   void _toggleTts() {
@@ -693,7 +683,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       PageView.builder(
         controller: _pager,
         scrollDirection: Axis.vertical,
-        physics: const _ReelPagePhysics(),
+        physics: _selecting ? const NeverScrollableScrollPhysics() : const _ReelPagePhysics(),
         itemCount: _feed.length,
         onPageChanged: (i) => _onPageChanged(i, book, meta),
         itemBuilder: (context, i) => _buildItem(book, meta, s, t, type, lexicon, notebook, _feed[i], i == _page, padding),
@@ -794,8 +784,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           liked: notebook.liked.contains('${widget.bookId}|${item.anchorSid}'),
           saved: notebook.isSaved(widget.bookId, item.anchorSid!),
           listening: _tts,
-          highlightFor: (sid) => notebook.highlightFor(widget.bookId, sid),
-          onToggleHighlight: (sentence) => _toggleHighlight(book, sentence),
+          highlightsIn: (sid) => notebook.highlightsIn(widget.bookId, sid),
+          onCreateHighlight: (sentence) => ref
+              .read(notebookProvider.notifier)
+              .addHighlight(bookId: widget.bookId, bookTitle: book.title, sid: sentence.id, text: sentence.text),
+          onSaveHighlight: (h, absorbed) => ref.read(notebookProvider.notifier).saveHighlight(h, absorbed: absorbed),
+          onRemoveHighlight: (id) => ref.read(notebookProvider.notifier).removeHighlight(id),
+          onNoteHighlight: _editNote,
+          onSelecting: _setSelecting,
           onLongPressWord: (word, sentence) {
             final meaning = card.hardWords
                 .where((h) => h.word.toLowerCase() == word.toLowerCase() && h.meaning != null)

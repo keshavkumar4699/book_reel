@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +17,9 @@ import '../../../ui/theme.dart';
 import '../../../ui/typography.dart';
 import '../../../ui/widgets.dart';
 import '../../../core/text/lyric_layout.dart';
+
+/// A place in the book: a sentence and a character offset in it.
+typedef _Pos = ({String sid, int off});
 
 /// A sentence resolved for rendering.
 class CardSentence {
@@ -48,8 +53,12 @@ class PostCard extends StatefulWidget {
     required this.liked,
     required this.saved,
     required this.listening,
-    required this.highlightFor,
-    required this.onToggleHighlight,
+    required this.highlightsIn,
+    required this.onCreateHighlight,
+    required this.onSaveHighlight,
+    required this.onRemoveHighlight,
+    required this.onNoteHighlight,
+    required this.onSelecting,
     required this.onLongPressWord,
     required this.onLike,
     required this.onSave,
@@ -86,8 +95,19 @@ class PostCard extends StatefulWidget {
   final bool liked;
   final bool saved;
   final bool listening;
-  final Highlight? Function(String sid) highlightFor;
-  final void Function(Sentence sentence) onToggleHighlight;
+  /// Highlights that touch a sentence.
+  final List<Highlight> Function(String sid) highlightsIn;
+
+  /// Highlights a whole sentence (a tap on unhighlighted text).
+  final Highlight Function(Sentence sentence) onCreateHighlight;
+
+  /// Saves an adjusted highlight, replacing those it was merged with.
+  final void Function(Highlight highlight, Set<String> absorbed) onSaveHighlight;
+  final void Function(String id) onRemoveHighlight;
+  final void Function(Highlight highlight) onNoteHighlight;
+
+  /// A highlight is being adjusted (the reader holds the page still).
+  final void Function(bool active) onSelecting;
   final void Function(String word, Sentence sentence) onLongPressWord;
   final VoidCallback onLike;
   final VoidCallback onSave;
@@ -109,8 +129,16 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   late final AnimationController _reveal =
       AnimationController(vsync: this, duration: Duration(milliseconds: widget.spotlight ? 900 : 1100));
   late final AnimationController _flash = AnimationController(vsync: this, duration: const Duration(milliseconds: 380));
-  String? _flashSid;
   final List<_Burst> _bursts = [];
+
+  /// The highlight being adjusted with its handles (a working copy).
+  Highlight? _edit;
+
+  /// While a handle is dragged: the other end of the range, which stays put.
+  _Pos? _fixed;
+
+  /// The selection's extent on this card, for placing the toolbar.
+  Rect? _selRect;
 
   /// Horizontal drag; only the text and the swipe hint follow it.
   final _dx = ValueNotifier<double>(0);
@@ -146,6 +174,12 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       _buildPieces();
     }
     if (widget.active && !_revealed) _startReveal();
+    // Leaving the reel (e.g. a jump from the contents) finishes the edit.
+    if (!widget.active && _edit != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.active && _edit != null) _commit();
+      });
+    }
   }
 
   void _buildPieces() {
@@ -191,18 +225,245 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
 
   // ------------------------------------------------------------- gestures
 
+  /// Tap on text: highlight its sentence and show handles to adjust it, or
+  /// pick up an existing highlight. While adjusting, a tap elsewhere is done.
   void _onTapUp(TapUpDetails d) {
     final hit = _textKey.currentState?.hitTest(d.globalPosition);
+    final edit = _edit;
+    if (edit != null) {
+      if (hit != null && _covers(edit, hit.piece.sid, hit.piece.start + hit.offset)) return;
+      _commit();
+      return;
+    }
     if (hit == null) return;
     final sentence = _sentence(hit.piece.sid);
     if (sentence == null || sentence.text == sceneBreakMarker) return;
     HapticFeedback.selectionClick();
-    final was = widget.highlightFor(sentence.id) != null;
-    widget.onToggleHighlight(sentence);
-    if (!was) {
-      setState(() => _flashSid = sentence.id);
-      _flash.forward(from: 0);
+    final at = hit.piece.start + hit.offset;
+    final existing = widget.highlightsIn(sentence.id).where((h) => _covers(h, sentence.id, at)).firstOrNull;
+    final fresh = existing == null;
+    setState(() => _edit = existing ?? widget.onCreateHighlight(sentence));
+    widget.onSelecting(true);
+    if (fresh) _flash.forward(from: 0);
+  }
+
+  int _length(String sid) => _sentence(sid)?.text.length ?? 0;
+
+  bool _covers(Highlight h, String sid, int offset) {
+    final span = h.spanIn(sid, _length(sid));
+    return span != null && offset >= span.from && offset <= span.to;
+  }
+
+  _Pos _startOf(Highlight h) => (sid: h.sid, off: h.start ?? 0);
+
+  /// A last sentence that is not on this reel counts as running to its end.
+  _Pos _endOf(Highlight h) => (sid: h.lastSid, off: h.end ?? (_sentence(h.lastSid)?.text.length ?? 1 << 30));
+
+  static int _cmp(_Pos a, _Pos b) {
+    final c = compareSids(a.sid, b.sid);
+    return c != 0 ? c : a.off - b.off;
+  }
+
+  static bool _space(int c) => c == 0x20 || c == 0x0A || c == 0x09 || c == 0xA0;
+
+  /// Snaps to the start of the word at [i] (or the next word after spaces).
+  static int _wordStart(String t, int i) {
+    if (i < t.length && _space(t.codeUnitAt(i))) {
+      while (i < t.length && _space(t.codeUnitAt(i))) {
+        i++;
+      }
+      return i;
     }
+    while (i > 0 && !_space(t.codeUnitAt(i - 1))) {
+      i--;
+    }
+    return i;
+  }
+
+  /// Snaps to the end of the word at [i] (or the previous word before spaces).
+  static int _wordEnd(String t, int i) {
+    if (i > 0 && _space(t.codeUnitAt(i - 1))) {
+      while (i > 0 && _space(t.codeUnitAt(i - 1))) {
+        i--;
+      }
+      return i;
+    }
+    while (i < t.length && !_space(t.codeUnitAt(i))) {
+      i++;
+    }
+    return i;
+  }
+
+  /// The words a highlight covers on this reel.
+  String _textOf(Highlight h) => [
+        for (final s in widget.sentences)
+          if (h.spanIn(s.sentence.id, s.sentence.text.length) case final span?) s.sentence.text.substring(span.from, span.to),
+      ].join(' ');
+
+  void _onHandleDrag(bool startHandle, Offset global) {
+    final h = _edit;
+    final reel = _textKey.currentState;
+    if (h == null || reel == null) return;
+    final fixed = _fixed ??= startHandle ? _endOf(h) : _startOf(h);
+    final hit = reel.hitTestNearest(global);
+    if (hit == null) return;
+    final sid = hit.piece.sid;
+    final text = _sentence(sid)?.text;
+    if (text == null || text == sceneBreakMarker) return;
+    final raw = (hit.piece.start + hit.offset).clamp(0, text.length);
+    // The dragged handle may cross the other one: it then becomes the other end.
+    final before = _cmp((sid: sid, off: raw), fixed) < 0;
+    final moving = (sid: sid, off: before ? _wordStart(text, raw) : _wordEnd(text, raw));
+    final (start, end) = before ? (moving, fixed) : (fixed, moving);
+    if (_cmp(start, end) >= 0) return;
+    if (_cmp(start, _startOf(h)) == 0 && _cmp(end, _endOf(h)) == 0) return;
+    HapticFeedback.selectionClick();
+    final next = h.withRange(sid: start.sid, endSid: end.sid, start: start.off, end: end.off, text: h.text);
+    setState(() => _edit = next.copyWith(text: _textOf(next)));
+  }
+
+  bool _overlaps(Highlight a, Highlight b) => _cmp(_startOf(a), _endOf(b)) < 0 && _cmp(_startOf(b), _endOf(a)) < 0;
+
+  /// Saves the adjusted highlight, merged with any it now overlaps.
+  Highlight? _commit() {
+    final h = _edit;
+    if (h == null) return null;
+    var merged = h;
+    final absorbed = <String>{};
+    for (final s in widget.sentences) {
+      for (final other in widget.highlightsIn(s.sentence.id)) {
+        if (other.id == h.id || absorbed.contains(other.id) || !_overlaps(merged, other)) continue;
+        final start = _cmp(_startOf(merged), _startOf(other)) <= 0 ? _startOf(merged) : _startOf(other);
+        final end = _cmp(_endOf(merged), _endOf(other)) >= 0 ? _endOf(merged) : _endOf(other);
+        final notes = [merged.note, other.note].whereType<String>().where((n) => n.isNotEmpty).join('\n');
+        merged = merged.withRange(sid: start.sid, endSid: end.sid, start: start.off, end: end.off, text: merged.text);
+        if (notes.isNotEmpty) merged = merged.copyWith(note: notes);
+        absorbed.add(other.id);
+      }
+    }
+    merged = merged.copyWith(text: _textOf(merged));
+    setState(() {
+      _edit = null;
+      _fixed = null;
+      _selRect = null;
+    });
+    widget.onSaveHighlight(merged, absorbed);
+    widget.onSelecting(false);
+    return merged;
+  }
+
+  void _removeEdit() {
+    final h = _edit;
+    if (h == null) return;
+    setState(() {
+      _edit = null;
+      _fixed = null;
+      _selRect = null;
+    });
+    widget.onRemoveHighlight(h.id);
+    widget.onSelecting(false);
+  }
+
+  void _onSelectionGeometry(Rect? start, Rect? end) {
+    final box = context.findRenderObject() as RenderBox?;
+    Rect? next;
+    if (box != null && box.hasSize && start != null && end != null) {
+      final top = box.globalToLocal(start.topLeft).dy, bottom = box.globalToLocal(end.bottomLeft).dy;
+      next = Rect.fromLTRB(0, top, box.size.width, bottom);
+    }
+    if (next != _selRect && mounted) setState(() => _selRect = next);
+  }
+
+  /// Highlighted stretches per line, with the one being adjusted on top.
+  List<List<LineMark>> _marks() {
+    final colors = widget.theme.highlights;
+    LineMark? mark(LyricPiece p, Highlight h, {required bool editing}) {
+      final span = h.spanIn(p.sid, _length(p.sid));
+      if (span == null) return null;
+      final from = math.max(span.from, p.start) - p.start, to = math.min(span.to, p.end) - p.start;
+      if (to <= from) return null;
+      return LineMark(from.clamp(0, p.text.length), to.clamp(0, p.text.length), colors[h.color % highlightColorCount], editing: editing);
+    }
+
+    final edit = _edit;
+    return [
+      for (final p in _pieces)
+        [
+          for (final h in widget.highlightsIn(p.sid))
+            if (h.id != edit?.id) ?mark(p, h, editing: false),
+          if (edit != null) ?mark(p, edit, editing: true),
+        ],
+    ];
+  }
+
+  /// Handle positions: the first and last line the adjusted highlight covers.
+  LineSelection? _selection(List<List<LineMark>> marks) {
+    int? startLine, endLine;
+    var startOffset = 0, endOffset = 0;
+    for (var i = 0; i < marks.length; i++) {
+      for (final m in marks[i]) {
+        if (!m.editing) continue;
+        if (startLine == null) {
+          startLine = i;
+          startOffset = m.from;
+        }
+        endLine = i;
+        endOffset = m.to;
+      }
+    }
+    if (startLine == null || endLine == null) return null;
+    return (startLine: startLine, startOffset: startOffset, endLine: endLine, endOffset: endOffset);
+  }
+
+  static const _colorNames = ['Amber', 'Green', 'Blue', 'Pink'];
+
+  Widget _toolbar() {
+    final kit = Kit.of(context);
+    final h = _edit!;
+    Widget action(IconData icon, String label, VoidCallback onTap) =>
+        KitIconButton(icon: icon, semanticLabel: label, onPressed: onTap, glass: false, size: 34, iconSize: 21);
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: BoxDecoration(
+          color: kit.sheet,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: kit.stroke),
+          boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 16, offset: Offset(0, 5))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          for (var i = 0; i < highlightColorCount; i++)
+            KitPressable(
+              onTap: () => setState(() => _edit = _edit!.copyWith(color: i)),
+              semanticLabel: '${_colorNames[i]} highlight',
+              selected: h.color == i,
+              excludeSemantics: true,
+              child: Container(
+                width: 26,
+                height: 26,
+                margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 11),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.theme.highlights[i].withValues(alpha: 1),
+                  border: Border.all(color: h.color == i ? kit.ink : const Color(0x00000000), width: 2.5),
+                ),
+              ),
+            ),
+          Container(width: 1, height: 26, margin: const EdgeInsets.symmetric(horizontal: 4), color: kit.stroke),
+          action(Icons.edit_note_rounded, 'Add note', () {
+            final saved = _commit();
+            if (saved != null) widget.onNoteHighlight(saved);
+          }),
+          action(Icons.copy_rounded, 'Copy', () {
+            Clipboard.setData(ClipboardData(text: h.text));
+            showKitToast(context, 'Copied', icon: Icons.check_rounded);
+          }),
+          action(Icons.delete_outline_rounded, 'Remove highlight', _removeEdit),
+          action(Icons.check_rounded, 'Done', _commit),
+        ]),
+      ),
+    );
   }
 
   void _onDoubleTap() {
@@ -284,6 +545,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
     // The text never fills the screen: the scene shows above and below it.
     final zone = reelTextInsets(screen: screen, topInset: padding.top, bottomInset: padding.bottom);
 
+    final marks = _marks();
     final text = ReelText(
       key: _textKey,
       pieces: _pieces,
@@ -292,25 +554,30 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       focus: _focus,
       reveal: _reveal,
       flash: _flash,
-      flashSid: _flashSid,
       type: widget.type,
       theme: t,
       hardWords: _hardWordsLower,
-      highlightColor: (sid) {
-        final h = widget.highlightFor(sid);
-        return h == null ? null : t.highlights[h.color % highlightColorCount];
-      },
+      marks: marks,
+      selection: _selection(marks),
+      onHandleDrag: _onHandleDrag,
+      onHandleDragEnd: () => _fixed = null,
+      onSelectionGeometry: _onSelectionGeometry,
       onOverscroll: widget.onOverscroll,
     );
+    final editing = _edit != null;
+    // The toolbar floats above the highlight, or below it near the top.
+    final sel = _selRect;
+    final toolbarTop = sel == null ? null : (sel.top - 64 > padding.top + 70 ? sel.top - 64 : sel.bottom + 16);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapUp: _onTapUp,
-      onDoubleTapDown: (d) => _doubleTapAt = d.globalPosition,
-      onDoubleTap: _onDoubleTap,
-      onLongPressStart: _onLongPress,
-      onHorizontalDragUpdate: (d) => _dx.value = (_dx.value + d.delta.dx).clamp(-120.0, 120.0),
-      onHorizontalDragEnd: _onDragEnd,
+      // While a highlight is adjusted, taps only place or finish it.
+      onDoubleTapDown: editing ? null : (d) => _doubleTapAt = d.globalPosition,
+      onDoubleTap: editing ? null : _onDoubleTap,
+      onLongPressStart: editing ? null : _onLongPress,
+      onHorizontalDragUpdate: editing ? null : (d) => _dx.value = (_dx.value + d.delta.dx).clamp(-120.0, 120.0),
+      onHorizontalDragEnd: editing ? null : _onDragEnd,
       child: Stack(children: [
         ValueListenableBuilder<double>(
           valueListenable: _dx,
@@ -397,9 +664,62 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
           ),
         ),
         for (final b in _bursts) _HeartBurstView(burst: b, color: const Color(0xFFFF5A79)),
+        if (editing && toolbarTop != null)
+          Positioned(left: 8, right: 8, top: toolbarTop, child: Center(child: _toolbar())),
       ]),
     );
   }
+}
+
+/// A highlighted stretch of one display line (offsets within the line's text).
+class LineMark {
+  const LineMark(this.from, this.to, this.color, {this.editing = false});
+  final int from;
+  final int to;
+  final Color color;
+
+  /// The highlight being adjusted (it fades in when new).
+  final bool editing;
+}
+
+/// Where a selection's handles sit: line index and offset in that line.
+typedef LineSelection = ({int startLine, int startOffset, int endLine, int endOffset});
+
+class _HandleDrag extends Drag {
+  _HandleDrag({required this.onUpdate, required this.onEnd});
+  final ValueChanged<Offset> onUpdate;
+  final VoidCallback onEnd;
+
+  @override
+  void update(DragUpdateDetails details) => onUpdate(details.globalPosition);
+
+  @override
+  void end(DragEndDetails details) => onEnd();
+
+  @override
+  void cancel() => onEnd();
+}
+
+class _HandlePainter extends CustomPainter {
+  _HandlePainter({required this.color, required this.start, required this.caretHeight});
+  final Color color;
+  final bool start;
+  final double caretHeight;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const knob = 7.0;
+    final x = size.width / 2 + 1;
+    final top = start ? size.height - caretHeight : 0.0;
+    final paint = Paint()..color = color;
+    canvas.drawRRect(RRect.fromLTRBR(x - 1.25, top, x + 1.25, top + caretHeight, const Radius.circular(1.25)), paint);
+    final knobY = start ? top - knob + 1 : top + caretHeight + knob - 1;
+    canvas.drawCircle(Offset(x, knobY), knob + 1.5, Paint()..color = const Color(0x40000000));
+    canvas.drawCircle(Offset(x, knobY), knob, paint);
+  }
+
+  @override
+  bool shouldRepaint(_HandlePainter old) => old.color != color || old.start != start || old.caretHeight != caretHeight;
 }
 
 class LyricHit {
@@ -422,12 +742,15 @@ class ReelText extends StatefulWidget {
     required this.type,
     required this.theme,
     required this.hardWords,
-    required this.highlightColor,
     required this.onOverscroll,
+    this.marks = const [],
+    this.selection,
+    this.onHandleDrag,
+    this.onHandleDragEnd,
+    this.onSelectionGeometry,
     this.spotlight = false,
     this.focus,
     this.flash,
-    this.flashSid,
   });
 
   final List<LyricPiece> pieces;
@@ -439,12 +762,24 @@ class ReelText extends StatefulWidget {
 
   /// A highlight that was just added fades in with this.
   final Animation<double>? flash;
-  final String? flashSid;
   final BookType type;
   final ReadingTheme theme;
   final Set<String> hardWords;
-  final Color? Function(String sid) highlightColor;
   final void Function(int direction) onOverscroll;
+
+  /// Highlighted stretches, per line.
+  final List<List<LineMark>> marks;
+
+  /// The highlight being adjusted: its handles sit at these lines and offsets.
+  final LineSelection? selection;
+
+  /// A handle was dragged: [start] tells which, [global] is where its caret
+  /// should go.
+  final void Function(bool start, Offset global)? onHandleDrag;
+  final VoidCallback? onHandleDragEnd;
+
+  /// Where the selection's first and last carets are on screen (global).
+  final void Function(Rect? start, Rect? end)? onSelectionGeometry;
   final bool spotlight;
 
   /// Part of the spotlight line drawn in the spotlight colour.
@@ -456,8 +791,14 @@ class ReelText extends StatefulWidget {
 
 class _ReelTextState extends State<ReelText> {
   final List<GlobalKey> _keys = [];
+  final _stackKey = GlobalKey();
   double _overscroll = 0;
   Object? _fitKey;
+
+  /// The selection's first and last carets, in this widget's coordinates.
+  Rect? _startCaret;
+  Rect? _endCaret;
+  bool _measureQueued = false;
 
   /// Regular reels: scale of the body size. Spotlights: the font size.
   double _fit = 1;
@@ -473,6 +814,26 @@ class _ReelTextState extends State<ReelText> {
       return LyricHit(widget.pieces[i], ro.getPositionForOffset(local).offset);
     }
     return null;
+  }
+
+  /// The piece and character nearest to [global] (for dragging handles,
+  /// which may wander between and beyond lines).
+  LyricHit? hitTestNearest(Offset global) {
+    LyricHit? best;
+    var bestDistance = double.infinity;
+    for (var i = 0; i < _keys.length && i < widget.pieces.length; i++) {
+      final ro = _keys[i].currentContext?.findRenderObject();
+      if (ro is! RenderParagraph || !ro.attached || !ro.hasSize) continue;
+      final local = ro.globalToLocal(global);
+      final h = ro.size.height;
+      final distance = local.dy < 0 ? -local.dy : (local.dy > h ? local.dy - h : 0.0);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        final inside = Offset(local.dx.clamp(0.0, ro.size.width), local.dy.clamp(0.0, h - 1));
+        best = LyricHit(widget.pieces[i], ro.getPositionForOffset(inside).offset);
+      }
+    }
+    return best;
   }
 
   static FontWeight _heavier(FontWeight w) => FontWeight.values.firstWhere((x) => x.value >= (w.value + 200).clamp(100, 900));
@@ -492,36 +853,56 @@ class _ReelTextState extends State<ReelText> {
 
   double _gap(LyricPiece p, double fontSize) => p.newBlock ? fontSize * 0.9 : fontSize * 0.34;
 
-  Color? _highlight(String sid) {
-    final color = widget.highlightColor(sid);
+  List<LineMark> _marksFor(int i) => i < widget.marks.length ? widget.marks[i] : const [];
+
+  /// A new highlight fades in; others show at full strength.
+  Color _markColor(LineMark m) {
     final flash = widget.flash;
-    if (color == null || flash == null || sid != widget.flashSid) return color;
-    return color.withValues(alpha: color.a * Curves.easeOut.transform(flash.value));
+    if (!m.editing || flash == null || flash.status != AnimationStatus.forward) return m.color;
+    return m.color.withValues(alpha: m.color.a * Curves.easeOut.transform(flash.value));
   }
 
-  InlineSpan _span(LyricPiece p, TextStyle style) {
-    final text = p.text;
-    final highlight = _highlight(p.sid);
-    final base = highlight == null ? style : style.copyWith(backgroundColor: highlight);
-    if (widget.hardWords.isEmpty) return TextSpan(text: text, style: base);
-    final parts = <InlineSpan>[];
-    var last = 0;
-    for (final m in RegExp(r"[A-Za-z][A-Za-z'’\-]*").allMatches(text)) {
-      if (!widget.hardWords.contains(m.group(0)!.toLowerCase())) continue;
-      if (m.start > last) parts.add(TextSpan(text: text.substring(last, m.start)));
-      parts.add(TextSpan(
-        text: m.group(0),
-        style: TextStyle(
-          decoration: TextDecoration.underline,
-          decorationStyle: TextDecorationStyle.dotted,
-          decorationColor: widget.theme.hardWordUnderline,
-          decorationThickness: 2,
-        ),
+  /// Splits [text] at highlight edges (and [extra] cuts) and styles each run.
+  List<InlineSpan> _runs(String text, List<LineMark> marks, List<int> extra, TextStyle? Function(int from, int to) styleFor) {
+    final cuts = <int>{0, text.length, for (final m in marks) ...[m.from, m.to], ...extra}.map((c) => c.clamp(0, text.length)).toSet().toList()
+      ..sort();
+    final out = <InlineSpan>[];
+    for (var k = 0; k + 1 < cuts.length; k++) {
+      final a = cuts[k], b = cuts[k + 1];
+      if (b <= a) continue;
+      Color? bg;
+      for (final m in marks) {
+        if (m.from <= a && m.to >= b) bg = _markColor(m);
+      }
+      final style = styleFor(a, b);
+      out.add(TextSpan(
+        text: text.substring(a, b),
+        style: bg == null ? style : (style ?? const TextStyle()).copyWith(backgroundColor: bg),
       ));
-      last = m.end;
     }
-    if (last < text.length) parts.add(TextSpan(text: text.substring(last)));
-    return TextSpan(style: base, children: parts);
+    return out;
+  }
+
+  InlineSpan _span(int i, LyricPiece p, TextStyle style) {
+    final text = p.text;
+    final marks = _marksFor(i);
+    final hard = <(int, int)>[
+      if (widget.hardWords.isNotEmpty)
+        for (final m in RegExp(r"[A-Za-z][A-Za-z'’\-]*").allMatches(text))
+          if (widget.hardWords.contains(m.group(0)!.toLowerCase())) (m.start, m.end),
+    ];
+    if (marks.isEmpty && hard.isEmpty) return TextSpan(text: text, style: style);
+    final underline = TextStyle(
+      decoration: TextDecoration.underline,
+      decorationStyle: TextDecorationStyle.dotted,
+      decorationColor: widget.theme.hardWordUnderline,
+      decorationThickness: 2,
+    );
+    return TextSpan(
+      style: style,
+      children: _runs(text, marks, [for (final h in hard) ...[h.$1, h.$2]],
+          (a, b) => hard.any((h) => h.$1 <= a && h.$2 >= b) ? underline : null),
+    );
   }
 
   InlineSpan _spotSpan(double size) {
@@ -530,13 +911,7 @@ class _ReelTextState extends State<ReelText> {
     final f = widget.focus ?? (start: 0, end: text.length);
     final focus = widget.type.display(color: widget.theme.spot, size: size, shadows: widget.theme.textShadows);
     final rest = focus.copyWith(color: widget.theme.text.withValues(alpha: 0.84));
-    final highlight = _highlight(p.sid);
-    TextStyle bg(TextStyle s) => highlight == null ? s : s.copyWith(backgroundColor: highlight);
-    return TextSpan(children: [
-      if (f.start > 0) TextSpan(text: text.substring(0, f.start), style: bg(rest)),
-      TextSpan(text: text.substring(f.start, f.end), style: bg(focus)),
-      if (f.end < text.length) TextSpan(text: text.substring(f.end), style: bg(rest)),
-    ]);
+    return TextSpan(children: _runs(text, _marksFor(0), [f.start, f.end], (a, b) => a >= f.start && b <= f.end ? focus : rest));
   }
 
   double _measure(InlineSpan span, TextAlign align, double maxW, TextScaler scaler) {
@@ -633,17 +1008,105 @@ class _ReelTextState extends State<ReelText> {
         _keys.add(GlobalKey());
       }
       final Widget column = widget.spotlight ? _spotlight(scaler) : _lines(scaler);
-      return Semantics(
+      final text = Semantics(
         label: fullText,
         child: ExcludeSemantics(child: _overflows ? _scrollable(column) : Center(child: column)),
       );
+      final selection = widget.selection;
+      if (selection == null) {
+        if (_startCaret != null || _endCaret != null) _queueMeasure();
+        return Stack(key: _stackKey, children: [Positioned.fill(child: text)]);
+      }
+      _queueMeasure();
+      return Stack(key: _stackKey, clipBehavior: Clip.none, children: [
+        Positioned.fill(child: text),
+        if (_startCaret != null) _handle(true, _startCaret!),
+        if (_endCaret != null) _handle(false, _endCaret!),
+      ]);
     });
   }
 
-  /// Rebuilds [build] while a just-added highlight fades in on [sid].
-  Widget _flashing(String sid, Widget Function() build) {
+  /// Measures where the selection's carets are after this frame's layout.
+  void _queueMeasure() {
+    if (_measureQueued) return;
+    _measureQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureQueued = false;
+      if (!mounted) return;
+      final (start, end) = _carets();
+      if (start != _startCaret || end != _endCaret) {
+        setState(() {
+          _startCaret = start;
+          _endCaret = end;
+        });
+      }
+      final stack = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+      Rect? global(Rect? r) => r == null || stack == null ? null : r.shift(stack.localToGlobal(Offset.zero));
+      widget.onSelectionGeometry?.call(global(start), global(end));
+    });
+  }
+
+  (Rect?, Rect?) _carets() {
+    final selection = widget.selection;
+    final stack = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (selection == null || stack == null || !stack.hasSize) return (null, null);
+    Rect? caret(int line, int offset, {required bool end}) {
+      if (line < 0 || line >= _keys.length) return null;
+      final ro = _keys[line].currentContext?.findRenderObject();
+      if (ro is! RenderParagraph || !ro.attached || !ro.hasSize) return null;
+      final length = ro.text.toPlainText().length;
+      final position = TextPosition(offset: offset.clamp(0, length), affinity: end ? TextAffinity.upstream : TextAffinity.downstream);
+      final topLeft = stack.globalToLocal(ro.localToGlobal(ro.getOffsetForCaret(position, Rect.zero)));
+      return Rect.fromLTWH(topLeft.dx, topLeft.dy, 2, ro.getFullHeightForCaret(position));
+    }
+
+    return (
+      caret(selection.startLine, selection.startOffset, end: false),
+      caret(selection.endLine, selection.endOffset, end: true),
+    );
+  }
+
+  /// A draggable selection handle: a caret bar with a round knob (above the
+  /// first character, below the last), with a generous touch area.
+  Widget _handle(bool start, Rect caret) {
+    const reach = 22.0;
+    return Positioned(
+      left: caret.left - reach,
+      top: caret.top - (start ? reach : 0),
+      width: reach * 2,
+      height: caret.height + reach,
+      child: Semantics(
+        container: true,
+        label: start ? 'Start of highlight' : 'End of highlight',
+        child: RawGestureDetector(
+          behavior: HitTestBehavior.translucent,
+          gestures: {
+            ImmediateMultiDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<ImmediateMultiDragGestureRecognizer>(
+              ImmediateMultiDragGestureRecognizer.new,
+              (r) => r.onStart = (pointer) => _beginDrag(start, pointer, caret),
+            ),
+          },
+          child: CustomPaint(painter: _HandlePainter(color: widget.theme.accent, start: start, caretHeight: caret.height)),
+        ),
+      ),
+    );
+  }
+
+  Drag _beginDrag(bool start, Offset pointer, Rect caret) {
+    final stack = _stackKey.currentContext!.findRenderObject()! as RenderBox;
+    // Keep the caret where it was relative to the finger, not under it.
+    final grab = stack.localToGlobal(Offset(caret.left, caret.center.dy)) - pointer;
+    HapticFeedback.selectionClick();
+    return _HandleDrag(
+      onUpdate: (global) => widget.onHandleDrag?.call(start, global + grab),
+      onEnd: () => widget.onHandleDragEnd?.call(),
+    );
+  }
+
+  /// Rebuilds [build] while a just-added highlight fades in.
+  Widget _flashing(bool on, Widget Function() build) {
     final flash = widget.flash;
-    if (flash == null || sid != widget.flashSid) return build();
+    if (!on || flash == null) return build();
     return AnimatedBuilder(animation: flash, builder: (context, _) => build());
   }
 
@@ -664,7 +1127,8 @@ class _ReelTextState extends State<ReelText> {
           builder: (context, child) => Transform.translate(offset: Offset(0, (1 - eased.value) * 12), child: child),
           child: SizedBox(
             width: double.infinity,
-            child: _flashing(p.sid, () => Text.rich(_span(p, style), key: _keys[i], textAlign: _textAlign(i), textScaler: scaler)),
+            child: _flashing(_marksFor(i).any((m) => m.editing),
+                () => Text.rich(_span(i, p, style), key: _keys[i], textAlign: _textAlign(i), textScaler: scaler)),
           ),
         ),
       ));
@@ -691,7 +1155,7 @@ class _ReelTextState extends State<ReelText> {
           scale: Tween(begin: 0.95, end: 1.0).animate(e),
           child: SizedBox(
             width: double.infinity,
-            child: _flashing(widget.pieces.first.sid,
+            child: _flashing(_marksFor(0).any((m) => m.editing),
                 () => Text.rich(_spotSpan(_fit), key: _keys[0], textAlign: TextAlign.center, textScaler: scaler)),
           ),
         ),

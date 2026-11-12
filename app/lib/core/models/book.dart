@@ -242,3 +242,12 @@ int countWords(String text) => _wordRe.allMatches(text).length;
 }
 
 String makeSid(int chapter, int block, int sentence) => 'c$chapter.b$block.s$sentence';
+
+/// Reading order of two sentence IDs (negative when [a] comes first).
+int compareSids(String a, String b) {
+  final x = parseSid(a), y = parseSid(b);
+  if (x == null || y == null) return a.compareTo(b);
+  if (x.chapter != y.chapter) return x.chapter - y.chapter;
+  if (x.block != y.block) return x.block - y.block;
+  return x.sentence - y.sentence;
+}

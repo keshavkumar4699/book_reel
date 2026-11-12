@@ -1,10 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/models/book.dart';
 import 'store_provider.dart';
 
 /// Highlight tints (UX_DESIGN.md §6.2): amber, green, blue, pink.
 const highlightColorCount = 4;
 
+/// A highlighted stretch of a book: from a character in one sentence to a
+/// character in the same or a later sentence. Without [start], [end] and
+/// [endSid] it covers the whole sentence [sid] (older highlights).
 class Highlight {
   const Highlight({
     required this.id,
@@ -15,26 +19,73 @@ class Highlight {
     required this.createdAt,
     this.color = 0,
     this.note,
+    this.endSid,
+    this.start,
+    this.end,
   });
 
   final String id;
   final String bookId;
   final String bookTitle;
+
+  /// First sentence.
   final String sid;
+
+  /// The exact highlighted words.
   final String text;
   final int color;
   final String? note;
   final DateTime createdAt;
 
-  Highlight copyWith({int? color, String? note}) => Highlight(
+  /// Last sentence, when the highlight runs over several (null: [sid]).
+  final String? endSid;
+
+  /// First highlighted character in [sid] (null: its first).
+  final int? start;
+
+  /// End, exclusive, in the last sentence (null: its last character).
+  final int? end;
+
+  String get lastSid => endSid ?? sid;
+
+  /// The highlighted characters of sentence [s] (which has [length]
+  /// characters), or null when the highlight does not touch it.
+  ({int from, int to})? spanIn(String s, int length) {
+    final after = compareSids(s, sid), before = compareSids(s, lastSid);
+    if (after < 0 || before > 0) return null;
+    final from = after == 0 ? (start ?? 0).clamp(0, length) : 0;
+    final to = before == 0 ? (end ?? length).clamp(0, length) : length;
+    return to > from ? (from: from, to: to) : null;
+  }
+
+  Highlight copyWith({int? color, String? note, String? text}) => Highlight(
         id: id,
         bookId: bookId,
         bookTitle: bookTitle,
         sid: sid,
-        text: text,
+        endSid: endSid,
+        start: start,
+        end: end,
+        text: text ?? this.text,
         createdAt: createdAt,
         color: color ?? this.color,
         note: note ?? this.note,
+      );
+
+  /// The same highlight over a new range.
+  Highlight withRange({required String sid, required String endSid, required int start, required int end, required String text}) =>
+      Highlight(
+        id: id,
+        bookId: bookId,
+        bookTitle: bookTitle,
+        sid: sid,
+        endSid: endSid == sid ? null : endSid,
+        start: start,
+        end: end,
+        text: text,
+        createdAt: createdAt,
+        color: color,
+        note: note,
       );
 
   Map<String, dynamic> toJson() => {
@@ -42,6 +93,9 @@ class Highlight {
         'book': bookId,
         'title': bookTitle,
         'sid': sid,
+        'end_sid': ?endSid,
+        'start': ?start,
+        'end': ?end,
         'text': text,
         'color': color,
         'note': note,
@@ -53,6 +107,9 @@ class Highlight {
         bookId: j['book'] as String,
         bookTitle: j['title'] as String,
         sid: j['sid'] as String,
+        endSid: j['end_sid'] as String?,
+        start: j['start'] as int?,
+        end: j['end'] as int?,
         text: j['text'] as String,
         color: (j['color'] as int?) ?? 0,
         note: j['note'] as String?,
@@ -247,8 +304,13 @@ class NotebookState {
 
   bool isSaved(String bookId, String startSid) => saved.any((s) => s.bookId == bookId && s.startSid == startSid);
 
-  Highlight? highlightFor(String bookId, String sid) =>
-      highlights.where((h) => h.bookId == bookId && h.sid == sid).firstOrNull;
+  /// Highlights that touch sentence [sid].
+  List<Highlight> highlightsIn(String bookId, String sid) => [
+        for (final h in highlights)
+          if (h.bookId == bookId && compareSids(sid, h.sid) >= 0 && compareSids(sid, h.lastSid) <= 0) h,
+      ];
+
+  Highlight? highlightFor(String bookId, String sid) => highlightsIn(bookId, sid).firstOrNull;
 
   bool hasWord(String word) => words.any((w) => w.word.toLowerCase() == word.toLowerCase());
 
@@ -286,6 +348,41 @@ class NotebookNotifier extends Notifier<NotebookState> {
         id: _id(), bookId: bookId, bookTitle: bookTitle, sid: sid, text: text, color: color, createdAt: DateTime.now());
     _set(state.copyWith(highlights: [h, ...state.highlights]));
     return h;
+  }
+
+  /// A new highlight over sentence [sid] (the whole sentence, or a range).
+  Highlight addHighlight({
+    required String bookId,
+    required String bookTitle,
+    required String sid,
+    required String text,
+    String? endSid,
+    int? start,
+    int? end,
+    int color = 0,
+  }) {
+    final h = Highlight(
+      id: _id(),
+      bookId: bookId,
+      bookTitle: bookTitle,
+      sid: sid,
+      endSid: endSid == sid ? null : endSid,
+      start: start,
+      end: end,
+      text: text,
+      color: color,
+      createdAt: DateTime.now(),
+    );
+    _set(state.copyWith(highlights: [h, ...state.highlights]));
+    return h;
+  }
+
+  /// Saves [h] (after its range was adjusted), replacing the highlights it
+  /// was merged with ([absorbed]).
+  void saveHighlight(Highlight h, {Set<String> absorbed = const {}}) {
+    final rest = [for (final x in state.highlights) if (!absorbed.contains(x.id) || x.id == h.id) x];
+    final known = rest.any((x) => x.id == h.id);
+    _set(state.copyWith(highlights: known ? [for (final x in rest) x.id == h.id ? h : x] : [h, ...rest]));
   }
 
   void updateHighlight(Highlight h) =>
