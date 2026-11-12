@@ -10,8 +10,10 @@ import '../../../core/parsing/block_builder.dart';
 import '../../../core/text/lexicon.dart';
 import '../../../data/notebook.dart';
 import '../../../data/settings.dart';
+import '../../../ui/kit.dart';
 import '../../../ui/theme.dart';
 import '../../../ui/typography.dart';
+import '../../../ui/widgets.dart';
 import '../../../core/text/lyric_layout.dart';
 
 /// A sentence resolved for rendering.
@@ -109,18 +111,22 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   late final AnimationController _flash = AnimationController(vsync: this, duration: const Duration(milliseconds: 380));
   String? _flashSid;
   final List<_Burst> _bursts = [];
-  double _dragDx = 0;
+
+  /// Horizontal drag; only the text and the swipe hint follow it.
+  final _dx = ValueNotifier<double>(0);
   Offset? _doubleTapAt;
   bool _revealed = false;
   late List<LyricPiece> _pieces;
   late LyricAlign _align;
   ({int start, int end})? _focus;
 
+  /// Hard words to underline, worked out once per reel (not on every frame).
+  Set<String> _hardWords = const {};
+  Object? _hardWordsKey;
+
   @override
   void initState() {
     super.initState();
-    _reveal.addListener(() => setState(() {}));
-    _flash.addListener(() => setState(() {}));
     _buildPieces();
   }
 
@@ -172,6 +178,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _dx.dispose();
     _reveal.dispose();
     _flash.dispose();
     for (final b in _bursts) {
@@ -193,7 +200,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
     final was = widget.highlightFor(sentence.id) != null;
     widget.onToggleHighlight(sentence);
     if (!was) {
-      _flashSid = sentence.id;
+      setState(() => _flashSid = sentence.id);
       _flash.forward(from: 0);
     }
   }
@@ -206,7 +213,6 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
     if (at == null || box == null) return;
     final burst = _Burst(box.globalToLocal(at), AnimationController(vsync: this, duration: const Duration(milliseconds: 750)));
     burst.controller
-      ..addListener(() => setState(() {}))
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed && mounted) {
           setState(() => _bursts.remove(burst));
@@ -236,8 +242,8 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
 
   void _onDragEnd(DragEndDetails d) {
     final v = d.primaryVelocity ?? 0;
-    final dx = _dragDx;
-    setState(() => _dragDx = 0);
+    final dx = _dx.value;
+    _dx.value = 0;
     if (dx <= -_swipeTrigger || v < -900) {
       HapticFeedback.mediumImpact();
       widget.onSave();
@@ -250,6 +256,14 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   // ------------------------------------------------------------- build
 
   Set<String> get _hardWordsLower {
+    final key = (widget.card, widget.sentences.length, widget.spotlight, widget.settings.underlineHardWords,
+        widget.settings.readingLevel, widget.lexicon);
+    if (key == _hardWordsKey) return _hardWords;
+    _hardWordsKey = key;
+    return _hardWords = _findHardWords();
+  }
+
+  Set<String> _findHardWords() {
     if (!widget.settings.underlineHardWords || widget.spotlight) return const {};
     if (widget.card.hardWords.isNotEmpty) return widget.card.hardWords.map((h) => h.word.toLowerCase()).toSet();
     if (widget.lexicon.isEmpty) return const {};
@@ -267,7 +281,6 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
     final screen = MediaQuery.sizeOf(context);
     final leftHanded = widget.settings.leftHanded;
     const railWidth = 72.0;
-    final reveal = (_dragDx.abs() / _swipeTrigger).clamp(0.0, 1.0);
     // The text never fills the screen: the scene shows above and below it.
     final zone = reelTextInsets(screen: screen, topInset: padding.top, bottomInset: padding.bottom);
 
@@ -277,16 +290,15 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       align: _align,
       spotlight: widget.spotlight,
       focus: _focus,
-      progress: _reveal.value,
+      reveal: _reveal,
+      flash: _flash,
+      flashSid: _flashSid,
       type: widget.type,
       theme: t,
       hardWords: _hardWordsLower,
       highlightColor: (sid) {
         final h = widget.highlightFor(sid);
-        if (h == null) return null;
-        var color = t.highlights[h.color % highlightColorCount];
-        if (_flashSid == sid) color = color.withValues(alpha: color.a * Curves.easeOut.transform(_flash.value));
-        return color;
+        return h == null ? null : t.highlights[h.color % highlightColorCount];
       },
       onOverscroll: widget.onOverscroll,
     );
@@ -297,27 +309,35 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       onDoubleTapDown: (d) => _doubleTapAt = d.globalPosition,
       onDoubleTap: _onDoubleTap,
       onLongPressStart: _onLongPress,
-      onHorizontalDragUpdate: (d) => setState(() => _dragDx = (_dragDx + d.delta.dx).clamp(-120.0, 120.0)),
+      onHorizontalDragUpdate: (d) => _dx.value = (_dx.value + d.delta.dx).clamp(-120.0, 120.0),
       onHorizontalDragEnd: _onDragEnd,
       child: Stack(children: [
-        if (_dragDx != 0)
-          Positioned.fill(
-            child: Align(
-              alignment: _dragDx < 0 ? Alignment.centerRight : Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 22),
-                child: Opacity(
-                  opacity: reveal,
-                  child: _SwipeHint(
-                    icon: _dragDx < 0 ? (widget.saved ? Icons.bookmark_remove : Icons.bookmark_add) : Icons.ios_share,
-                    label: _dragDx < 0 ? (widget.saved ? 'Unsave' : 'Save') : 'Share',
-                    color: t.accent,
-                    armed: reveal >= 1,
+        ValueListenableBuilder<double>(
+          valueListenable: _dx,
+          builder: (context, dx, _) {
+            if (dx == 0) return const SizedBox.shrink();
+            final reveal = (dx.abs() / _swipeTrigger).clamp(0.0, 1.0);
+            return Positioned.fill(
+              child: Align(
+                alignment: dx < 0 ? Alignment.centerRight : Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  child: Opacity(
+                    opacity: reveal,
+                    child: _SwipeHint(
+                      icon: dx < 0
+                          ? Icon(widget.saved ? Icons.bookmark_remove_rounded : Icons.bookmark_add_rounded, color: Colors.white)
+                          : const ShareArrowIcon(color: Colors.white),
+                      label: dx < 0 ? (widget.saved ? 'Unsave' : 'Save') : 'Share',
+                      color: t.accent,
+                      armed: reveal >= 1,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
+        ),
         // The text sits in a calm column well inside the screen.
         Positioned(
           top: zone.top,
@@ -327,7 +347,12 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: reelMaxTextWidth),
-              child: Transform.translate(offset: Offset(_dragDx * 0.6, 0), child: text),
+              child: ValueListenableBuilder<double>(
+                valueListenable: _dx,
+                builder: (context, dx, child) => Transform.translate(offset: Offset(dx * 0.6, 0), child: child),
+                // Its own layer: the scene moving behind never repaints the text.
+                child: RepaintBoundary(child: text),
+              ),
             ),
           ),
         ),
@@ -393,7 +418,7 @@ class ReelText extends StatefulWidget {
     super.key,
     required this.pieces,
     required this.align,
-    required this.progress,
+    required this.reveal,
     required this.type,
     required this.theme,
     required this.hardWords,
@@ -401,13 +426,20 @@ class ReelText extends StatefulWidget {
     required this.onOverscroll,
     this.spotlight = false,
     this.focus,
+    this.flash,
+    this.flashSid,
   });
 
   final List<LyricPiece> pieces;
   final LyricAlign align;
 
-  /// Entrance animation progress, 0–1.
-  final double progress;
+  /// Entrance animation, 0–1. Lines fade and rise in with it; it only moves
+  /// layers, so the text is laid out once.
+  final Animation<double> reveal;
+
+  /// A highlight that was just added fades in with this.
+  final Animation<double>? flash;
+  final String? flashSid;
   final BookType type;
   final ReadingTheme theme;
   final Set<String> hardWords;
@@ -460,9 +492,16 @@ class _ReelTextState extends State<ReelText> {
 
   double _gap(LyricPiece p, double fontSize) => p.newBlock ? fontSize * 0.9 : fontSize * 0.34;
 
+  Color? _highlight(String sid) {
+    final color = widget.highlightColor(sid);
+    final flash = widget.flash;
+    if (color == null || flash == null || sid != widget.flashSid) return color;
+    return color.withValues(alpha: color.a * Curves.easeOut.transform(flash.value));
+  }
+
   InlineSpan _span(LyricPiece p, TextStyle style) {
     final text = p.text;
-    final highlight = widget.highlightColor(p.sid);
+    final highlight = _highlight(p.sid);
     final base = highlight == null ? style : style.copyWith(backgroundColor: highlight);
     if (widget.hardWords.isEmpty) return TextSpan(text: text, style: base);
     final parts = <InlineSpan>[];
@@ -491,7 +530,7 @@ class _ReelTextState extends State<ReelText> {
     final f = widget.focus ?? (start: 0, end: text.length);
     final focus = widget.type.display(color: widget.theme.spot, size: size, shadows: widget.theme.textShadows);
     final rest = focus.copyWith(color: widget.theme.text.withValues(alpha: 0.84));
-    final highlight = widget.highlightColor(p.sid);
+    final highlight = _highlight(p.sid);
     TextStyle bg(TextStyle s) => highlight == null ? s : s.copyWith(backgroundColor: highlight);
     return TextSpan(children: [
       if (f.start > 0) TextSpan(text: text.substring(0, f.start), style: bg(rest)),
@@ -601,6 +640,13 @@ class _ReelTextState extends State<ReelText> {
     });
   }
 
+  /// Rebuilds [build] while a just-added highlight fades in on [sid].
+  Widget _flashing(String sid, Widget Function() build) {
+    final flash = widget.flash;
+    if (flash == null || sid != widget.flashSid) return build();
+    return AnimatedBuilder(animation: flash, builder: (context, _) => build());
+  }
+
   Widget _lines(TextScaler scaler) {
     final n = widget.pieces.length;
     final stagger = n <= 1 ? 0.0 : (0.5 / (n - 1)).clamp(0.0, 0.1);
@@ -608,16 +654,17 @@ class _ReelTextState extends State<ReelText> {
     for (var i = 0; i < n; i++) {
       final p = widget.pieces[i];
       final style = _style(p, _fit);
-      final local = ((widget.progress - i * stagger) / 0.5).clamp(0.0, 1.0);
-      final eased = Curves.easeOutCubic.transform(local);
+      final start = (i * stagger).clamp(0.0, 0.5);
+      final eased = CurvedAnimation(parent: widget.reveal, curve: Interval(start, start + 0.5, curve: Curves.easeOutCubic));
       if (i > 0) lines.add(SizedBox(height: _gap(p, style.fontSize!)));
-      lines.add(Opacity(
+      lines.add(FadeTransition(
         opacity: eased,
-        child: Transform.translate(
-          offset: Offset(0, (1 - eased) * 12),
+        child: AnimatedBuilder(
+          animation: eased,
+          builder: (context, child) => Transform.translate(offset: Offset(0, (1 - eased.value) * 12), child: child),
           child: SizedBox(
             width: double.infinity,
-            child: Text.rich(_span(p, style), key: _keys[i], textAlign: _textAlign(i), textScaler: scaler),
+            child: _flashing(p.sid, () => Text.rich(_span(p, style), key: _keys[i], textAlign: _textAlign(i), textScaler: scaler)),
           ),
         ),
       ));
@@ -626,22 +673,26 @@ class _ReelTextState extends State<ReelText> {
   }
 
   Widget _spotlight(TextScaler scaler) {
-    final e = Curves.easeOutCubic.transform(widget.progress.clamp(0.0, 1.0));
-    final bar = Curves.easeOutCubic.transform(((widget.progress - 0.3) / 0.7).clamp(0.0, 1.0));
+    final e = CurvedAnimation(parent: widget.reveal, curve: Curves.easeOutCubic);
+    final bar = CurvedAnimation(parent: widget.reveal, curve: const Interval(0.3, 1, curve: Curves.easeOutCubic));
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        width: 34 * bar,
-        height: 3,
-        decoration: BoxDecoration(color: widget.theme.accent, borderRadius: BorderRadius.circular(2)),
+      AnimatedBuilder(
+        animation: bar,
+        builder: (context, _) => Container(
+          width: 34 * bar.value,
+          height: 3,
+          decoration: BoxDecoration(color: widget.theme.accent, borderRadius: BorderRadius.circular(2)),
+        ),
       ),
       SizedBox(height: _fit * 0.75),
-      Opacity(
+      FadeTransition(
         opacity: e,
-        child: Transform.scale(
-          scale: 0.95 + 0.05 * e,
+        child: ScaleTransition(
+          scale: Tween(begin: 0.95, end: 1.0).animate(e),
           child: SizedBox(
             width: double.infinity,
-            child: Text.rich(_spotSpan(_fit), key: _keys[0], textAlign: TextAlign.center, textScaler: scaler),
+            child: _flashing(widget.pieces.first.sid,
+                () => Text.rich(_spotSpan(_fit), key: _keys[0], textAlign: TextAlign.center, textScaler: scaler)),
           ),
         ),
       ),
@@ -668,17 +719,22 @@ class _BookRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cover = coverPath != null && File(coverPath!).existsSync() ? FileImage(File(coverPath!)) : null;
+    final cover = coverPath != null && fileExists(coverPath!) ? FileImage(File(coverPath!)) : null;
     final initials = title.trim().isEmpty ? '📖' : title.trim()[0].toUpperCase();
     final shadow = shadows;
     return Row(children: [
       Container(
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.4)])),
-        child: CircleAvatar(
-          radius: 18,
-          backgroundColor: const Color(0xFF2F3A35),
-          backgroundImage: cover,
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0xFF2F3A35),
+            image: cover == null ? null : DecorationImage(image: ResizeImage(cover, width: 108), fit: BoxFit.cover),
+          ),
           child: cover == null
               ? Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontFamily: 'Literata'))
               : null,
@@ -724,23 +780,31 @@ class _ActionRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget b(IconData icon, String label, String tooltip, VoidCallback onTap, {Color? color, bool active = false}) => _RailButton(
-          icon: icon,
+    Widget b(IconData icon, String label, String semantic, VoidCallback onTap, {Color? color, bool active = false}) => _RailButton(
+          icon: Icon(icon, color: color ?? ink, size: 31, shadows: shadows),
           label: label,
-          tooltip: tooltip,
+          semanticLabel: semantic,
           color: color ?? ink,
           shadows: shadows,
           active: active,
           onTap: onTap,
         );
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      b(liked ? Icons.favorite : Icons.favorite_border, liked ? 'Liked' : 'Like', liked ? 'Unlike' : 'Like', onLike,
+      b(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, liked ? 'Liked' : 'Like', liked ? 'Unlike' : 'Like', onLike,
           color: liked ? const Color(0xFFFF5A79) : null, active: liked),
-      b(saved ? Icons.bookmark : Icons.bookmark_border, saved ? 'Saved' : 'Save', saved ? 'Saved' : 'Save', onSave,
+      b(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, saved ? 'Saved' : 'Save', saved ? 'Saved' : 'Save', onSave,
           color: saved ? accent : null, active: saved),
-      b(Icons.edit_note, 'Note', 'Highlight & note', onNote),
-      b(Icons.ios_share, 'Share', 'Share', onShare),
-      b(listening ? Icons.stop_circle_outlined : Icons.headphones_outlined, listening ? 'Stop' : 'Listen',
+      b(Icons.edit_note_rounded, 'Note', 'Highlight & note', onNote),
+      // The reels-style share arrow (curving up and to the right).
+      _RailButton(
+        icon: ShareArrowIcon(size: 33, color: ink, shadows: shadows),
+        label: 'Share',
+        semanticLabel: 'Share',
+        color: ink,
+        shadows: shadows,
+        onTap: onShare,
+      ),
+      b(listening ? Icons.stop_circle_outlined : Icons.headphones_rounded, listening ? 'Stop' : 'Listen',
           listening ? 'Stop reading aloud' : 'Read aloud', onListen,
           color: listening ? accent : null, active: listening),
     ]);
@@ -752,16 +816,16 @@ class _RailButton extends StatelessWidget {
   const _RailButton({
     required this.icon,
     required this.label,
-    required this.tooltip,
+    required this.semanticLabel,
     required this.color,
     required this.shadows,
     required this.onTap,
     this.active = false,
   });
 
-  final IconData icon;
+  final Widget icon;
   final String label;
-  final String tooltip;
+  final String semanticLabel;
   final Color color;
   final List<Shadow>? shadows;
   final VoidCallback onTap;
@@ -770,26 +834,25 @@ class _RailButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shadow = shadows;
-    return Tooltip(
-      message: tooltip,
-      child: InkResponse(
-        onTap: onTap,
-        radius: 30,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TweenAnimationBuilder<double>(
-              key: ValueKey(active),
-              tween: Tween(begin: active ? 0.55 : 1, end: 1),
-              duration: const Duration(milliseconds: 420),
-              curve: Curves.elasticOut,
-              builder: (context, v, child) => Transform.scale(scale: v, child: child),
-              child: Icon(icon, color: color, size: 31, shadows: shadow),
-            ),
-            const SizedBox(height: 2),
-            Text(label, style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700, shadows: shadow)),
-          ]),
-        ),
+    return KitPressable(
+      onTap: onTap,
+      semanticLabel: semanticLabel,
+      excludeSemantics: true,
+      pressedScale: 0.86,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TweenAnimationBuilder<double>(
+            key: ValueKey(active),
+            tween: Tween(begin: active ? 0.55 : 1, end: 1),
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.elasticOut,
+            builder: (context, v, child) => Transform.scale(scale: v, child: child),
+            child: icon,
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700, shadows: shadow)),
+        ]),
       ),
     );
   }
@@ -797,7 +860,7 @@ class _RailButton extends StatelessWidget {
 
 class _SwipeHint extends StatelessWidget {
   const _SwipeHint({required this.icon, required this.label, required this.color, required this.armed});
-  final IconData icon;
+  final Widget icon;
   final String label;
   final Color color;
   final bool armed;
@@ -808,7 +871,13 @@ class _SwipeHint extends StatelessWidget {
       scale: armed ? 1.15 : 1,
       duration: const Duration(milliseconds: 150),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        CircleAvatar(radius: 26, backgroundColor: armed ? color : const Color(0x66000000), child: Icon(icon, color: Colors.white)),
+        Container(
+          width: 52,
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: armed ? color : const Color(0x66000000)),
+          child: icon,
+        ),
         const SizedBox(height: 6),
         Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)])),
       ]),
@@ -830,6 +899,10 @@ class _HeartBurstView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return AnimatedBuilder(animation: burst.controller, builder: (context, _) => _frame());
+  }
+
+  Widget _frame() {
     final v = burst.controller.value;
     final scale = v < 0.35 ? Curves.easeOutBack.transform(v / 0.35) * 1.2 : 1.2 - (v - 0.35) * 0.3;
     final opacity = v < 0.7 ? 1.0 : (1 - (v - 0.7) / 0.3).clamp(0.0, 1.0);

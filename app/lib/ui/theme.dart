@@ -146,26 +146,6 @@ String? fontFamilyFor(ReadingFont f) => switch (f) {
       ReadingFont.system => null,
     };
 
-ThemeData buildAppTheme({required Brightness brightness}) {
-  final scheme = ColorScheme.fromSeed(seedColor: emberSeed, brightness: brightness);
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: scheme,
-    visualDensity: VisualDensity.standard,
-    materialTapTargetSize: MaterialTapTargetSize.padded,
-    navigationBarTheme: NavigationBarThemeData(
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      backgroundColor: scheme.surfaceContainer,
-    ),
-    bottomSheetTheme: const BottomSheetThemeData(showDragHandle: true),
-    cardTheme: CardThemeData(
-      elevation: 0,
-      color: scheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    ),
-  );
-}
-
 /// Accent used for the streak flame and goal progress regardless of the
 /// dynamic colour scheme.
 const ember = Color(0xFFE08A2E);

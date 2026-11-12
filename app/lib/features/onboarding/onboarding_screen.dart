@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../data/library.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
+import '../../ui/kit.dart';
+import '../../ui/theme.dart';
 import '../../ui/vibes.dart';
 
 /// ≤ 60 seconds to the first card: a welcome over a live scene, pick a study
@@ -48,19 +50,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final shadows = palette?.textShadows;
     final titleStyle = TextStyle(color: fg, fontSize: 30, fontWeight: FontWeight.w800, height: 1.15, shadows: shadows);
     final bodyStyle = TextStyle(color: fg.withValues(alpha: 0.92), fontSize: 17, height: 1.4, shadows: shadows);
-    Widget primary(String label, VoidCallback? onPressed) => SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(56),
-              backgroundColor: style.accent,
-              foregroundColor: Colors.black,
-              textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-            ),
-            onPressed: onPressed,
-            child: Text(label),
-          ),
-        );
+    Widget primary(String label, VoidCallback? onPressed) => KitButton(label: label, expand: true, onPressed: onPressed);
 
     final steps = [
       // 1. Welcome
@@ -79,9 +69,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const SizedBox(height: 8),
         Text(style.tagline, style: bodyStyle),
         const SizedBox(height: 20),
-        Container(
+        KitPanel(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-          decoration: BoxDecoration(color: const Color(0xCCFFFFFF), borderRadius: BorderRadius.circular(24)),
+          radius: 26,
           child: VibePickerRow(selected: _vibe, onSelected: (v) => setState(() => _vibe = v), height: 120),
         ),
         const SizedBox(height: 20),
@@ -96,10 +86,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const SizedBox(height: 20),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final o in _options)
-            FilterChip(
-              label: Text(o),
+            KitChip(
+              label: o,
               selected: _interests.contains(o),
-              onSelected: (v) => setState(() => v ? _interests.add(o) : _interests.remove(o)),
+              onTap: () => setState(() => _interests.contains(o) ? _interests.remove(o) : _interests.add(o)),
             ),
         ]),
         const SizedBox(height: 28),
@@ -107,7 +97,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       ]),
     ];
 
-    return Scaffold(
+    // The whole screen wears the scene being picked.
+    final kit = Kit.forScene(_vibe, ReadingTheme.of(ReadingThemeId.paper));
+    return Theme(
+      data: Theme.of(context).copyWith(extensions: [kit]),
+      child: Scaffold(
+      backgroundColor: kit.base,
       body: Stack(children: [
         Positioned.fill(child: VibeBackground(vibe: _vibe)),
         // The scene's own calibrated shade keeps text readable on it.
@@ -122,6 +117,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
         ),
       ]),
+      ),
     );
   }
 }

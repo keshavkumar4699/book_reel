@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 
 import { AuthError, Authenticator } from "./auth.js";
-import { quotaFor } from "./config.js";
+import { isPaidTier, quotaFor } from "./config.js";
 import type { Db } from "./db/db.js";
 import { ActivityBatchSchema, ActivityService } from "./habit/activity.js";
 import { localDateKey, weekKey } from "./habit/engine.js";
@@ -39,8 +39,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const shares = new ShareService(deps.db, baseUrl);
   const auth = deps.auth ?? new Authenticator(deps.db);
   const profiler = new BookProfiler(deps.voiceChooser);
-  const paid = (tier: string) => ["plus", "pro", "scholar"].includes(tier);
-
   const caller = async (req: FastifyRequest): Promise<Caller> => {
     const c = await auth.resolve(req);
     await activity.user(c.userId);
@@ -85,7 +83,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.get<{ Querystring: { tier?: string } }>("/v1/me/ai-usage", async (req) => {
     const c = await caller(req);
-    const tier = (req.query.tier ?? "plus") as "plus" | "pro" | "scholar";
+    const asked = req.query.tier ?? "";
+    const tier = isPaidTier(asked) ? asked : "lite";
     const period = new Date().toISOString().slice(0, 7);
     const used = await deps.quota.booksUsed(c.userId, period);
     return { period, books_used: used.size, books_limit: quotaFor(tier, c.region) };
@@ -170,8 +169,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.post("/v1/book/profile", async (req, reply) => {
     await caller(req);
     const body = BookProfileRequestSchema.parse(req.body);
-    if (!paid(body.tier)) {
-      return reply.code(403).send({ error: "tier_not_eligible", message: "AI book design is available on Plus, Pro and Scholar." });
+    if (!isPaidTier(body.tier)) {
+      return reply.code(403).send({ error: "tier_not_eligible", message: "AI book design is available on Lite, Plus, Pro and Scholar." });
     }
     return profiler.profile(body);
   });

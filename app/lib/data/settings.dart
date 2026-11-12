@@ -15,15 +15,31 @@ enum Vibe { forest, cafe, rain, ocean, night, meadow, snow, city, paper }
 /// Bump when defaults change in a way existing users should get.
 const currentLayoutVersion = 3;
 
-/// Subscription tiers (DESIGN.md §6). Free uses on-device rules only.
-enum Tier {
-  free(freezes: 1),
-  plus(freezes: 3),
-  pro(freezes: 3),
-  scholar(freezes: 5);
+/// Bump when the plan ladder changes, so saved plans can be mapped.
+const currentPlanVersion = 2;
 
-  const Tier({required this.freezes});
+/// Subscription tiers, cheapest first (DESIGN.md §6.1). Free reads books with
+/// on-device rules; each paid tier steps up one Claude model.
+enum Tier {
+  free(label: 'Free', model: 'On-device rules', usdPerMonth: 0, freezes: 1),
+  lite(label: 'Lite', model: 'Claude Haiku', usdPerMonth: 3.99, freezes: 2),
+  plus(label: 'Plus', model: 'Claude Sonnet', usdPerMonth: 8.99, freezes: 3),
+  pro(label: 'Pro', model: 'Claude Opus', usdPerMonth: 19.99, freezes: 4),
+  scholar(label: 'Scholar', model: 'Claude Fable', usdPerMonth: 29.99, freezes: 5);
+
+  const Tier({required this.label, required this.model, required this.usdPerMonth, required this.freezes});
+  final String label;
+
+  /// What reads the book and cuts the cards.
+  final String model;
+
+  /// US list price; Play Billing shows the local price at checkout.
+  final double usdPerMonth;
+
+  /// Streak freezes refilled each week.
   final int freezes;
+
+  bool get paid => this != Tier.free;
 }
 
 class AppSettings {
@@ -231,6 +247,7 @@ class AppSettings {
         'sceneSound': sceneSound,
         'sceneSoundVolume': sceneSoundVolume,
         'autoScene': autoScene,
+        'planVersion': currentPlanVersion,
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> j) {
@@ -248,6 +265,13 @@ class AppSettings {
       savedFont = ReadingFont.book;
     }
     final savedGoal = (j['dailyGoal'] as int?) ?? d.dailyGoal;
+    // Plan v2 (Nov 2026) added Lite at the old Plus price and moved every plan
+    // up one model. A saved plan keeps its price: Plus → Lite, Pro → Plus,
+    // Scholar → Pro.
+    var savedTier = pick(Tier.values, j['tier'], d.tier);
+    if (((j['planVersion'] as int?) ?? 1) < 2 && savedTier.paid && savedTier != Tier.lite) {
+      savedTier = Tier.values[savedTier.index - 1];
+    }
     return AppSettings(
       theme: pick(ReadingThemeId.values, j['theme'], d.theme),
       followSystemDark: (j['followSystemDark'] as bool?) ?? d.followSystemDark,
@@ -276,7 +300,7 @@ class AppSettings {
       hideLeaderboards: (j['hideLeaderboards'] as bool?) ?? d.hideLeaderboards,
       onboardingDone: (j['onboardingDone'] as bool?) ?? d.onboardingDone,
       goalSetupDone: (j['goalSetupDone'] as bool?) ?? d.goalSetupDone,
-      tier: pick(Tier.values, j['tier'], d.tier),
+      tier: savedTier,
       displayName: (j['displayName'] as String?) ?? d.displayName,
       interests: ((j['interests'] as List?) ?? const []).cast<String>(),
       vibe: pick(Vibe.values, j['vibe'], d.vibe),

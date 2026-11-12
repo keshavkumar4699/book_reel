@@ -14,15 +14,17 @@ import {
 import type { ChapterInput, OutChapter, SegmentRequest } from "./schema.js";
 import { applyPresentation, cardSentences, InvalidModelOutput, validateStructure } from "./validator.js";
 
-/** Per-million-token prices (USD, Anthropic first-party, Oct 2026) for usage logging. */
+/** Per-million-token prices (USD, Anthropic first-party, Nov 2026) for usage logging. */
 const PRICES: Record<string, { input: number; output: number }> = {
   "claude-haiku-5-5": { input: 0.1, output: 0.5 },
   "claude-sonnet-5-5": { input: 2, output: 10 },
   "claude-opus-5-5": { input: 4, output: 20 },
+  "claude-fable-5-2": { input: 8, output: 40 },
 };
 
 export function estimateCost(model: string, inputTokens: number, outputTokens: number, batch = false): number {
-  const p = PRICES[model] ?? PRICES["claude-opus-5-5"]!;
+  // Unknown models (e.g. a refusal fallback) are logged at the top price, never under.
+  const p = PRICES[model] ?? PRICES["claude-fable-5-2"]!;
   const cost = (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
   return batch ? cost / 2 : cost;
 }

@@ -23,7 +23,9 @@ jobs:
       - run: flutter test
 
   app-build:
-    name: Android debug APK
+    # Release (AOT-compiled) APKs: debug builds run several times slower and
+    # stutter, so judge smoothness on these. Signed with the debug key for now.
+    name: Android release APKs
     runs-on: ubuntu-latest
     needs: app
     defaults:
@@ -41,11 +43,14 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build apk --debug
+      - run: flutter build apk --release --split-per-abi
       - uses: actions/upload-artifact@v4
         with:
-          name: bookreel-debug-apk
-          path: app/build/app/outputs/flutter-apk/app-debug.apk
+          name: bookreel-release-apk
+          # arm64-v8a fits almost every phone from the last decade; v7a is for older ones.
+          path: |
+            app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            app/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
 
   server:
     name: Server (typecheck + test)

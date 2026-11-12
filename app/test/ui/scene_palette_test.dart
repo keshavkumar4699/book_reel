@@ -28,7 +28,7 @@ const _textTop = 0.2, _textBottom = 0.8;
 Future<({List<double> text, List<double> chrome})> _render(WidgetTester tester, Vibe vibe, Size size, double t) async {
   final rec = ui.PictureRecorder();
   final canvas = Canvas(rec);
-  ScenePainter(vibe, () => t, () => 0, null).paint(canvas, size);
+  ScenePainter(vibe, () => t).paint(canvas, size);
   canvas.drawRect(Offset.zero & size, Paint()..shader = scenePalettes[vibe]!.scrim.createShader(Offset.zero & size));
   final image = await tester.runAsync(() => rec.endRecording().toImage(size.width.toInt(), size.height.toInt()));
   final data = await tester.runAsync(() => image!.toByteData(format: ui.ImageByteFormat.rawRgba));

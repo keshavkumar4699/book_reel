@@ -24,6 +24,7 @@ import '../../data/settings_provider.dart';
 import '../../services/notifications.dart';
 import '../../services/scene_sound.dart';
 import '../../services/tts.dart';
+import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/typography.dart';
 import '../../ui/vibes.dart';
@@ -71,6 +72,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   final Map<int, int> _partDwell = {};
   bool _voiceChecked = false;
 
+  /// A context under the reader's own theme: sheets and toasts opened from
+  /// here wear the scene on screen (which can differ from the app's when the
+  /// AI picks scenes).
+  BuildContext? _themed;
+  BuildContext get _ui => _themed != null && _themed!.mounted ? _themed! : context;
+
   @override
   void initState() {
     super.initState();
@@ -93,7 +100,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// The scene behind the card on screen: the AI's choice for this part of
   /// the chapter when Auto is on (paid tiers), otherwise the reader's vibe.
   Vibe _sceneFor(AppSettings s) {
-    if (!s.autoScene || !isPaidTier(s.tier) || s.vibe == Vibe.paper || _feed.isEmpty) return s.vibe;
+    if (!s.autoScene || !s.tier.paid || s.vibe == Vibe.paper || _feed.isEmpty) return s.vibe;
     final item = _feed[_page.clamp(0, _feed.length - 1)];
     final name = _segments?[item.chapterIndex]?.sceneAt(item.cardIndexInChapter ?? 0);
     return Vibe.values.where((v) => v.name == name && v != Vibe.paper).firstOrNull ?? s.vibe;
@@ -105,13 +112,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final on = !ref.read(settingsProvider).sceneSound;
     HapticFeedback.selectionClick();
     ref.read(settingsProvider.notifier).update((x) => x.copyWith(sceneSound: on));
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(milliseconds: 1800),
-        content: Text(on ? '🔊 ${sceneSoundLabels[scene]}' : 'Scene sound off. Play your own music if you like.'),
-      ));
+    showKitToast(
+      _ui,
+      on ? '${sceneSoundLabels[scene]}' : 'Scene sound off. Play your own music if you like.',
+      icon: on ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+      duration: const Duration(milliseconds: 1800),
+    );
   }
 
   @override
@@ -298,7 +304,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       _textCardsThisSession++;
       if (!settings.goalSetupDone && _textCardsThisSession == 4) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) showGoalSetup(context);
+          if (mounted) showGoalSetup(_ui);
         });
       }
       if (_tts) _speak(item);
@@ -323,8 +329,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final today = ref.read(habitProvider).today(DateTime.now());
     final idea = _ideaOfTheDay();
     final choice = await showSessionComplete(
-      context,
-      vibe: ref.read(settingsProvider).vibe,
+      _ui,
       cards: today.verifiedCards,
       minutes: today.minutes,
       streak: record.streak,
@@ -336,7 +341,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     switch (choice) {
       case SessionChoice.share:
         await showShareSheet(
-          context,
+          _ui,
           ProgressShare(
             emoji: '🔥',
             headline: '${record.streak}-day reading streak',
@@ -388,7 +393,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         if (notebook.highlightFor(widget.bookId, sid) != null || card.keySids.contains(sid)) _sentences[sid]!.sentence.text,
     ];
     showShareSheet(
-      context,
+      _ui,
       QuoteShare(
         // A spotlight reel shares its line; other reels their highlights or text.
         sentences: item.spotlight
@@ -419,13 +424,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       createdAt: DateTime.now(),
     ));
     HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text(saved ? 'Saved to your Notebook 🔖' : 'Removed from saved'),
-        duration: const Duration(milliseconds: 1600),
-      ));
+    showKitToast(
+      _ui,
+      saved ? 'Saved to your Notebook 🔖' : 'Removed from saved',
+      icon: saved ? Icons.bookmark_rounded : Icons.bookmark_remove_rounded,
+      duration: const Duration(milliseconds: 1600),
+    );
   }
 
   void _toggleHighlight(BookContent book, Sentence s) {
@@ -436,14 +440,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           text: s.text,
         );
     if (h == null) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(milliseconds: 1600),
-        content: const Text('Highlighted ✨'),
-        action: SnackBarAction(label: 'Add note', onPressed: () => _editNote(h)),
-      ));
+    showKitToast(
+      _ui,
+      'Highlighted ✨',
+      icon: Icons.border_color_rounded,
+      duration: const Duration(milliseconds: 1600),
+      actionLabel: 'Add note',
+      onAction: () => _editNote(h),
+    );
   }
 
   void _toggleTts() {
@@ -457,105 +461,100 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   }
 
   Future<void> _editNote(Highlight h) async {
-    final controller = TextEditingController(text: h.note ?? '');
-    final note = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Note'),
-        content: TextField(controller: controller, autofocus: true, maxLines: 4, decoration: const InputDecoration(hintText: 'Your thoughts…')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Save')),
-        ],
-      ),
-    );
+    if (!mounted) return;
+    final note = await showKitPrompt(_ui, title: 'Note', message: h.text, hint: 'Your thoughts…', initial: h.note ?? '', maxLines: 4);
     if (note != null) ref.read(notebookProvider.notifier).updateHighlight(h.copyWith(note: note));
   }
 
   Future<void> _highlightSheet(BookContent book, List<String> sids) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
+    const names = ['Amber', 'Green', 'Blue', 'Pink'];
+    await showKitSheet<void>(
+      _ui,
+      title: 'Highlight & note',
+      subtitle: 'Tap a sentence to highlight it',
       builder: (context) => Consumer(builder: (context, ref, _) {
+        final kit = Kit.of(context);
         final notebook = ref.watch(notebookProvider);
         final colors = ReadingTheme.of(ReadingThemeId.paper).highlights;
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.6,
-          builder: (context, controller) => ListView(
-            controller: controller,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            children: [
-              Text('Tap sentences to highlight', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              for (final sid in sids)
-                if (_sentences[sid] != null)
-                  Builder(builder: (context) {
-                    final h = notebook.highlightFor(widget.bookId, sid);
-                    return ListTile(
-                      tileColor: h == null ? null : colors[h.color],
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      title: Text(_sentences[sid]!.sentence.text),
-                      subtitle: h?.note == null || h!.note!.isEmpty ? null : Text('📝 ${h.note}'),
-                      trailing: h == null
-                          ? null
-                          : PopupMenuButton<String>(
-                              onSelected: (v) {
-                                if (v == 'note') {
-                                  _editNote(h);
-                                } else {
-                                  ref.read(notebookProvider.notifier).updateHighlight(h.copyWith(color: int.parse(v)));
-                                }
-                              },
-                              itemBuilder: (_) => [
-                                const PopupMenuItem(value: 'note', child: Text('Add note')),
+        return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (final sid in sids)
+            if (_sentences[sid] != null)
+              Builder(builder: (context) {
+                final h = notebook.highlightFor(widget.bookId, sid);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: KitPressable(
+                    pressedScale: 0.98,
+                    onTap: () => ref.read(notebookProvider.notifier).toggleHighlight(
+                          bookId: widget.bookId,
+                          bookTitle: book.title,
+                          sid: sid,
+                          text: _sentences[sid]!.sentence.text,
+                        ),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+                      decoration: BoxDecoration(
+                        color: h == null ? kit.field : Color.alphaBlend(colors[h.color].withValues(alpha: 0.55), kit.sheet),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: kit.stroke),
+                      ),
+                      child: Row(children: [
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(_sentences[sid]!.sentence.text, style: kit.body),
+                            if (h?.note != null && h!.note!.isNotEmpty)
+                              Padding(padding: const EdgeInsets.only(top: 6), child: Text('📝 ${h.note}', style: kit.caption)),
+                          ]),
+                        ),
+                        if (h != null)
+                          KitIconButton(
+                            icon: Icons.more_horiz_rounded,
+                            semanticLabel: 'Note or colour',
+                            glass: false,
+                            onPressed: () async {
+                              final v = await showKitActions<String>(context, title: 'Highlight', actions: [
+                                const KitAction('note', 'Add note', icon: Icons.edit_note_rounded),
                                 for (var i = 0; i < highlightColorCount; i++)
-                                  PopupMenuItem(
-                                    value: '$i',
-                                    child: Row(children: [
-                                      CircleAvatar(radius: 8, backgroundColor: colors[i].withValues(alpha: 1)),
-                                      const SizedBox(width: 8),
-                                      Text(['Amber', 'Green', 'Blue', 'Pink'][i]),
-                                    ]),
-                                  ),
-                              ],
-                            ),
-                      onTap: () => ref.read(notebookProvider.notifier).toggleHighlight(
-                            bookId: widget.bookId,
-                            bookTitle: book.title,
-                            sid: sid,
-                            text: _sentences[sid]!.sentence.text,
+                                  KitAction('$i', names[i],
+                                      leadingColor: colors[i].withValues(alpha: 1), selected: h.color == i),
+                              ]);
+                              if (v == null) return;
+                              if (v == 'note') {
+                                _editNote(h);
+                              } else {
+                                ref.read(notebookProvider.notifier).updateHighlight(h.copyWith(color: int.parse(v)));
+                              }
+                            },
                           ),
-                    );
-                  }),
-            ],
-          ),
-        );
+                      ]),
+                    ),
+                  ),
+                );
+              }),
+        ]);
       }),
     );
   }
 
   Future<void> _openContents(BookContent book) async {
-    final chapter = await showModalBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.6,
-        builder: (context, controller) => ListView(
-          controller: controller,
-          children: [
-            const ListTile(title: Text('Contents', style: TextStyle(fontWeight: FontWeight.w600))),
-            for (final c in book.chapters)
-              ListTile(
-                selected: _feed.isNotEmpty && _feed[_page].chapterIndex == c.index,
-                title: Text(c.title),
-                subtitle: Text('~${(c.wordCount / ref.read(habitProvider).wpm).ceil()} min'),
-                onTap: () => Navigator.pop(context, c.index),
-              ),
-          ],
-        ),
-      ),
+    final current = _feed.isNotEmpty ? _feed[_page].chapterIndex : -1;
+    final wpm = ref.read(habitProvider).wpm;
+    final chapter = await showKitSheet<int>(
+      _ui,
+      title: 'Contents',
+      subtitle: book.title,
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+      builder: (context) => Column(mainAxisSize: MainAxisSize.min, children: [
+        for (final c in book.chapters)
+          KitRow(
+            title: c.title,
+            subtitle: '~${(c.wordCount / wpm).ceil()} min',
+            selected: c.index == current,
+            chevron: false,
+            onTap: () => Navigator.of(context).pop(c.index),
+          ),
+      ]),
     );
     if (chapter == null) return;
     final index = _feed.indexWhere((f) => f.kind == CardKind.chapterTitle && f.chapterIndex == chapter);
@@ -579,31 +578,28 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   }
 
   void _more(BookContent book, AppSettings s, ReadingTheme theme) async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const Icon(Icons.list), title: const Text('Contents'), onTap: () => Navigator.pop(context, 'toc')),
-          ListTile(leading: const Icon(Icons.chrome_reader_mode_outlined), title: const Text('Page mode'), onTap: () => Navigator.pop(context, 'page')),
-          ListTile(leading: const Icon(Icons.touch_app_outlined), title: const Text('Gestures'), onTap: () => Navigator.pop(context, 'gestures')),
-          ListTile(leading: const Icon(Icons.text_fields), title: const Text('Reading settings'), onTap: () => Navigator.pop(context, 'settings')),
-          ListTile(leading: const Icon(Icons.content_cut), title: const Text('This cut feels wrong'), onTap: () => Navigator.pop(context, 'report')),
-        ]),
-      ),
-    );
+    final choice = await showKitActions<String>(_ui, title: book.title, subtitle: book.author, actions: const [
+      KitAction('toc', 'Contents', icon: Icons.format_list_bulleted_rounded),
+      KitAction('page', 'Page mode', icon: Icons.chrome_reader_mode_rounded, subtitle: 'Read the chapter as one page'),
+      KitAction('goal', 'Daily goal', icon: Icons.flag_rounded),
+      KitAction('gestures', 'Gestures', icon: Icons.touch_app_rounded),
+      KitAction('settings', 'Settings', icon: Icons.tune_rounded),
+      KitAction('report', 'This cut feels wrong', icon: Icons.content_cut_rounded),
+    ]);
     if (!mounted) return;
     switch (choice) {
       case 'toc':
         _openContents(book);
       case 'page':
         _openPageMode(book, s, theme);
+      case 'goal':
+        showGoalSheet(_ui);
       case 'gestures':
         ref.read(settingsProvider.notifier).update((x) => x.copyWith(gestureTutorialSeen: false));
       case 'settings':
         context.push('/settings');
       case 'report':
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Thanks! Reports like this help us cut cards better.')));
+        showKitToast(_ui, 'Thanks! Reports like this help us cut cards better.', emoji: '✂️');
     }
   }
 
@@ -626,7 +622,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (error != null) {
       body = Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Could not open this book.\n$error', style: TextStyle(color: readingTheme.text))));
     } else if (contentAsync.value == null || segmentsAsync.value == null) {
-      body = Center(child: CircularProgressIndicator(color: readingTheme.muted));
+      body = const Center(child: KitSpinner());
     } else {
       final book = contentAsync.value!;
       _ensureSentences(book);
@@ -640,9 +636,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       body = _buildReader(book, meta, settings, readingTheme, type, lexicon);
     }
 
+    // The reader's own kit follows the scene on screen (Auto scenes included).
+    final theme = Theme.of(context);
+    final kit = Kit.forScene(scene, paperTheme, motion: settings.animatedBackground);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: readingTheme.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-      child: Scaffold(
+      child: Theme(
+        data: theme.copyWith(extensions: [kit]),
+        child: Builder(builder: (context) {
+          _themed = context;
+          return _scaffold(scene, settings, paperTheme, readingTheme, body);
+        }),
+      ),
+    );
+  }
+
+  Widget _scaffold(Vibe scene, AppSettings settings, ReadingTheme paperTheme, ReadingTheme readingTheme, Widget body) {
+    return Scaffold(
         backgroundColor: paperTheme.background,
         body: Stack(children: [
           // AI-picked (or chosen) scene; crossfades when the story moves.
@@ -650,10 +660,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 1400),
               child: Stack(key: ValueKey(scene), fit: StackFit.expand, children: [
+                // Still while reels scroll: only its own slow motion repaints it.
                 VibeBackground(
                   vibe: scene,
                   animate: settings.animatedBackground,
-                  pager: _pager,
                   paperColor: paperTheme.background,
                 ),
                 // The scene's calibrated shade: stays put while reels move.
@@ -664,7 +674,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           ),
           Positioned.fill(child: body),
         ]),
-      ),
     );
   }
 
@@ -676,7 +685,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final padding = MediaQuery.paddingOf(context);
     final scene = _sceneFor(s);
     final style = vibeStyles[scene]!;
-    final auto = s.autoScene && isPaidTier(s.tier) && s.vibe != Vibe.paper;
+    final auto = s.autoScene && s.tier.paid && s.vibe != Vibe.paper;
     final chromeColor = t.text;
     _syncSound(scene, s.sceneSound);
 
@@ -723,6 +732,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           soundOn: s.sceneSound,
           soundLabel: sceneSoundLabels[scene] ?? '',
           onSound: () => _toggleSound(scene),
+          onStreak: () => showStreakSheet(_ui),
+          onGoal: () => showGoalSheet(_ui),
           onClose: () => context.canPop() ? context.pop() : context.go('/library'),
           onVibe: _pickVibe,
           onMore: () => _more(book, s, t),
@@ -740,30 +751,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
 
   Future<void> _pickVibe() async {
     final s = ref.read(settingsProvider);
-    final paid = isPaidTier(s.tier);
+    final paid = s.tier.paid;
     // null = Auto (the AI picks the scene for each part of the book).
-    final picked = await showModalBottomSheet<(Vibe?,)>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Pick your vibe', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text(
-              paid ? 'Auto lets the AI choose the scene that fits each chapter.' : 'Auto (AI-picked scenes) is part of Plus, Pro and Scholar.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            VibePickerRow(
-              selected: s.vibe,
-              autoSelected: paid && s.autoScene && s.vibe != Vibe.paper,
-              onAuto: paid ? () => Navigator.pop(context, (null,)) : null,
-              onSelected: (v) => Navigator.pop(context, (v,)),
-            ),
-          ]),
-        ),
+    final picked = await showKitSheet<(Vibe?,)>(
+      _ui,
+      title: 'Pick your vibe',
+      subtitle: paid ? 'Auto lets the AI choose the scene that fits each chapter.' : 'Auto (AI-picked scenes) comes with every paid plan.',
+      builder: (context) => VibePickerRow(
+        selected: s.vibe,
+        autoSelected: paid && s.autoScene && s.vibe != Vibe.paper,
+        onAuto: paid ? () => Navigator.of(context).pop((null,)) : null,
+        onSelected: (v) => Navigator.of(context).pop((v,)),
       ),
     );
     if (picked == null) return;
@@ -803,7 +801,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
                 .where((h) => h.word.toLowerCase() == word.toLowerCase() && h.meaning != null)
                 .map((h) => h.meaning)
                 .firstOrNull;
-            showWordSheet(context,
+            showWordSheet(_ui,
                 word: word, sentence: sentence.text, bookTitle: book.title, lexicon: lexicon, contextMeaning: meaning);
           },
           onLike: () => ref.read(notebookProvider.notifier).toggleLike(widget.bookId, item.anchorSid!),
@@ -860,7 +858,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           theme: t,
           type: type,
           onShare: () => showShareSheet(
-            context,
+            _ui,
             ProgressShare(
               emoji: '🎉',
               headline: 'Finished ${book.title}',
@@ -903,10 +901,7 @@ class _GoalBar extends StatelessWidget {
       child: SizedBox(
         height: 3,
         child: segments == 0
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(value: progress, color: color, backgroundColor: track),
-              )
+            ? KitProgress(value: progress, height: 3, color: color, track: track)
             : Row(children: [
                 for (var i = 0; i < segments; i++) ...[
                   if (i > 0) const SizedBox(width: 2),
@@ -924,6 +919,7 @@ class _GoalBar extends StatelessWidget {
 }
 
 /// Top bar: close · streak flame · today's goal · scene sound · vibe switcher · menu.
+/// The flame opens the streak, the flag opens today's goal.
 class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.color,
@@ -937,6 +933,8 @@ class _TopBar extends StatelessWidget {
     required this.soundOn,
     required this.soundLabel,
     required this.onSound,
+    required this.onStreak,
+    required this.onGoal,
     required this.onClose,
     required this.onVibe,
     required this.onMore,
@@ -958,6 +956,8 @@ class _TopBar extends StatelessWidget {
   final bool soundOn;
   final String soundLabel;
   final VoidCallback onSound;
+  final VoidCallback onStreak;
+  final VoidCallback onGoal;
   final VoidCallback onClose;
   final VoidCallback onVibe;
   final VoidCallback onMore;
@@ -965,33 +965,57 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shadow = shadows;
-    Widget pill(Widget child) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(color: this.pill, borderRadius: BorderRadius.circular(20)),
-          child: child,
+    Widget pill({required Widget child, required VoidCallback onTap, required String semantic}) => KitPressable(
+          onTap: onTap,
+          haptic: true,
+          semanticLabel: semantic,
+          excludeSemantics: true,
+          pressedScale: 0.9,
+          // A 48 dp target around the slim pill.
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(color: this.pill, borderRadius: BorderRadius.circular(20)),
+              child: child,
+            ),
+          ),
         );
+    Widget icon(IconData i, String semantic, VoidCallback onTap) =>
+        KitIconButton(icon: i, semanticLabel: semantic, onPressed: onTap, glass: false, color: color, shadows: shadow, iconSize: 24);
     return Row(children: [
-      IconButton(tooltip: 'Close', icon: Icon(Icons.close, color: color, shadows: shadow), onPressed: onClose),
+      icon(Icons.close_rounded, 'Close', onClose),
       const Spacer(),
-      pill(Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.local_fire_department, size: 18, color: streak > 0 ? accent : color.withValues(alpha: 0.6)),
-        const SizedBox(width: 4),
-        Text('$streak', style: TextStyle(color: color, fontWeight: FontWeight.w700)),
-      ])),
-      const SizedBox(width: 8),
-      pill(Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(goalDone ? Icons.check_circle : Icons.flag_outlined, size: 16, color: goalDone ? accent : color),
-        const SizedBox(width: 4),
-        Text(goalLabel, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
-      ])),
-      const Spacer(),
-      IconButton(
-        tooltip: soundOn ? 'Mute scene sound ($soundLabel)' : 'Play scene sound ($soundLabel)',
-        onPressed: onSound,
-        icon: Icon(soundOn ? Icons.volume_up_rounded : Icons.volume_off_rounded, color: color, shadows: shadow),
+      pill(
+        onTap: onStreak,
+        semantic: '$streak day streak. Open streak',
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.local_fire_department_rounded, size: 18, color: streak > 0 ? accent : color.withValues(alpha: 0.6)),
+          const SizedBox(width: 4),
+          Text('$streak', style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+        ]),
       ),
-      IconButton(tooltip: 'Change vibe', onPressed: onVibe, icon: Text(vibeEmoji, style: const TextStyle(fontSize: 20))),
-      IconButton(tooltip: 'More', icon: Icon(Icons.more_horiz, color: color, shadows: shadow), onPressed: onMore),
+      const SizedBox(width: 6),
+      pill(
+        onTap: onGoal,
+        semantic: 'Today\'s goal $goalLabel${goalDone ? ', done' : ''}. Open goal',
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(goalDone ? Icons.check_circle_rounded : Icons.flag_rounded, size: 16, color: goalDone ? accent : color),
+          const SizedBox(width: 4),
+          Text(goalLabel, style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+      const Spacer(),
+      icon(soundOn ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+          soundOn ? 'Mute scene sound ($soundLabel)' : 'Play scene sound ($soundLabel)', onSound),
+      KitIconButton(
+        icon: Icons.landscape_rounded,
+        semanticLabel: 'Change vibe',
+        onPressed: onVibe,
+        glass: false,
+        child: Text(vibeEmoji, style: const TextStyle(fontSize: 20)),
+      ),
+      icon(Icons.more_horiz_rounded, 'More', onMore),
     ]);
   }
 }
@@ -1012,6 +1036,7 @@ class _GestureGuide extends StatelessWidget {
       (Icons.swipe_right_outlined, 'Swipe right', 'Share'),
       (Icons.translate, 'Long-press a word', 'See its meaning'),
       (Icons.volume_up_rounded, 'Speaker', 'Mute the scene sound to play your own music'),
+      (Icons.local_fire_department_rounded, 'Flame and flag', 'Your streak and today’s goal'),
     ];
     return GestureDetector(
       onTap: onDone,
@@ -1030,7 +1055,7 @@ class _GestureGuide extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(children: [
-                  CircleAvatar(radius: 22, backgroundColor: accent.withValues(alpha: 0.2), child: Icon(r.$1, color: accent)),
+                  KitBubble(icon: r.$1, color: accent, size: 44),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Text.rich(TextSpan(children: [
@@ -1041,7 +1066,7 @@ class _GestureGuide extends StatelessWidget {
                 ]),
               ),
             const SizedBox(height: 28),
-            FilledButton(onPressed: onDone, style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.black), child: const Text('Got it')),
+            KitButton(label: 'Got it', onPressed: onDone),
               ]),
             ),
           ),

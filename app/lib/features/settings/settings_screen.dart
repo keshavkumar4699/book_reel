@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/habit/habit_engine.dart';
 import '../../core/segmentation/rule_segmenter.dart';
@@ -7,11 +8,15 @@ import '../../core/text/lexicon.dart';
 import '../../data/ai_client.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
-import '../../services/notifications.dart';
 import '../../services/scene_sound.dart';
+import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/vibes.dart';
+import '../reader/goal_setup_sheet.dart';
 
+/// Settings, compact (UX_DESIGN.md Revision 6): one short list where each row
+/// shows its current value and opens a focused sheet. Simple on/off options
+/// switch in place.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -19,376 +24,119 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
-    final theme = Theme.of(context);
-    Widget header(String t) => Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-          child: Text(t, style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary)),
-        );
+    final style = vibeStyles[s.vibe]!;
+    final auto = s.autoScene && s.tier.paid && s.vibe != Vibe.paper;
+    final time = MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay(hour: s.reminderHour, minute: s.reminderMinute),
+        alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context));
 
-    Future<void> reschedule(AppSettings next) => ReminderService.instance.scheduleDaily(
-          enabled: next.reminderEnabled,
-          hour: next.reminderHour,
-          minute: next.reminderMinute,
-          body: ReminderService.reminderBody(habitAnchor: next.habitAnchor, dailyGoal: next.dailyGoal),
-        );
-
-    final preview = ReadingTheme.of(effectiveReadingTheme(s, MediaQuery.platformBrightnessOf(context)));
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(children: [
-        // Live preview of the reading surface.
-        Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: preview.background, borderRadius: BorderRadius.circular(16)),
-          child: Text(
-            'The best time to plant a tree was twenty years ago. The second best time is now.',
-            style: TextStyle(
-              fontFamily: fontFamilyFor(s.font),
-              fontSize: s.fontSize,
-              height: s.lineHeight,
-              letterSpacing: s.letterSpacing,
-              wordSpacing: s.wordSpacing,
-              color: preview.text,
-            ),
+    return KitPage(
+      title: 'Settings',
+      children: [
+        KitGroup(label: 'Reading', children: [
+          KitRow(
+            emoji: auto ? '✨' : style.emoji,
+            title: 'Scene',
+            value: auto ? 'Auto' : style.label,
+            onTap: () => showKitSheet<void>(context, title: 'Scene', subtitle: 'The world behind your reels', builder: (_) => const SceneSettings()),
           ),
-        ),
-        header('Vibe'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: VibePickerRow(selected: s.vibe, onSelected: (v) => n.update((x) => x.copyWith(vibe: v))),
-        ),
-        SwitchListTile(
-          title: const Text('Animated backgrounds'),
-          subtitle: const Text('Gentle motion. Turns off automatically with the system “Remove animations” setting.'),
-          value: s.animatedBackground,
-          onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
-        ),
-        header('Scene sound'),
-        SwitchListTile(
-          title: const Text('Play the scene’s sound'),
-          subtitle: Text('Each scene has its own calm sound: ${sceneSoundLabels[s.vibe]!.toLowerCase()} for '
-              '${vibeStyles[s.vibe]!.label}. Turn it off (or tap the speaker while reading) to play your own music.'),
-          value: s.sceneSound,
-          onChanged: (v) => n.update((x) => x.copyWith(sceneSound: v)),
-        ),
-        if (s.sceneSound)
-          _SliderTile(
-            label: 'Sound volume',
-            value: s.sceneSoundVolume,
-            min: 0.05,
-            max: 1,
-            divisions: 19,
-            display: '${(s.sceneSoundVolume * 100).round()}%',
-            onChanged: (v) {
-              n.update((x) => x.copyWith(sceneSoundVolume: v));
-              ref.read(sceneSoundProvider.notifier).applyVolume();
-            },
+          KitRow(
+            icon: s.sceneSound ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+            title: 'Scene sound',
+            value: s.sceneSound ? 'On · ${(s.sceneSoundVolume * 100).round()}%' : 'Off',
+            onTap: () => showKitSheet<void>(context, title: 'Scene sound', builder: (_) => const SoundSettings()),
           ),
-        header('Reading'),
-        ListTile(
-          title: const Text('Paper theme'),
-          subtitle: const Text('Used with the Paper vibe and in page mode'),
-        ),
-        ListTile(
-          title: const Text('Theme'),
-          subtitle: Wrap(spacing: 8, children: [
-            for (final t in ReadingThemeId.values)
-              ChoiceChip(
-                label: Text(t.name[0].toUpperCase() + t.name.substring(1)),
-                selected: s.theme == t,
-                onSelected: (_) => n.update((x) => x.copyWith(theme: t)),
-              ),
-          ]),
-        ),
-        SwitchListTile(
-          title: const Text('Use dark theme when the phone is in dark mode'),
-          value: s.followSystemDark,
-          onChanged: (v) => n.update((x) => x.copyWith(followSystemDark: v)),
-        ),
-        ListTile(
-          title: const Text('Font'),
-          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Wrap(spacing: 8, children: [
-              for (final f in ReadingFont.values)
-                ChoiceChip(
-                  label: Text(switch (f) {
-                    ReadingFont.book => "Book's own",
-                    ReadingFont.literata => 'Literata',
-                    ReadingFont.atkinson => 'Atkinson Hyperlegible',
-                    ReadingFont.system => 'System',
-                  }),
-                  selected: s.font == f,
-                  onSelected: (_) => n.update((x) => x.copyWith(font: f)),
-                ),
-            ]),
-            if (s.font == ReadingFont.book)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  isPaidTier(s.tier)
-                      ? 'Each book gets fonts that fit it, chosen by the AI from its genre and opening pages.'
-                      : 'Each book gets fonts that fit its genre (fantasy, mystery, sci-fi, romance, non-fiction…).',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              )
-            else if (s.font == ReadingFont.atkinson)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text('Designed for low vision; used for every book.', style: Theme.of(context).textTheme.bodySmall),
-              ),
-          ]),
-        ),
-        _SliderTile(
-          label: 'Text size',
-          value: s.fontSize,
-          min: 14,
-          max: 32,
-          divisions: 18,
-          display: '${s.fontSize.round()}',
-          onChanged: (v) => n.update((x) => x.copyWith(fontSize: v)),
-        ),
-        _SliderTile(
-          label: 'Line spacing',
-          value: s.lineHeight,
-          min: 1.2,
-          max: 2.0,
-          divisions: 8,
-          display: s.lineHeight.toStringAsFixed(1),
-          onChanged: (v) => n.update((x) => x.copyWith(lineHeight: v)),
-        ),
-        _SliderTile(
-          label: 'Letter spacing',
-          help: 'Wider spacing can make reading easier, especially with dyslexia.',
-          value: s.letterSpacing,
-          min: 0,
-          max: 2,
-          divisions: 8,
-          display: s.letterSpacing.toStringAsFixed(2),
-          onChanged: (v) => n.update((x) => x.copyWith(letterSpacing: v, wordSpacing: v * 2)),
-        ),
-        ListTile(
-          title: const Text('Card length'),
-          subtitle: SegmentedButton<CardLength>(
-            segments: const [
-              ButtonSegment(value: CardLength.snack, label: Text('Snack')),
-              ButtonSegment(value: CardLength.bite, label: Text('Bite')),
-              ButtonSegment(value: CardLength.standard, label: Text('Std')),
-              ButtonSegment(value: CardLength.deep, label: Text('Deep')),
-            ],
-            selected: {s.cardLength},
-            onSelectionChanged: (v) => n.update((x) => x.copyWith(cardLength: v.first)),
+          KitRow(
+            icon: Icons.text_fields_rounded,
+            title: 'Text & theme',
+            value: '${_fontName(s.font)} · ${s.fontSize.round()}',
+            onTap: () => showKitSheet<void>(context, title: 'Text & theme', builder: (_) => const TextSettings()),
           ),
-        ),
-        ListTile(
-          title: const Text('Key points'),
-          subtitle: SegmentedButton<KeyPointStyle>(
-            segments: const [
-              ButtonSegment(value: KeyPointStyle.off, label: Text('Off')),
-              ButtonSegment(value: KeyPointStyle.subtle, label: Text('Subtle')),
-              ButtonSegment(value: KeyPointStyle.bold, label: Text('Bold')),
-            ],
-            selected: {s.keyPointStyle},
-            onSelectionChanged: (v) => n.update((x) => x.copyWith(keyPointStyle: v.first)),
+          KitRow(
+            icon: Icons.view_agenda_rounded,
+            title: 'Cards',
+            value: '${_lengthName(s.cardLength)} · ${_levelName(s.readingLevel)}',
+            onTap: () => showKitSheet<void>(context, title: 'Cards', builder: (_) => const CardSettings()),
           ),
-        ),
-        SwitchListTile(
-          title: const Text('Underline hard words'),
-          value: s.underlineHardWords,
-          onChanged: (v) => n.update((x) => x.copyWith(underlineHardWords: v)),
-        ),
-        ListTile(
-          title: const Text('Vocabulary level'),
-          subtitle: SegmentedButton<ReadingLevel>(
-            segments: const [
-              ButtonSegment(value: ReadingLevel.beginner, label: Text('Beginner')),
-              ButtonSegment(value: ReadingLevel.intermediate, label: Text('Middle')),
-              ButtonSegment(value: ReadingLevel.advanced, label: Text('Advanced')),
-            ],
-            selected: {s.readingLevel},
-            onSelectionChanged: (v) => n.update((x) => x.copyWith(readingLevel: v.first)),
+        ]),
+        KitGroup(label: 'Habit', children: [
+          KitRow(
+            icon: Icons.flag_rounded,
+            title: 'Daily goal',
+            value: '${s.goal.dailyTarget} ${s.goalUnit == GoalUnit.cards ? 'cards' : 'min'}${s.reminderEnabled ? ' · $time' : ''}',
+            onTap: () => showGoalSheet(context),
           ),
-        ),
-        SwitchListTile(
-          title: const Text('AI card titles'),
-          subtitle: const Text('Shown when AI cards are available'),
-          value: s.showAiTitles,
-          onChanged: (v) => n.update((x) => x.copyWith(showAiTitles: v)),
-        ),
-        SwitchListTile(
-          title: const Text('Quick-check cards'),
-          subtitle: const Text('A one-tap recall check every ~10 cards'),
-          value: s.recallCards,
-          onChanged: (v) => n.update((x) => x.copyWith(recallCards: v)),
-        ),
-        SwitchListTile(
-          title: const Text('Reflect cards'),
-          subtitle: const Text('One question at the end of each chapter'),
-          value: s.reflectCards,
-          onChanged: (v) => n.update((x) => x.copyWith(reflectCards: v)),
-        ),
-        header('Goal & reminders'),
-        ListTile(
-          title: const Text('Goal type'),
-          subtitle: SegmentedButton<GoalMode>(
-            segments: const [
-              ButtonSegment(value: GoalMode.daily, label: Text('Daily streak')),
-              ButtonSegment(value: GoalMode.weekly, label: Text('Days per week')),
-            ],
-            selected: {s.goalMode},
-            onSelectionChanged: (v) => n.update((x) => x.copyWith(goalMode: v.first)),
+        ]),
+        KitGroup(label: 'Comfort & privacy', children: [
+          KitSwitchRow(
+            icon: Icons.back_hand_rounded,
+            title: 'Left-handed layout',
+            value: s.leftHanded,
+            onChanged: (v) => n.update((x) => x.copyWith(leftHanded: v)),
           ),
-        ),
-        ListTile(
-          title: const Text('Daily goal'),
-          subtitle: Wrap(spacing: 8, children: [
-            for (final g in [10, 20, 40, 60])
-              ChoiceChip(
-                label: Text('$g ${s.goalUnit == GoalUnit.cards ? 'cards' : 'min'}'),
-                selected: s.dailyGoal == g,
-                onSelected: (_) => n.update((x) => x.copyWith(dailyGoal: g)),
-              ),
-            ChoiceChip(
-              label: Text(s.goalUnit == GoalUnit.cards ? 'Count minutes instead' : 'Count cards instead'),
-              selected: false,
-              onSelected: (_) => n.update((x) => x.copyWith(goalUnit: x.goalUnit == GoalUnit.cards ? GoalUnit.minutes : GoalUnit.cards)),
-            ),
-          ]),
-        ),
-        if (s.goalMode == GoalMode.weekly)
-          _SliderTile(
-            label: 'Days per week',
-            value: s.weeklyDays.toDouble(),
-            min: 2,
-            max: 7,
-            divisions: 5,
-            display: '${s.weeklyDays}',
-            onChanged: (v) => n.update((x) => x.copyWith(weeklyDays: v.round())),
+          KitSwitchRow(
+            icon: Icons.visibility_off_rounded,
+            title: 'Hide leaderboards',
+            subtitle: 'No rankings or comparisons',
+            value: s.hideLeaderboards,
+            onChanged: (v) => n.update((x) => x.copyWith(hideLeaderboards: v)),
           ),
-        SwitchListTile(
-          title: const Text('Daily reminder'),
-          subtitle: Text(s.reminderEnabled
-              ? 'At ${TimeOfDay(hour: s.reminderHour, minute: s.reminderMinute).format(context)} · never during 10 pm–8 am'
-              : 'Off'),
-          value: s.reminderEnabled,
-          onChanged: (v) async {
-            n.update((x) => x.copyWith(reminderEnabled: v));
-            if (v) await ReminderService.instance.requestPermission();
-            await reschedule(ref.read(settingsProvider));
-          },
-        ),
-        if (s.reminderEnabled)
-          ListTile(
-            title: const Text('Reminder time'),
-            trailing: const Icon(Icons.schedule),
+        ]),
+        KitGroup(label: 'You', children: [
+          KitRow(
+            icon: Icons.badge_rounded,
+            title: 'Display name',
+            value: s.displayName,
             onTap: () async {
-              final t = await showTimePicker(context: context, initialTime: TimeOfDay(hour: s.reminderHour, minute: s.reminderMinute));
-              if (t == null) return;
-              if (ReminderService.isQuietHour(t.hour)) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('That’s during quiet hours (10 pm–8 am). Pick another time.')));
-                }
-                return;
-              }
-              n.update((x) => x.copyWith(reminderHour: t.hour, reminderMinute: t.minute));
-              await reschedule(ref.read(settingsProvider));
+              final v = await showKitPrompt(context,
+                  title: 'Your name', initial: s.displayName == 'Reader' ? '' : s.displayName, capitalization: TextCapitalization.words);
+              if (v != null) n.update((x) => x.copyWith(displayName: v.isEmpty ? 'Reader' : v));
             },
           ),
-        ListTile(
-          title: const Text('Habit anchor'),
-          subtitle: Text(s.habitAnchor.isEmpty ? 'Not set' : s.habitAnchor),
-          trailing: const Icon(Icons.edit_outlined),
-          onTap: () async {
-            final c = TextEditingController(text: s.habitAnchor);
-            final v = await showDialog<String>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('After I…'),
-                content: TextField(controller: c, autofocus: true, decoration: const InputDecoration(hintText: 'have my morning tea')),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                  FilledButton(onPressed: () => Navigator.pop(context, c.text.trim()), child: const Text('Save')),
-                ],
-              ),
-            );
-            if (v == null) return;
-            n.update((x) => x.copyWith(habitAnchor: v));
-            await reschedule(ref.read(settingsProvider));
-          },
-        ),
-        header('Comfort & privacy'),
-        SwitchListTile(
-          title: const Text('Left-handed layout'),
-          value: s.leftHanded,
-          onChanged: (v) => n.update((x) => x.copyWith(leftHanded: v)),
-        ),
-        SwitchListTile(
-          title: const Text('Hide leaderboards and comparisons'),
-          value: s.hideLeaderboards,
-          onChanged: (v) => n.update((x) => x.copyWith(hideLeaderboards: v)),
-        ),
-        ListTile(
-          title: const Text('Display name'),
-          subtitle: Text(s.displayName),
-          trailing: const Icon(Icons.edit_outlined),
-          onTap: () async {
-            final c = TextEditingController(text: s.displayName == 'Reader' ? '' : s.displayName);
-            final v = await showDialog<String>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Your name'),
-                content: TextField(controller: c, autofocus: true),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                  FilledButton(onPressed: () => Navigator.pop(context, c.text.trim()), child: const Text('Save')),
-                ],
-              ),
-            );
-            if (v != null) n.update((x) => x.copyWith(displayName: v.isEmpty ? 'Reader' : v));
-          },
-        ),
-        header('AI plan'),
-        RadioGroup<Tier>(
-          groupValue: s.tier,
-          onChanged: (t) => n.update((x) => x.copyWith(tier: t)),
-          child: Column(children: [
-            for (final t in Tier.values)
-              RadioListTile<Tier>(
-                value: t,
-                title: Text(switch (t) {
-                  Tier.free => 'Free: on-device cards',
-                  Tier.plus => 'Plus: Claude Haiku cards',
-                  Tier.pro => 'Pro: Claude Sonnet cards',
-                  Tier.scholar => 'Scholar: Claude Opus cards',
-                }),
-              ),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            bookreelApi.isEmpty
-                ? 'AI cards need the BookReel server. This build has none configured, so on-device cards are used.'
-                : 'Billing is not live yet: choosing a plan here only switches which AI model the server uses.',
-            style: theme.textTheme.bodySmall,
+          KitRow(
+            icon: Icons.workspace_premium_rounded,
+            title: 'Plan',
+            value: s.tier.paid ? '${s.tier.label} · ${s.tier.model}' : 'Free',
+            onTap: () => showKitSheet<void>(context, title: 'Plan', subtitle: 'Each plan reads your books with a stronger model', builder: (_) => const PlanPicker()),
           ),
-        ),
-        header('About'),
-        ListTile(
-          title: const Text('Open-source licenses'),
-          subtitle: const Text('Fonts (OFL), WordNet, wordfreq (CC BY-SA 4.0)'),
-          onTap: () => showLicensePage(context: context, applicationName: 'BookReel'),
-        ),
-        const SizedBox(height: 32),
-      ]),
+        ]),
+        KitGroup(label: 'About', children: [
+          KitRow(
+            icon: Icons.description_rounded,
+            title: 'Licences',
+            subtitle: 'Fonts (OFL), scene sounds, WordNet, wordfreq',
+            onTap: () => context.push('/licenses'),
+          ),
+        ]),
+      ],
     );
   }
 }
 
-class _SliderTile extends StatelessWidget {
-  const _SliderTile({
+String _fontName(ReadingFont f) => switch (f) {
+      ReadingFont.book => "Book's own fonts",
+      ReadingFont.literata => 'Literata',
+      ReadingFont.atkinson => 'Atkinson Hyperlegible',
+      ReadingFont.system => 'System font',
+    };
+
+String _lengthName(CardLength l) => switch (l) {
+      CardLength.snack => 'Snack',
+      CardLength.bite => 'Bite',
+      CardLength.standard => 'Standard',
+      CardLength.deep => 'Deep',
+    };
+
+String _levelName(ReadingLevel l) => switch (l) {
+      ReadingLevel.beginner => 'Beginner words',
+      ReadingLevel.intermediate => 'Middle words',
+      ReadingLevel.advanced => 'Advanced words',
+    };
+
+String _capital(String s) => s[0].toUpperCase() + s.substring(1);
+
+/// Label, value and slider.
+class _SliderField extends StatelessWidget {
+  const _SliderField({
     required this.label,
     required this.value,
     required this.min,
@@ -404,18 +152,304 @@ class _SliderTile extends StatelessWidget {
   final double min;
   final double max;
   final int divisions;
-  final String display;
-  final String? help;
+  final String Function(double) display;
   final ValueChanged<double> onChanged;
+  final String? help;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      title: Row(children: [Expanded(child: Text(label)), Text(display)]),
-      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Slider(value: value.clamp(min, max), min: min, max: max, divisions: divisions, label: display, onChanged: onChanged),
-        if (help != null) Text(help!),
+    final kit = Kit.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(child: Text(label, style: kit.strong)),
+          Text(display(value), style: kit.strong.copyWith(color: kit.accent)),
+        ]),
+        KitSlider(value: value, min: min, max: max, divisions: divisions, semanticLabel: label, format: display, onChanged: onChanged),
+        if (help != null) Text(help!, style: kit.caption),
       ]),
     );
+  }
+}
+
+/// Scene picker, Auto and motion.
+class SceneSettings extends ConsumerWidget {
+  const SceneSettings({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final s = ref.watch(settingsProvider);
+    final n = ref.read(settingsProvider.notifier);
+    final paid = s.tier.paid;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      VibePickerRow(
+        selected: s.vibe,
+        autoSelected: paid && s.autoScene && s.vibe != Vibe.paper,
+        onAuto: paid ? () => n.update((x) => x.copyWith(autoScene: true)) : null,
+        onSelected: (v) => n.update((x) => x.copyWith(vibe: v, autoScene: false)),
+      ),
+      const SizedBox(height: 6),
+      Text(paid ? 'Auto lets the AI pick the scene that fits each chapter.' : 'Auto (AI-picked scenes) comes with every paid plan.',
+          style: kit.caption),
+      const SizedBox(height: 14),
+      KitGroup(children: [
+        KitSwitchRow(
+          icon: Icons.animation_rounded,
+          title: 'Moving scenes',
+          subtitle: 'Gentle motion. Off when the phone’s “Remove animations” is on.',
+          value: s.animatedBackground,
+          onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
+        ),
+      ]),
+    ]);
+  }
+}
+
+/// The scene's ambient sound.
+class SoundSettings extends ConsumerWidget {
+  const SoundSettings({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final s = ref.watch(settingsProvider);
+    final n = ref.read(settingsProvider.notifier);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      Text(
+        'Each scene has its own calm sound: ${sceneSoundLabels[s.vibe]!.toLowerCase()} for ${vibeStyles[s.vibe]!.label}. '
+        'Turn it off (or tap the speaker while reading) to play your own music.',
+        style: kit.caption,
+      ),
+      const SizedBox(height: 12),
+      KitGroup(children: [
+        KitSwitchRow(
+          icon: Icons.graphic_eq_rounded,
+          title: 'Play the scene’s sound',
+          value: s.sceneSound,
+          onChanged: (v) => n.update((x) => x.copyWith(sceneSound: v)),
+        ),
+      ]),
+      if (s.sceneSound)
+        _SliderField(
+          label: 'Volume',
+          value: s.sceneSoundVolume,
+          min: 0.05,
+          max: 1,
+          divisions: 19,
+          display: (v) => '${(v * 100).round()}%',
+          onChanged: (v) {
+            n.update((x) => x.copyWith(sceneSoundVolume: v));
+            ref.read(sceneSoundProvider.notifier).applyVolume();
+          },
+        ),
+    ]);
+  }
+}
+
+/// Font, size, spacing and the paper theme, with a live preview.
+class TextSettings extends ConsumerWidget {
+  const TextSettings({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final s = ref.watch(settingsProvider);
+    final n = ref.read(settingsProvider.notifier);
+    final preview = ReadingTheme.of(effectiveReadingTheme(s, MediaQuery.platformBrightnessOf(context)));
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      // Live preview of the reading text.
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(color: preview.background, borderRadius: BorderRadius.circular(18), border: Border.all(color: kit.stroke)),
+        child: Text(
+          'The best time to plant a tree was twenty years ago. The second best time is now.',
+          style: TextStyle(
+            fontFamily: fontFamilyFor(s.font),
+            fontSize: s.fontSize,
+            height: s.lineHeight,
+            letterSpacing: s.letterSpacing,
+            wordSpacing: s.wordSpacing,
+            color: preview.text,
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
+      Text('FONT', style: kit.label),
+      const SizedBox(height: 8),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final f in ReadingFont.values)
+          KitChip(label: _fontName(f), selected: s.font == f, onTap: () => n.update((x) => x.copyWith(font: f))),
+      ]),
+      const SizedBox(height: 6),
+      Text(
+        switch (s.font) {
+          ReadingFont.book => s.tier.paid
+              ? 'Each book gets fonts that fit it, chosen by the AI from its genre and opening pages.'
+              : 'Each book gets fonts that fit its genre (fantasy, mystery, sci-fi, romance, non-fiction…).',
+          ReadingFont.atkinson => 'Designed for low vision; used for every book.',
+          _ => 'Used for every book.',
+        },
+        style: kit.caption,
+      ),
+      _SliderField(
+        label: 'Text size',
+        value: s.fontSize,
+        min: 14,
+        max: 32,
+        divisions: 18,
+        display: (v) => '${v.round()}',
+        onChanged: (v) => n.update((x) => x.copyWith(fontSize: v)),
+      ),
+      _SliderField(
+        label: 'Line spacing',
+        value: s.lineHeight,
+        min: 1.2,
+        max: 2.0,
+        divisions: 8,
+        display: (v) => v.toStringAsFixed(1),
+        onChanged: (v) => n.update((x) => x.copyWith(lineHeight: v)),
+      ),
+      _SliderField(
+        label: 'Letter spacing',
+        help: 'Wider spacing can make reading easier, especially with dyslexia.',
+        value: s.letterSpacing,
+        min: 0,
+        max: 2,
+        divisions: 8,
+        display: (v) => v.toStringAsFixed(2),
+        onChanged: (v) => n.update((x) => x.copyWith(letterSpacing: v, wordSpacing: v * 2)),
+      ),
+      const SizedBox(height: 18),
+      Text('PAPER THEME', style: kit.label),
+      const SizedBox(height: 2),
+      Text('For the Paper scene and page mode', style: kit.caption),
+      const SizedBox(height: 8),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final t in ReadingThemeId.values)
+          KitChip(label: _capital(t.name), selected: s.theme == t, onTap: () => n.update((x) => x.copyWith(theme: t))),
+      ]),
+      const SizedBox(height: 12),
+      KitGroup(children: [
+        KitSwitchRow(
+          icon: Icons.dark_mode_rounded,
+          title: 'Dark with the phone',
+          subtitle: 'Use the dark theme when the phone is in dark mode',
+          value: s.followSystemDark,
+          onChanged: (v) => n.update((x) => x.copyWith(followSystemDark: v)),
+        ),
+      ]),
+    ]);
+  }
+}
+
+/// How books become cards.
+class CardSettings extends ConsumerWidget {
+  const CardSettings({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final s = ref.watch(settingsProvider);
+    final n = ref.read(settingsProvider.notifier);
+    Widget label(String t) => Padding(padding: const EdgeInsets.only(top: 14, bottom: 8), child: Text(t, style: kit.label));
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      label('CARD LENGTH'),
+      KitSegmented<CardLength>(
+        values: CardLength.values,
+        selected: s.cardLength,
+        label: _lengthName,
+        onChanged: (v) => n.update((x) => x.copyWith(cardLength: v)),
+      ),
+      label('KEY POINTS'),
+      KitSegmented<KeyPointStyle>(
+        values: KeyPointStyle.values,
+        selected: s.keyPointStyle,
+        label: (v) => _capital(v.name),
+        onChanged: (v) => n.update((x) => x.copyWith(keyPointStyle: v)),
+      ),
+      label('VOCABULARY LEVEL'),
+      KitSegmented<ReadingLevel>(
+        values: ReadingLevel.values,
+        selected: s.readingLevel,
+        label: (v) => switch (v) {
+          ReadingLevel.beginner => 'Beginner',
+          ReadingLevel.intermediate => 'Middle',
+          ReadingLevel.advanced => 'Advanced',
+        },
+        onChanged: (v) => n.update((x) => x.copyWith(readingLevel: v)),
+      ),
+      const SizedBox(height: 16),
+      KitGroup(children: [
+        KitSwitchRow(
+          icon: Icons.format_underlined_rounded,
+          title: 'Underline hard words',
+          value: s.underlineHardWords,
+          onChanged: (v) => n.update((x) => x.copyWith(underlineHardWords: v)),
+        ),
+        KitSwitchRow(
+          icon: Icons.title_rounded,
+          title: 'AI card titles',
+          subtitle: 'Shown when AI cards are available',
+          value: s.showAiTitles,
+          onChanged: (v) => n.update((x) => x.copyWith(showAiTitles: v)),
+        ),
+        KitSwitchRow(
+          icon: Icons.quiz_rounded,
+          title: 'Quick-check cards',
+          subtitle: 'A one-tap recall check every ~10 cards',
+          value: s.recallCards,
+          onChanged: (v) => n.update((x) => x.copyWith(recallCards: v)),
+        ),
+        KitSwitchRow(
+          icon: Icons.psychology_alt_rounded,
+          title: 'Reflect cards',
+          subtitle: 'One question at the end of each chapter',
+          value: s.reflectCards,
+          onChanged: (v) => n.update((x) => x.copyWith(reflectCards: v)),
+        ),
+      ]),
+    ]);
+  }
+}
+
+/// The five plans, cheapest first (DESIGN.md §6.1).
+class PlanPicker extends ConsumerWidget {
+  const PlanPicker({super.key});
+
+  static String blurb(Tier t) => switch (t) {
+        Tier.free => 'Cards cut on your phone. Every scene, sound and streak.',
+        Tier.lite => 'Claude Haiku reads your books: AI emphasis, Auto scenes and book fonts.',
+        Tier.plus => 'Claude Sonnet: sharper cuts, recaps and quick checks.',
+        Tier.pro => 'Claude Opus: the deepest reading of dense and difficult books.',
+        Tier.scholar => 'Claude Fable: our most capable model, for the books that matter most.',
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final s = ref.watch(settingsProvider);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      KitGroup(children: [
+        for (final t in Tier.values)
+          KitRow(
+            title: t.paid ? '${t.label} · \$${t.usdPerMonth.toStringAsFixed(2)}/mo' : 'Free',
+            subtitle: blurb(t),
+            selected: s.tier == t,
+            chevron: false,
+            trailing: s.tier == t ? null : Icon(Icons.radio_button_unchecked_rounded, color: kit.inkSoft),
+            onTap: () => ref.read(settingsProvider.notifier).update((x) => x.copyWith(tier: t)),
+          ),
+      ]),
+      const SizedBox(height: 10),
+      Text(
+        bookreelApi.isEmpty
+            ? 'AI cards need the BookReel server. This build has none configured, so on-device cards are used.'
+            : 'Billing is not live yet: choosing a plan here only switches which AI model the server uses. US prices; '
+                'local prices are shown at checkout.',
+        style: kit.caption,
+      ),
+    ]);
   }
 }

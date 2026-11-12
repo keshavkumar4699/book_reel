@@ -5,6 +5,7 @@ import '../../core/habit/habit_engine.dart';
 import '../../data/habit.dart';
 import '../../data/notebook.dart';
 import '../../data/settings_provider.dart';
+import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../share/share_sheet.dart';
 
@@ -14,7 +15,6 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final habit = ref.watch(habitProvider);
     final notebook = ref.watch(notebookProvider);
     final settings = ref.watch(settingsProvider);
@@ -29,56 +29,56 @@ class ProfileScreen extends ConsumerWidget {
       ('🔤', '${notebook.words.length}', 'words learned'),
       ('✏️', '${notebook.highlights.length}', 'highlights'),
     ];
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(settings.displayName),
-        actions: [
-          IconButton(
-            tooltip: 'Share progress',
-            icon: const Icon(Icons.ios_share),
-            onPressed: () => showShareSheet(
-              context,
-              ProgressShare(
-                emoji: '📖',
-                headline: '${habit.totalVerifiedCards} cards read on BookReel',
-                lines: ['$streak-day streak · best ${habit.streak.best}', '${habit.booksFinished} books finished'],
-              ),
+    final kit = Kit.of(context);
+    return KitPage(
+      title: settings.displayName,
+      subtitle: 'Your reading, growing',
+      actions: [
+        KitIconButton(
+          icon: Icons.reply_rounded,
+          semanticLabel: 'Share progress',
+          onPressed: () => showShareSheet(
+            context,
+            ProgressShare(
+              emoji: '📖',
+              headline: '${habit.totalVerifiedCards} cards read on BookReel',
+              lines: ['$streak-day streak · best ${habit.streak.best}', '${habit.booksFinished} books finished'],
             ),
           ),
-        ],
-      ),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+          child: const ShareArrowIcon(size: 22),
+        ),
+      ],
+      children: [
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
+          padding: EdgeInsets.zero,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 2.2,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
+          childAspectRatio: 2.1,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
           children: [
             for (final t in tiles)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(children: [
-                    Text(t.$1, style: const TextStyle(fontSize: 24)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Text(t.$2, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-                        Text(t.$3, style: theme.textTheme.bodySmall, overflow: TextOverflow.ellipsis),
-                      ]),
-                    ),
-                  ]),
-                ),
+              KitPanel(
+                padding: const EdgeInsets.all(12),
+                child: Row(children: [
+                  Text(t.$1, style: const TextStyle(fontSize: 24)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Text(t.$2, style: kit.title.copyWith(fontSize: 20)),
+                      Text(t.$3, style: kit.caption.copyWith(fontSize: 12.5), overflow: TextOverflow.ellipsis),
+                    ]),
+                  ),
+                ]),
               ),
           ],
         ),
-        const SizedBox(height: 20),
-        Text('Last 12 weeks', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 8),
-        _Heatmap(stats: habit.stats, goal: settings.goal),
-      ]),
+        const SizedBox(height: 22),
+        Text('LAST 12 WEEKS', style: kit.label),
+        const SizedBox(height: 10),
+        KitPanel(padding: const EdgeInsets.all(10), child: _Heatmap(stats: habit.stats, goal: settings.goal)),
+      ],
     );
   }
 }
@@ -90,7 +90,7 @@ class _Heatmap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final empty = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final empty = Kit.of(context).field;
     final monday = parseDateKey(weekKey(DateTime.now()));
     final start = DateTime(monday.year, monday.month, monday.day - 7 * 11);
     return Semantics(
@@ -106,9 +106,9 @@ class _Heatmap extends StatelessWidget {
                   final stat = stats[dateKey(day)];
                   final p = stat?.progress(goal) ?? 0;
                   return Container(
-                    margin: const EdgeInsets.all(2),
-                    width: 20,
-                    height: 20,
+                    margin: const EdgeInsets.all(1.5),
+                    width: 18,
+                    height: 18,
                     decoration: BoxDecoration(
                       color: p == 0 ? empty : Color.lerp(ember.withValues(alpha: 0.25), ember, p),
                       borderRadius: BorderRadius.circular(4),

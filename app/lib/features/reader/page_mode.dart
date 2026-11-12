@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/models/book.dart';
 import '../../core/parsing/block_builder.dart';
 import '../../data/settings.dart';
+import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 
 /// Classic continuous reading of one chapter (DESIGN.md §2.3). Shares the
@@ -77,19 +78,28 @@ class _PageModeViewState extends State<PageModeView> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) Navigator.of(context).pop(_resumeSid);
       },
-      child: Scaffold(
+      // Page mode is plain paper: its controls wear the paper theme.
+      child: Theme(
+        data: Theme.of(context).copyWith(extensions: [Kit.forScene(Vibe.paper, t)]),
+        child: Builder(builder: (context) => Scaffold(
         backgroundColor: t.background,
-        appBar: AppBar(
-          backgroundColor: t.background,
-          foregroundColor: t.text,
-          title: Text(chapter.title, overflow: TextOverflow.ellipsis),
-          leading: IconButton(
-            tooltip: 'Back to reels',
-            icon: const Icon(Icons.view_carousel_outlined),
-            onPressed: () => Navigator.of(context).pop(_resumeSid),
+        body: SafeArea(
+          bottom: false,
+          child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 16, 4),
+            child: Row(children: [
+              KitIconButton(
+                icon: Icons.view_carousel_rounded,
+                semanticLabel: 'Back to reels',
+                onPressed: () => Navigator.of(context).pop(_resumeSid),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(chapter.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Kit.of(context).heading)),
+            ]),
           ),
-        ),
-        body: SingleChildScrollView(
+          Expanded(
+          child: SingleChildScrollView(
           controller: _scroll,
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 48),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -114,21 +124,17 @@ class _PageModeViewState extends State<PageModeView> {
             const SizedBox(height: 24),
             Row(children: [
               if (_chapter > 0)
-                TextButton.icon(
-                  onPressed: () => _goChapter(_chapter - 1),
-                  icon: Icon(Icons.chevron_left, color: t.text),
-                  label: Text('Previous', style: TextStyle(color: t.text)),
-                ),
+                KitButton.ghost(label: 'Previous', icon: Icons.chevron_left_rounded, compact: true, onPressed: () => _goChapter(_chapter - 1)),
               const Spacer(),
               if (_chapter < widget.book.chapters.length - 1)
-                FilledButton.tonalIcon(
-                  onPressed: () => _goChapter(_chapter + 1),
-                  icon: const Icon(Icons.chevron_right),
-                  label: const Text('Next chapter'),
-                ),
+                KitButton(label: 'Next chapter', icon: Icons.chevron_right_rounded, compact: true, onPressed: () => _goChapter(_chapter + 1)),
             ]),
           ]),
         ),
+          ),
+          ]),
+        ),
+      )),
       ),
     );
   }

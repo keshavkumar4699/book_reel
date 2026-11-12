@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/models/book.dart';
+import 'kit.dart';
 import 'theme.dart';
 
 /// Goal ring (like activity rings) showing today's progress.
@@ -18,18 +19,18 @@ class GoalRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final kit = Kit.of(context);
     return Semantics(
       label: 'Daily goal $label${sublabel == null ? '' : ' $sublabel'}',
       child: SizedBox(
         width: size,
         height: size,
         child: CustomPaint(
-          painter: _RingPainter(progress: progress, track: scheme.surfaceContainerHighest, color: ember),
+          painter: _RingPainter(progress: progress, track: kit.ink.withValues(alpha: 0.16), color: kit.accent),
           child: Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(label, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-              if (sublabel != null) Text(sublabel!, style: Theme.of(context).textTheme.bodySmall),
+              Text(label, style: kit.title.copyWith(fontSize: size * 0.17)),
+              if (sublabel != null) Text(sublabel!, style: kit.caption.copyWith(fontSize: 12.5)),
             ]),
           ),
         ),
@@ -63,7 +64,7 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(_RingPainter old) => old.progress != progress || old.color != color || old.track != track;
 }
 
-/// Streak flame with count. A broken streak is shown in neutral grey, never red.
+/// Streak flame with count. A broken streak is shown in a muted tone, never red.
 class StreakBadge extends StatelessWidget {
   const StreakBadge({super.key, required this.days, this.weekly = false});
   final int days;
@@ -71,18 +72,24 @@ class StreakBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final kit = Kit.of(context);
     final unit = weekly ? (days == 1 ? 'week' : 'weeks') : (days == 1 ? 'day' : 'days');
     return Semantics(
       label: '$days $unit streak',
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.local_fire_department, color: days > 0 ? ember : muted),
+        Icon(Icons.local_fire_department_rounded, color: days > 0 ? ember : kit.inkSoft, size: 26),
         const SizedBox(width: 4),
-        Text('$days $unit', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+        Text('$days $unit', style: kit.heading),
       ]),
     );
   }
 }
+
+final Map<String, bool> _exists = {};
+
+/// Whether [path] exists, checked once per path (covers are written once and
+/// never move, so build methods need not hit the disk every frame).
+bool fileExists(String path) => _exists[path] ??= File(path).existsSync();
 
 /// Book cover: the EPUB cover image when available, otherwise a typographic
 /// cover generated from the title.
@@ -100,8 +107,10 @@ class BookCover extends StatelessWidget {
     final height = width * 1.5;
     final path = book.coverPath;
     Widget child;
-    if (path != null && File(path).existsSync()) {
-      child = Image.file(File(path), width: width, height: height, fit: BoxFit.cover);
+    if (path != null && fileExists(path)) {
+      // Decoded at the size it is shown, not the cover's full resolution.
+      child = Image.file(File(path),
+          width: width, height: height, fit: BoxFit.cover, cacheWidth: (width * MediaQuery.devicePixelRatioOf(context)).round());
     } else {
       final color = _palette[book.title.hashCode.abs() % _palette.length];
       child = Container(

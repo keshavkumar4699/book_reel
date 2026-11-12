@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../../data/settings.dart';
+import '../../ui/kit.dart';
 import '../../ui/theme.dart';
-import '../../ui/vibes.dart';
 import '../../ui/widgets.dart';
 
 enum SessionChoice { keepReading, done, share }
 
 /// The designed ending (peak-end rule, UX_DESIGN.md §5.3). "Keep reading" is
-/// offered, never pushed; stopping is framed as success.
+/// offered, never pushed; stopping is framed as success. Shown over the
+/// scene the reader was reading in.
 Future<SessionChoice?> showSessionComplete(
   BuildContext context, {
-  Vibe vibe = Vibe.paper,
   required int cards,
   required double minutes,
   required int streak,
@@ -22,84 +21,78 @@ Future<SessionChoice?> showSessionComplete(
   return showGeneralDialog<SessionChoice>(
     context: context,
     barrierDismissible: false,
-    transitionDuration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 280),
-    pageBuilder: (context, a1, a2) {
-      final palette = scenePalettes[vibe];
-      final theme = palette == null ? Theme.of(context) : buildAppTheme(brightness: palette.lightInk ? Brightness.dark : Brightness.light);
-      return Theme(
-        data: theme,
-        child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Stack(children: [
-          Positioned.fill(child: VibeBackground(vibe: vibe, paperColor: theme.colorScheme.surface)),
-          if (palette != null)
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  // A fuller shade than in the reader: this screen is all text.
-                  color: palette.tint.withValues(alpha: palette.lightInk ? 0.5 : 0.55),
+    transitionDuration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 320),
+    transitionBuilder: (context, a, _, child) => FadeTransition(opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic), child: child),
+    pageBuilder: (dialogContext, a1, a2) => InheritedTheme.captureAll(
+      context,
+      Builder(builder: (context) {
+        final kit = Kit.of(context);
+        return Material(
+          type: MaterialType.transparency,
+          child: DefaultTextStyle(
+            style: kit.body,
+            child: Stack(children: [
+              // A fuller shade than in the reader: this screen is all text.
+              const Positioned.fill(child: SceneBackdrop(animate: true, veil: 0.42)),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(children: [
+                    const Spacer(),
+                    Celebration(big: milestone != null),
+                    const SizedBox(height: 12),
+                    Text(milestone != null ? '$milestone-day streak!' : 'Goal done', style: kit.display),
+                    const SizedBox(height: 8),
+                    Text('$cards cards · ${minutes.round()} min', style: kit.heading),
+                    const SizedBox(height: 4),
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Icon(Icons.local_fire_department_rounded, color: ember),
+                      const SizedBox(width: 4),
+                      Text('$streak-day streak', style: kit.heading),
+                    ]),
+                    if (ideaOfTheDay != null) ...[
+                      const SizedBox(height: 32),
+                      Text('YOUR IDEA OF THE DAY', style: kit.label),
+                      const SizedBox(height: 10),
+                      Text('“$ideaOfTheDay”',
+                          textAlign: TextAlign.center,
+                          maxLines: 6,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontFamily: 'Literata', fontSize: 19, height: 1.45, color: kit.ink)),
+                      if (ideaSource != null) ...[
+                        const SizedBox(height: 6),
+                        Text(ideaSource, style: kit.caption),
+                      ],
+                    ],
+                    const Spacer(),
+                    Row(children: [
+                      Expanded(
+                        child: KitButton.secondary(
+                          label: 'Share',
+                          leading: const ShareArrowIcon(),
+                          expand: true,
+                          onPressed: () => Navigator.of(dialogContext).pop(SessionChoice.share),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: KitButton(
+                          label: 'Keep reading',
+                          expand: true,
+                          onPressed: () => Navigator.of(dialogContext).pop(SessionChoice.keepReading),
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 8),
+                    KitButton.ghost(label: 'Done for today', onPressed: () => Navigator.of(dialogContext).pop(SessionChoice.done)),
+                  ]),
                 ),
-              ),
-            ),
-          SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(children: [
-              const Spacer(),
-              Celebration(big: milestone != null),
-              const SizedBox(height: 12),
-              Text(milestone != null ? '$milestone-day streak!' : 'Goal done',
-                  style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Text('$cards cards · ${minutes.round()} min', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Icon(Icons.local_fire_department, color: ember),
-                const SizedBox(width: 4),
-                Text('$streak-day streak', style: theme.textTheme.titleMedium),
-              ]),
-              if (ideaOfTheDay != null) ...[
-                const SizedBox(height: 32),
-                Text('Your idea of the day', style: theme.textTheme.labelLarge),
-                const SizedBox(height: 8),
-                Text('“$ideaOfTheDay”',
-                    textAlign: TextAlign.center,
-                    maxLines: 6,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontFamily: 'Literata', fontSize: 19, height: 1.45)),
-                if (ideaSource != null) ...[
-                  const SizedBox(height: 6),
-                  Text(ideaSource, style: theme.textTheme.bodySmall),
-                ],
-              ],
-              const Spacer(),
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).pop(SessionChoice.share),
-                    icon: const Icon(Icons.ios_share),
-                    label: const Text('Share'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(SessionChoice.keepReading),
-                    child: const Text('Keep reading'),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(SessionChoice.done),
-                child: const Text('Done for today'),
               ),
             ]),
           ),
-        ),
-        ]),
-      ),
-      );
-    },
+        );
+      }),
+      to: Navigator.of(context, rootNavigator: true).context,
+    ),
   );
 }

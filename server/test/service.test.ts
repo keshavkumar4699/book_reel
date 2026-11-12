@@ -9,7 +9,7 @@ import { makeChapter, presentationOutput, structureOutput } from "./fixtures.js"
 
 const hash = (n: number) => n.toString(16).padStart(64, "0");
 
-function request(n = 1, chapters = [0], tier: SegmentRequest["tier"] = "plus", card_length: SegmentRequest["card_length"] = "standard"): SegmentRequest {
+function request(n = 1, chapters = [0], tier: SegmentRequest["tier"] = "lite", card_length: SegmentRequest["card_length"] = "standard"): SegmentRequest {
   return {
     book: { content_hash: hash(n), title: "T", author: "A", language: "en" },
     tier,
@@ -56,7 +56,7 @@ describe("SegmentService (two-pass)", () => {
   it("runs structure on the tier model, art direction on the fast model, and caches", async () => {
     const model = fakeModel();
     const { svc, usage } = service(model);
-    const first = await svc.segment(request(1, [0, 1], "pro"), caller);
+    const first = await svc.segment(request(1, [0, 1], "plus"), caller);
     expect(first.chapters.map((c) => c.index)).toEqual([0, 1]);
     expect(model.structureCalls.map((c) => [c.route.model, c.route.effort])).toEqual([
       ["claude-sonnet-5-5", "medium"],
@@ -70,14 +70,14 @@ describe("SegmentService (two-pass)", () => {
     // Usage: two Sonnet structure calls + two Haiku art-direction calls.
     expect(usage.records.map((r) => r.model).sort()).toEqual(["claude-haiku-5-5", "claude-haiku-5-5", "claude-sonnet-5-5", "claude-sonnet-5-5"]);
     expect(usage.records.find((r) => r.model === "claude-haiku-5-5")!.costUsd).toBeCloseTo((3000 * 0.1 + 1200 * 0.5) / 1e6);
-    const again = await svc.segment(request(1, [0, 1], "pro"), caller);
+    const again = await svc.segment(request(1, [0, 1], "plus"), caller);
     expect(again.cached).toBe(2);
     expect(model.structureCalls).toHaveLength(2);
   });
 
   it("sends art direction in batches of at most 60 cards", async () => {
     const model = fakeModel({ structure: (j) => structureOutput(j.chapter, 1) }); // one card per sentence
-    const big = { ...request(1, [0], "plus", "snack"), chapters: [makeChapter(0, 40, 4)] }; // 160 sentences
+    const big = { ...request(1, [0], "lite", "snack"), chapters: [makeChapter(0, 40, 4)] }; // 160 sentences
     const { svc } = service(model);
     const res = await svc.segment(big, caller);
     expect(model.presentCalls.map((c) => c.cards.length)).toEqual([60, 60, 40]);

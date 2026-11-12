@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/share/quote_limit.dart';
 import '../../data/api_client.dart';
+import '../../ui/kit.dart';
 
 enum ShareTemplate { paper, dark, ember, minimal, ocean }
 
@@ -53,9 +54,10 @@ class ProgressShare extends ShareContent {
 /// One-tap share sheet with a live preview (UX_DESIGN.md §5.6): the preview is
 /// rendered locally the moment the sheet opens; one more tap shares it.
 Future<void> showShareSheet(BuildContext context, ShareContent content) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
+  return showKitSheet<void>(
+    context,
+    title: 'Share',
+    maxHeight: 0.94,
     builder: (_) => _ShareSheet(content: content),
   );
 }
@@ -120,9 +122,7 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
       await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: 'image/png')], text: text));
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not share: $e')));
-      }
+      if (mounted) showKitToast(context, 'Could not share: $e', icon: Icons.error_outline_rounded);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -130,73 +130,63 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final height = MediaQuery.sizeOf(context).height;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          SizedBox(
-            height: height * 0.45,
-            child: FittedBox(
-              child: RepaintBoundary(
-                key: _boundaryKey,
-                child: ShareCardArt(content: widget.content, template: _template, aspect: _aspect),
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      SizedBox(
+        height: height * 0.42,
+        child: FittedBox(
+          child: RepaintBoundary(
+            key: _boundaryKey,
+            child: ShareCardArt(content: widget.content, template: _template, aspect: _aspect),
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
+      SizedBox(
+        height: 44,
+        child: ListView(scrollDirection: Axis.horizontal, children: [
+          for (final t in ShareTemplate.values)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: KitChip(
+                label: t.name[0].toUpperCase() + t.name.substring(1),
+                selected: t == _template,
+                onTap: () => setState(() => _template = t),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 44,
-            child: ListView(scrollDirection: Axis.horizontal, children: [
-              for (final t in ShareTemplate.values)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(t.name[0].toUpperCase() + t.name.substring(1)),
-                    selected: t == _template,
-                    onSelected: (_) => setState(() => _template = t),
-                  ),
-                ),
-            ]),
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<ShareAspect>(
-            segments: [for (final a in ShareAspect.values) ButtonSegment(value: a, label: Text(a.label))],
-            selected: {_aspect},
-            onSelectionChanged: (s) => setState(() => _aspect = s.first),
-          ),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: _plainText));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
-                  }
-                },
-                icon: const Icon(Icons.copy),
-                label: const Text('Copy text'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: _busy ? null : _share,
-                icon: _busy
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.onPrimary))
-                    : const Icon(Icons.ios_share),
-                label: const Text('Share'),
-              ),
-            ),
-          ]),
         ]),
       ),
-    );
+      const SizedBox(height: 10),
+      KitSegmented<ShareAspect>(
+        values: ShareAspect.values,
+        selected: _aspect,
+        label: (a) => a.label,
+        onChanged: (a) => setState(() => _aspect = a),
+      ),
+      const SizedBox(height: 16),
+      Row(children: [
+        Expanded(
+          child: KitButton.secondary(
+            label: 'Copy text',
+            icon: Icons.copy_rounded,
+            expand: true,
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: _plainText));
+              if (context.mounted) showKitToast(context, 'Copied', icon: Icons.check_rounded);
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: KitButton(
+            label: _busy ? 'Preparing…' : 'Share',
+            leading: _busy ? const SizedBox(width: 18, height: 18, child: KitSpinner(size: 18)) : const ShareArrowIcon(),
+            expand: true,
+            onPressed: _busy ? null : _share,
+          ),
+        ),
+      ]),
+    ]);
   }
 }
 

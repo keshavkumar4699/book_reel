@@ -33,7 +33,15 @@ Without a server the app runs in **Free** mode: cards are cut on the device by t
 flutter run --dart-define=BOOKREEL_API=http://10.0.2.2:8787
 ```
 
-Then pick Plus, Pro or Scholar under **Settings → AI plan**. Billing is not live yet, so the plan setting only switches which Claude model the server uses.
+Then pick Lite, Plus, Pro or Scholar under **Settings → Plan**. Billing is not live yet, so the plan setting only switches which Claude model the server uses.
+
+### Try it on a phone
+
+Every CI run builds release APKs (artifact **bookreel-release-apk** on the run's page under *Actions → CI*). Install `app-arm64-v8a-release.apk` on most phones, or `app-armeabi-v7a-release.apk` on older ones. They are signed with the debug key for now. Judge smoothness on these: debug builds (`flutter run` without `--release`) run several times slower. To build one yourself:
+
+```bash
+flutter build apk --release --split-per-abi
+```
 
 With a server configured the app also syncs your notebook and reading position, uploads reading activity, and turns on the Friends tab (league, friends board, feed with kudos, invite codes) and share links.
 
@@ -102,7 +110,15 @@ It is on by default and follows the scene, including the AI's **Auto** scenes, w
 
 The recordings are public domain, CC0 or CC BY; sources and credits are in `app/assets/sounds/CREDITS.md` and on the app's licences page. `app/tool/build_scene_sounds.py` rebuilds the loops.
 
-Models by tier: Plus → `claude-haiku-5-5`, Pro → `claude-sonnet-5-5`, Scholar → `claude-opus-5-5` (`server/src/config.ts`).
+Plans and models (`server/src/config.ts`; prices and margins in `docs/DESIGN.md` §6):
+
+| Plan | Price | Reads your books with |
+|---|---|---|
+| Free | $0 | rules on the phone |
+| Lite | $3.99/mo | `claude-haiku-5-5` |
+| Plus | $8.99/mo | `claude-sonnet-5-5` |
+| Pro | $19.99/mo | `claude-opus-5-5` |
+| Scholar | $29.99/mo | `claude-fable-5-2` (needs an API organisation with standard 30-day data retention) |
 
 ## Licenses of bundled data
 

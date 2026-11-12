@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/reel_card.dart';
 import '../../../data/settings.dart';
+import '../../../ui/kit.dart';
 import '../../../ui/theme.dart';
 import '../../../ui/typography.dart';
 
@@ -226,12 +227,12 @@ class _RecallCardViewState extends State<RecallCardView> {
               ),
             )
         else if (!_revealed)
-          FilledButton.tonal(
+          KitButton.secondary(
+            label: 'Tap to reveal',
             onPressed: () {
               setState(() => _revealed = true);
               widget.onAnswered(true);
             },
-            child: const Text('Tap to reveal'),
           )
         else ...[
           Text('Key points', style: TextStyle(color: t.muted, fontWeight: FontWeight.w600)),
@@ -270,22 +271,22 @@ class _OptionTile extends StatelessWidget {
       _OptionState.wrong => theme.muted.withValues(alpha: 0.18),
       _OptionState.idle => Colors.transparent,
     };
-    return Material(
-      color: color,
-      shape: RoundedRectangleBorder(side: BorderSide(color: theme.muted.withValues(alpha: 0.5)), borderRadius: BorderRadius.circular(14)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(children: [
-              Expanded(child: Text(text, style: TextStyle(color: theme.text, fontSize: 16))),
-              if (state == _OptionState.correct) Icon(Icons.check_circle, color: theme.text),
-            ]),
-          ),
+    return KitPressable(
+      onTap: onTap,
+      pressedScale: 0.98,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.muted.withValues(alpha: 0.5)),
         ),
+        child: Row(children: [
+          Expanded(child: Text(text, style: TextStyle(color: theme.text, fontSize: 16))),
+          if (state == _OptionState.correct) Icon(Icons.check_circle_rounded, color: theme.text),
+        ]),
       ),
     );
   }
@@ -332,33 +333,21 @@ class _ReflectCardViewState extends State<ReflectCardView> {
             Text('Saved to your Notebook', style: TextStyle(color: t.text)),
           ])
         else ...[
-          TextField(
-            controller: _controller,
-            minLines: 2,
-            maxLines: 5,
-            style: TextStyle(color: t.text),
-            decoration: InputDecoration(
-              hintText: 'Write a sentence…',
-              hintStyle: TextStyle(color: t.muted),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-          ),
+          KitTextField(controller: _controller, hint: 'Write a sentence…', minLines: 2, maxLines: 5),
           const SizedBox(height: 12),
           Row(children: [
-            FilledButton(
+            KitButton(
+              label: 'Save',
+              compact: true,
               onPressed: () {
                 if (_controller.text.trim().isEmpty) return;
                 widget.onSave(_controller.text);
                 FocusScope.of(context).unfocus();
                 setState(() => _saved = true);
               },
-              child: const Text('Save'),
             ),
-            const SizedBox(width: 12),
-            OutlinedButton(
-              onPressed: () => FocusScope.of(context).unfocus(),
-              child: Text('Skip', style: TextStyle(color: t.text)),
-            ),
+            const SizedBox(width: 10),
+            KitButton.secondary(label: 'Skip', compact: true, onPressed: () => FocusScope.of(context).unfocus()),
           ]),
         ],
         const SizedBox(height: 24),
@@ -400,9 +389,9 @@ class MilestoneCardView extends StatelessWidget {
             textAlign: TextAlign.center,
             style: type.display(color: theme.spot, size: (settings.fontSize * 1.8).clamp(28.0, 48.0), shadows: theme.textShadows)),
         const SizedBox(height: 32),
-        FilledButton.icon(onPressed: onShare, icon: const Icon(Icons.ios_share), label: const Text('Share')),
+        KitButton(label: 'Share', leading: const ShareArrowIcon(), onPressed: onShare),
         const SizedBox(height: 8),
-        TextButton(onPressed: onDone, child: Text('Back to library', style: TextStyle(color: theme.text))),
+        KitButton.ghost(label: 'Back to library', onPressed: onDone),
       ]),
     );
   }

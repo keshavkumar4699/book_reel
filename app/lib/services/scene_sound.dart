@@ -7,9 +7,6 @@ import 'package:just_audio/just_audio.dart';
 import '../data/settings.dart';
 import '../data/settings_provider.dart';
 
-/// Is this tier paid (AI direction, Auto scenes, AI fonts)?
-bool isPaidTier(Tier t) => t != Tier.free;
-
 /// One looping recording in a scene's mix.
 class SoundLayer {
   const SoundLayer(this.name, this.volume);

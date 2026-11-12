@@ -50,7 +50,7 @@ void main() {
 
   test('paid tiers ask the AI once per book and keep its choice across restarts', () async {
     var c = container();
-    c.read(settingsProvider.notifier).update((s) => s.copyWith(tier: Tier.plus));
+    c.read(settingsProvider.notifier).update((s) => s.copyWith(tier: Tier.lite));
     final meta = (await c.read(libraryProvider.notifier).ensureStarterBook())!;
     final book = await c.read(bookContentProvider(meta.id).future);
     server.profileVoice = 'fantasy';
@@ -58,7 +58,7 @@ void main() {
     await c.read(bookVoiceProvider).ensure(meta.id, book);
     expect(server.profileRequests, hasLength(1));
     final sent = server.profileRequests.single;
-    expect(sent['tier'], 'plus');
+    expect(sent['tier'], 'lite');
     expect((sent['book'] as Map)['title'], "Alice's Adventures in Wonderland");
     expect((sent['book'] as Map)['content_hash'], meta.id);
     // Only a short opening sample leaves the device, never the whole book.
@@ -69,7 +69,7 @@ void main() {
     await store.flush();
 
     c = container();
-    c.read(settingsProvider.notifier).update((s) => s.copyWith(tier: Tier.plus));
+    c.read(settingsProvider.notifier).update((s) => s.copyWith(tier: Tier.lite));
     expect(c.read(libraryProvider).single.voice, 'fantasy');
     await c.read(bookVoiceProvider).ensure(meta.id, book);
     expect(server.profileRequests, hasLength(1), reason: 'the AI choice is stored with the book');

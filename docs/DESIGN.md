@@ -363,18 +363,22 @@ One more tiny step runs on the fast model:
 | Tier | Pass 1: structure & direction | Pass 2: art direction | Book designer |
 |---|---|---|---|
 | **Free** | Rules on device | Rules on device (a short key sentence is stressed, or gets a spotlight reel) | Rules on device |
-| **Plus** | `claude-haiku-5-5`, effort `low` | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
-| **Pro** | `claude-sonnet-5-5`, effort `medium` | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
-| **Scholar** | `claude-opus-5-5`, effort `medium` (`high` for dense non-fiction) | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
+| **Lite** | `claude-haiku-5-5`, effort `low` | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
+| **Plus** | `claude-sonnet-5-5`, effort `medium` | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
+| **Pro** | `claude-opus-5-5`, effort `medium` (`high` for dense non-fiction) | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
+| **Scholar** | `claude-fable-5-2`, effort `medium` | `claude-haiku-5-5`, `low` | `claude-haiku-5-5` |
 
-Why art direction runs on the fast model for every tier: it is a light task (marking phrases), but it is most of the output tokens, because it runs on every card. Running it on Sonnet would multiply the cost of a Pro book by about 3 for little visible gain. The premium models are spent where they matter: understanding the book (cuts, recaps, scenes).
+Each paid tier steps up one model (Nov 2026: Lite was added at the old Plus price and every plan moved up one model).
+
+Why art direction runs on the fast model for every tier: it is a light task (marking phrases), but it is most of the output tokens, because it runs on every card. Running it on Sonnet would multiply the cost of a Plus book by about 3 for little visible gain. The premium models are spent where they matter: understanding the book (cuts, recaps, scenes).
 
 Implementation notes (Claude API):
 - **Adaptive thinking** (the default) with `output_config.effort` per tier, structured JSON output (`output_config.format`), and **streaming** with a 64k output budget so long chapters of short cards never truncate.
 - **Prompt caching** for both fixed system prompts.
 - **Just-in-time chapters** run in real time. **Background chapters** run pass 1 through the **Message Batches API (50% cheaper)**; pass 2 follows in real time.
 - Keep each Haiku request **under 100K input tokens**; larger prompts cost more on Haiku 5.5.
-- Handle `stop_reason: "refusal"`. Sonnet 5.5 / Opus 5.5 use the server-side `fallbacks: "default"` option. A Haiku pass-1 refusal is retried once on Sonnet, then the chapter keeps rule cards. A pass-2 refusal just leaves those cards plain.
+- **Claude Fable 5.2** (Scholar) always thinks: the request sends no `thinking` setting (`disabled` or a token budget would be rejected), and `effort` sets the depth. Scholar stays at `medium` because Fable costs twice Opus per token (§5). Fable is not offered under zero data retention, so the API organisation must keep the standard 30-day retention.
+- Handle `stop_reason: "refusal"`. Sonnet 5.5, Opus 5.5 and Fable 5.2 use the server-side `fallbacks: "default"` option. A Haiku pass-1 refusal is retried once on Sonnet, then the chapter keeps rule cards. A pass-2 refusal just leaves those cards plain.
 - Pin model IDs in config (`server/src/config.ts`) so model upgrades are deliberate and evaluated.
 
 ### 4.4 Quality evaluation
@@ -387,30 +391,32 @@ Implementation notes (Claude API):
 
 ## 5. AI Cost Model
 
-### 5.1 Claude API prices used (per 1M tokens, Anthropic first-party, as of Oct 2026)
+### 5.1 Claude API prices used (per 1M tokens, Anthropic first-party, as of Nov 2026)
 | Model | Input | Output | Notes |
 |---|---|---|---|
 | Claude Haiku 5.5 | $0.10 | $0.50 | Prompts ≤ 100K tokens ($0.50 / $2.50 above) |
 | Claude Sonnet 5.5 | $2.00 | $10.00 | Cache reads $0.20 |
 | Claude Opus 5.5 | $4.00 | $20.00 | Cache reads $0.20 |
+| Claude Fable 5.2 | $8.00 | $40.00 | Cache reads $0.20; thinking always on |
 | Batch API | 50% off the above | | Used for pass 1 of background chapters |
 
 Re-check prices on Anthropic's pricing page before launch.
 
 ### 5.2 Cost per book (v2 estimate)
 Assumptions: an average book is ~100k words ≈ **135k input tokens**. With snack cards (~30 words each) that is **≈ 3,300 cards**.
-- **Pass 1** returns only where cards start (~10 tokens per card ≈ 33k) plus recaps, quick checks, teasers and scenes (~10k), plus thinking (~20% on Haiku `low`, ~50% on Sonnet/Opus `medium`).
+- **Pass 1** returns only where cards start (~10 tokens per card ≈ 33k) plus recaps, quick checks, teasers and scenes (~10k), plus thinking (~20% on Haiku `low`, ~50% on Sonnet/Opus `medium`, ~60% on Fable `medium`, which always thinks).
 - **Pass 2** returns ~37 tokens of art direction per card (≈ 122k) plus thinking (~20%), on Haiku for every tier. (Removing the AI music in Nov 2026 dropped card moods and music cues: about 8 fewer tokens per card, and no music supervisor.)
 - **Scene sounds** are bundled with the app (about 5.6 MB), so they cost nothing to run.
 - The **book designer** is one request of about 1.5k input tokens per book: well under $0.001, so it does not change the totals below.
 
 | | Pass 1 (tier model) | Pass 2 (Haiku) | **Per book, real time** | **Per book, typical** (70% of pass 1 via Batch) |
 |---|---|---|---|---|
-| Plus | Haiku ≈ $0.04 | ≈ $0.09 | **≈ $0.13** | **≈ $0.12** |
-| Pro | Sonnet ≈ $0.92 | ≈ $0.09 | **≈ $1.01** | **≈ $0.69** |
-| Scholar | Opus ≈ $1.85 | ≈ $0.09 | **≈ $1.94** | **≈ $1.29** |
+| Lite | Haiku ≈ $0.04 | ≈ $0.09 | **≈ $0.13** | **≈ $0.12** |
+| Plus | Sonnet ≈ $0.92 | ≈ $0.09 | **≈ $1.01** | **≈ $0.69** |
+| Pro | Opus ≈ $1.85 | ≈ $0.09 | **≈ $1.94** | **≈ $1.29** |
+| Scholar | Fable ≈ $3.80 | ≈ $0.09 | **≈ $3.89** | **≈ $2.56** |
 
-For comparison, v1 (one pass, ~120-word cards, no art direction) cost ≈ $0.02 / $0.47 / $1.04 per book. Short cards with art direction on every card cost more, which is why v2 lowers quotas and raises prices (§6).
+For comparison, v1 (one pass, ~120-word cards, no art direction) cost ≈ $0.02 / $0.47 / $1.04 per book on Haiku / Sonnet / Opus. Short cards with art direction on every card cost more, which is why v2 lowers quotas and raises prices (§6).
 
 **Real usage costs much less than these worst cases:**
 - Books are processed just in time, so abandoned books are never fully processed.
@@ -427,9 +433,10 @@ Cost per book if **both passes** ran on one model, using this section's token pr
 
 | Model | Price (in / out) | ≈ Per book | Notes |
 |---|---|---|---|
-| **Claude Haiku 5.5** (current Plus, and pass 2 for all) | $0.10 / $0.50 | **$0.13** (≈ $0.07 via Batch) | Already wired in; structured outputs; prompt caching |
-| Claude Sonnet 5.5 | $2 / $10 | $2.70 | Pro pass 1 today (≈ $0.92 for pass 1 alone) |
-| Claude Opus 5.5 | $4 / $20 | $5.40 | Scholar pass 1 today (≈ $1.85 for pass 1 alone) |
+| **Claude Haiku 5.5** (Lite, and pass 2 for all) | $0.10 / $0.50 | **$0.13** (≈ $0.07 via Batch) | Already wired in; structured outputs; prompt caching |
+| Claude Sonnet 5.5 | $2 / $10 | $2.70 | Plus pass 1 (≈ $0.92 for pass 1 alone) |
+| Claude Opus 5.5 | $4 / $20 | $5.40 | Pro pass 1 (≈ $1.85 for pass 1 alone) |
+| Claude Fable 5.2 | $8 / $40 | $10.80 | Scholar pass 1 (≈ $3.80 for pass 1 alone) |
 | Gemini 2.5 Flash-Lite | $0.10 / $0.40 | $0.12 | Older generation; the 3.x Flash-Lite models cost $0.25–0.30 / $1.50–2.50 |
 | OpenAI GPT-5 nano | $0.05 / $0.40 | $0.10 | Newer nano tiers are listed at $0.20–0.25 / $1.25–1.50 |
 | DeepSeek V4-Flash | $0.14 / $0.28 | $0.11 | Served from China: check the privacy policy and user expectations |
@@ -439,7 +446,7 @@ Cost per book if **both passes** ran on one model, using this section's token pr
 
 What this means:
 - **Claude Haiku 5.5 is already in the cheapest group.** The cheapest alternatives save at most a few cents per book, and switching costs engineering time (a second provider, different structured-output rules) and quality risk. Reasoning models can also bill many hidden thinking tokens, so real costs need a pilot.
-- **The big lever is the model behind Pro and Scholar.** Pro's pass 1 on Sonnet is ~90% of a Pro book's cost. Moving Pro to Haiku would cut a Pro book from ≈ $1.01 to ≈ $0.13; moving Scholar from Opus to Sonnet would cut it from ≈ $1.94 to ≈ $1.01. The trade-off is reading quality, which the gold-set evaluation (Phase 9) should measure before deciding.
+- **The big lever is the model behind the upper tiers.** Plus's pass 1 on Sonnet is ~90% of a Plus book's cost, and Scholar's pass 1 on Fable is ~98% of a Scholar book's. Moving Scholar from Fable to Opus would cut a book from ≈ $3.89 to ≈ $1.94. The trade-off is reading quality, which the gold-set evaluation (Phase 9) should measure.
 - **Free levers already in place:** Batch API for background chapters (half price), prompt caching, low effort on Haiku, shorter outputs.
 
 ---
@@ -454,35 +461,42 @@ Principles:
 
 Google Play keeps **15%** of subscription revenue.
 
-### 6.1 Tiers (v2)
-| | **Free** | **Plus** | **Pro** ⭐ | **Scholar** |
-|---|---|---|---|---|
-| Price (US) | $0 | **$3.99/mo** · $29.99/yr | **$8.99/mo** · $69.99/yr | **$19.99/mo** · $159.99/yr |
-| Price (India, regional) | ₹0 | **₹149/mo** · ₹1,199/yr | **₹399/mo** · ₹3,199/yr | **₹899/mo** · ₹7,199/yr |
-| Reading the book (cuts, recaps, scenes) | Rules on device | Claude Haiku 5.5 | Claude Sonnet 5.5 | Claude Opus 5.5 |
-| Emphasis and spotlight lines | Rule-based | AI art direction on every card | AI art direction | AI art direction |
-| Fonts that fit the book | On-device rules (genre tags, title, opening pages) | Chosen by the AI | Chosen by the AI | Chosen by the AI |
-| Scenes | Pick any of 8 | + **Auto**: AI picks the scene per chapter | + Auto | + Auto |
-| Scene sounds (rain, café, waves…; mute to play your own music) | ✓ | ✓ | ✓ | ✓ |
-| AI books / month | Unlimited (on device) | 12 (India 8) | 6 (India 4) | 6 (India 4) |
-| Recap & quick-check cards | Rule-based quick checks | ✓ | ✓ | ✓ |
-| Word meanings | Offline dictionary + 10 AI/day | Unlimited, in context | Unlimited, in context | Unlimited, in context |
-| Streaks, goals, friends, leaderboards | ✓ | ✓ | ✓ | ✓ |
-| Streak freezes / week | 1 | 3 | 3 | 5 |
-| Cloud sync | Progress only | Full | Full | Full |
-| Ads | Small banner in Library only, **never in the reel feed** | None | None | None |
-| Free trial | — | 7 days | 7 days | 7 days |
+### 6.1 Tiers (v3, Nov 2026)
+Lite is the new starting plan at the old Plus price, and every plan moved up one model and one price step.
+
+| | **Free** | **Lite** | **Plus** ⭐ | **Pro** | **Scholar** |
+|---|---|---|---|---|---|
+| Price (US) | $0 | **$3.99/mo** · $29.99/yr | **$8.99/mo** · $69.99/yr | **$19.99/mo** · $159.99/yr | **$29.99/mo** · $239.99/yr |
+| Price (India, regional) | ₹0 | **₹149/mo** · ₹1,199/yr | **₹399/mo** · ₹3,199/yr | **₹899/mo** · ₹7,199/yr | **₹1,299/mo** · ₹10,399/yr |
+| Reading the book (cuts, recaps, scenes) | Rules on device | Claude Haiku 5.5 | Claude Sonnet 5.5 | Claude Opus 5.5 | Claude Fable 5.2 |
+| Emphasis and spotlight lines | Rule-based | AI art direction on every card | AI art direction | AI art direction | AI art direction |
+| Fonts that fit the book | On-device rules (genre tags, title, opening pages) | Chosen by the AI | Chosen by the AI | Chosen by the AI | Chosen by the AI |
+| Scenes | Pick any of 8 | + **Auto**: AI picks the scene per chapter | + Auto | + Auto | + Auto |
+| Scene sounds (rain, café, waves…; mute to play your own music) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| AI books / month | Unlimited (on device) | 12 (India 8) | 6 (India 4) | 6 (India 4) | 6 (India 3) |
+| Recap & quick-check cards | Rule-based quick checks | ✓ | ✓ | ✓ | ✓ |
+| Word meanings | Offline dictionary + 10 AI/day | Unlimited, in context | Unlimited, in context | Unlimited, in context | Unlimited, in context |
+| Streaks, goals, friends, leaderboards | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Streak freezes / week | 1 | 2 | 3 | 4 | 5 |
+| Cloud sync | Progress only | Full | Full | Full | Full |
+| Ads | Small banner in Library only, **never in the reel feed** | None | None | None | None |
+| Free trial | — | 7 days | 7 days | 7 days | 7 days |
+
+A plan saved in the app before Lite existed keeps its price: Plus becomes Lite, Pro becomes Plus and Scholar becomes Pro (`planVersion` in the app settings).
 
 ### 6.2 Margin check (per subscriber per month)
-US prices, net after the Play fee: Plus $3.39, Pro $7.64, Scholar $16.99.
+US prices, net after the Play fee: Lite $3.39, Plus $7.64, Pro $16.99, Scholar $25.49.
 
 | Tier | Absolute worst (all real time) | Typical worst (Batch for background) | Expected (~40%) | **Expected margin** |
 |---|---|---|---|---|
-| Plus | 12 × $0.13 = $1.56 (margin 54%) | 12 × $0.12 = $1.44 (58%) | $0.58 | **≈ 83%** |
-| Pro | 6 × $1.01 = $6.06 (margin 21%) | 6 × $0.69 = $4.14 (46%) | $1.66 | **≈ 78%** |
-| Scholar | 6 × $1.94 = $11.64 (margin 31%) | 6 × $1.29 = $7.74 (54%) | $3.10 | **≈ 82%** |
+| Lite | 12 × $0.13 = $1.56 (margin 54%) | 12 × $0.12 = $1.44 (58%) | $0.58 | **≈ 83%** |
+| Plus | 6 × $1.01 = $6.06 (margin 21%) | 6 × $0.69 = $4.14 (46%) | $1.66 | **≈ 78%** |
+| Pro | 6 × $1.94 = $11.64 (margin 31%) | 6 × $1.29 = $7.74 (54%) | $3.10 | **≈ 82%** |
+| Scholar | 6 × $3.89 = $23.34 (margin 8%) | 6 × $2.56 = $15.36 (40%) | $6.14 | **≈ 76%** |
 
-India (net after the fee at ₹88/$): Plus $1.44, Pro $3.85, Scholar $8.68. With India quotas (8 / 4 / 4) the typical-worst margins are 33% / 28% / 41% and the expected margins about 73% / 71% / 76%. Quotas and prices are set by region on the server (`server/src/config.ts`), so they can be tuned after the pilot without an app update.
+India (net after the fee at ₹88/$): Lite $1.44, Plus $3.85, Pro $8.68, Scholar $12.55. With India quotas (8 / 4 / 4 / 3) the typical-worst margins are 33% / 28% / 41% / 39% and the expected margins about 73% / 71% / 76% / 76%.
+
+Scholar's absolute-worst margin is thin (8% in the US, 7% in India) because Fable costs twice Opus per token. It stays positive, and Batch pricing, the shared cache and unfinished books bring the expected cost far lower. If the pilot measures more thinking than estimated, lower Scholar to 5 books, or move it to Opus at `high` effort with more books. Quotas and prices are set by region on the server (`server/src/config.ts`), so they can be tuned after the pilot without an app update.
 
 ### 6.3 Other revenue (later)
 - One-time "AI book pack" purchases: process 1 extra book with Sonnet/Opus, ₹49 / $0.99.
@@ -570,8 +584,8 @@ Leaderboards live in Redis sorted sets: `lb:{scope}:{scopeId}:{metric}:{period}`
 | Phase | Duration | Scope |
 |---|---|---|
 | **0 — Prototype** | 3 weeks | EPUB parse, rule segmenter, reel feed, Haiku segmentation on 5 books, gold-set labelling begins |
-| **1 — MVP (closed beta)** | 8 weeks | EPUB + text PDF, reel + page mode, themes, TTS, dictionary, highlights, saves, sharing cards, streaks & goals, Plus tier (Haiku), sign-in & sync |
-| **2 — Social & tiers** | 6 weeks | Friends, feed, kudos, leaderboards, clubs, challenges, badges, progress sharing, Pro (Sonnet) & Scholar (Opus), Batch pipeline, content-hash cache |
+| **1 — MVP (closed beta)** | 8 weeks | EPUB + text PDF, reel + page mode, themes, TTS, dictionary, highlights, saves, sharing cards, streaks & goals, Lite tier (Haiku), sign-in & sync |
+| **2 — Social & tiers** | 6 weeks | Friends, feed, kudos, leaderboards, clubs, challenges, badges, progress sharing, Plus (Sonnet), Pro (Opus) & Scholar (Fable), Batch pipeline, content-hash cache |
 | **3 — Free AI & growth** | 6 weeks | On-device open-weight model for Free tier, word-list SRS, Year in Review, referral rewards, regional pricing |
 | **4 — Expansion** | ongoing | iOS, more languages, audiobook sync, school/team plans |
 

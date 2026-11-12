@@ -15,6 +15,7 @@ import 'package:book_reel/features/reader/cards/text_card.dart';
 import 'package:book_reel/features/reader/reader_screen.dart';
 import 'package:book_reel/features/share/share_sheet.dart';
 import 'package:book_reel/services/scene_sound.dart';
+import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/theme.dart';
 import 'package:book_reel/ui/typography.dart';
 import 'package:book_reel/ui/vibes.dart';
@@ -60,7 +61,7 @@ void main() {
 
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
-      child: MaterialApp(theme: buildAppTheme(brightness: Brightness.light), home: ReaderScreen(bookId: bookId)),
+      child: MaterialApp(theme: buildAppTheme(Kit.forScene(Vibe.forest, ReadingTheme.of(ReadingThemeId.paper))), home: ReaderScreen(bookId: bookId)),
     ));
     // Book content and segments load in isolates: let real async work finish.
     for (var i = 0; i < 20 && find.text('Swipe up to begin').evaluate().isEmpty; i++) {
@@ -76,34 +77,56 @@ void main() {
 
     // First run shows the gesture guide once.
     expect(find.text('Read like you scroll'), findsOneWidget);
+    // The guide scrolls on short screens (the test window is 800 x 600).
+    await tester.ensureVisible(find.text('Got it'));
     await tester.tap(find.text('Got it'));
     await tester.pump();
     expect(find.text('Read like you scroll'), findsNothing);
     expect(container.read(settingsProvider).gestureTutorialSeen, isTrue);
 
     // The speaker mutes the scene sound (to play your own music) and brings it back.
-    await tester.tap(find.byTooltip('Mute scene sound (Wind in the pines, birds and crickets)'));
+    await tester.tap(find.bySemanticsLabel('Mute scene sound (Wind in the pines, birds and crickets)'));
     await tester.pump();
     await tester.pump();
     expect(container.read(settingsProvider).sceneSound, isFalse);
     expect(sounds.where((x) => x == 'released'), hasLength(3));
     expect(find.text('Scene sound off. Play your own music if you like.'), findsOneWidget);
-    await tester.tap(find.byTooltip('Play scene sound (Wind in the pines, birds and crickets)'));
+    await tester.tap(find.bySemanticsLabel('Play scene sound (Wind in the pines, birds and crickets)'));
     await tester.pump();
     await tester.pump();
     expect(container.read(settingsProvider).sceneSound, isTrue);
     expect(sounds.where((x) => x.endsWith('.ogg')), hasLength(6));
-    // Let the snackbar finish its entrance, time out and leave.
+    // The toast drops in at the top, times out and leaves on its own.
+    expect(find.text('Wind in the pines, birds and crickets'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(find.text('Wind in the pines, birds and crickets'), findsNothing);
     expect(find.byType(SnackBar), findsNothing);
+
+    // The flame and flag pills open the streak and today's goal.
+    await tester.tap(find.bySemanticsLabel(RegExp(r'day streak\. Open streak$')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(find.text('Your streak'), findsOneWidget);
+    await tester.tapAt(const Offset(20, 20)); // outside the sheet
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(find.text('Your streak'), findsNothing);
+    await tester.tap(find.bySemanticsLabel(RegExp(r'^Today.s goal .*Open goal$')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(find.text('Daily goal'), findsOneWidget);
+    expect(find.text('Days per week'), findsOneWidget);
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(find.text('Daily goal'), findsNothing);
 
     await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(find.textContaining('Alice was beginning to get very tired', findRichText: true), findsOneWidget);
-    expect(find.byTooltip('Save'), findsOneWidget);
-    expect(find.byTooltip('Share'), findsOneWidget);
+    expect(find.bySemanticsLabel('Save'), findsOneWidget);
+    expect(find.bySemanticsLabel('Share'), findsOneWidget);
+    // The share button is the reels-style arrow, not the system share glyph.
+    expect(find.byType(ShareArrowIcon), findsOneWidget);
+    expect(find.byIcon(Icons.ios_share), findsNothing);
 
     // Double-tap anywhere on the post likes it.
     final post = find.byType(PostCard);
@@ -120,7 +143,7 @@ void main() {
     await tester.pump();
     expect(find.text('Saved to your Notebook 🔖'), findsOneWidget);
     expect(container.read(notebookProvider).isSaved(bookId, card.card.startSid), isTrue);
-    await tester.pump(const Duration(seconds: 3)); // let the snackbar timer finish
+    await tester.pump(const Duration(seconds: 3)); // let the toast time out
 
     await tester.runAsync(() async => dir.deleteSync(recursive: true));
   });
@@ -154,7 +177,7 @@ void main() {
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
-        theme: buildAppTheme(brightness: Brightness.light),
+        theme: buildAppTheme(Kit.forScene(Vibe.forest, ReadingTheme.of(ReadingThemeId.paper))),
         home: ReaderScreen(bookId: bookId, startSid: feed[spotAt - 1].anchorSid),
       ),
     ));

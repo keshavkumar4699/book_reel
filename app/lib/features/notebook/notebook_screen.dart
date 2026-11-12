@@ -5,189 +5,213 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../data/notebook.dart';
 import '../../data/settings.dart';
+import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../share/share_sheet.dart';
 
+enum _Tab { saved, highlights, words, reflections }
+
 /// Everything the reader kept (UX_DESIGN.md §4): saved cards, highlights,
 /// words and reflections, with Markdown export.
-class NotebookScreen extends ConsumerWidget {
+class NotebookScreen extends ConsumerStatefulWidget {
   const NotebookScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final n = ref.watch(notebookProvider);
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Notebook'),
-          actions: [
-            IconButton(
-              tooltip: 'Export as Markdown',
-              icon: const Icon(Icons.ios_share),
-              onPressed: () => SharePlus.instance.share(ShareParams(text: notebookToMarkdown(n), subject: 'My BookReel notebook')),
-            ),
-          ],
-          bottom: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
-            Tab(text: 'Saved (${n.saved.length})'),
-            Tab(text: 'Highlights (${n.highlights.length})'),
-            Tab(text: 'Words (${n.words.length})'),
-            Tab(text: 'Reflections (${n.reflections.length})'),
-          ]),
-        ),
-        body: TabBarView(children: [
-          _SavedTab(n.saved),
-          _HighlightsTab(n.highlights),
-          _WordsTab(n.words),
-          _ReflectionsTab(n.reflections),
-        ]),
-      ),
-    );
-  }
+  ConsumerState<NotebookScreen> createState() => _NotebookScreenState();
 }
 
-class _Empty extends StatelessWidget {
-  const _Empty(this.icon, this.text);
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            const SizedBox(height: 12),
-            Text(text, textAlign: TextAlign.center),
-          ]),
-        ),
-      );
-}
-
-class _SavedTab extends ConsumerWidget {
-  const _SavedTab(this.saved);
-  final List<SavedCard> saved;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (saved.isEmpty) return const _Empty(Icons.bookmark_border, 'Tap 🔖 on any card to keep it here.');
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: saved.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, i) {
-        final s = saved[i];
-        return Card(
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => context.push('/read/${s.bookId}?sid=${s.startSid}'),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(s.text, maxLines: 6, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Literata', fontSize: 16, height: 1.45)),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(child: Text('${s.bookTitle} · ${s.chapterTitle}', style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis)),
-                  IconButton(
-                    tooltip: 'Share',
-                    icon: const Icon(Icons.ios_share, size: 20),
-                    onPressed: () => showShareSheet(
-                      context,
-                      QuoteShare(sentences: [s.text], bookTitle: s.bookTitle, author: s.author, publicDomain: false),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Remove',
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    onPressed: () => ref.read(notebookProvider.notifier).removeSaved(s.id),
-                  ),
-                ]),
-              ]),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _HighlightsTab extends ConsumerWidget {
-  const _HighlightsTab(this.highlights);
-  final List<Highlight> highlights;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (highlights.isEmpty) return const _Empty(Icons.border_color_outlined, 'Double-tap a sentence while reading to highlight it.');
-    final colors = ReadingTheme.of(ReadingThemeId.paper).highlights;
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: highlights.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, i) {
-        final h = highlights[i];
-        return Dismissible(
-          key: ValueKey(h.id),
-          direction: DismissDirection.endToStart,
-          background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 24), child: const Icon(Icons.delete_outline)),
-          onDismissed: (_) => ref.read(notebookProvider.notifier).removeHighlight(h.id),
-          child: ListTile(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            leading: Container(width: 6, height: 40, decoration: BoxDecoration(color: colors[h.color].withValues(alpha: 1), borderRadius: BorderRadius.circular(3))),
-            title: Text(h.text, style: const TextStyle(fontFamily: 'Literata', height: 1.4)),
-            subtitle: Text([h.bookTitle, if (h.note != null && h.note!.isNotEmpty) '📝 ${h.note}'].join('\n')),
-            onTap: () => context.push('/read/${h.bookId}?sid=${h.sid}'),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _WordsTab extends ConsumerWidget {
-  const _WordsTab(this.words);
-  final List<WordEntry> words;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (words.isEmpty) return const _Empty(Icons.translate, 'Long-press any word while reading, then “Add to word list”.');
-    final due = words.where((w) => !w.dueAt.isAfter(DateTime.now())).length;
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      FilledButton.tonalIcon(
-        onPressed: due == 0 ? null : () => context.push('/review'),
-        icon: const Icon(Icons.style_outlined),
-        label: Text(due == 0 ? 'All caught up' : 'Review $due word${due == 1 ? '' : 's'}'),
-      ),
-      const SizedBox(height: 12),
-      for (final w in words)
-        ListTile(
-          title: Text(w.word, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text(w.meaning),
-          trailing: IconButton(
-            tooltip: 'Remove',
-            icon: const Icon(Icons.close),
-            onPressed: () => ref.read(notebookProvider.notifier).removeWord(w.word),
-          ),
-        ),
-    ]);
-  }
-}
-
-class _ReflectionsTab extends StatelessWidget {
-  const _ReflectionsTab(this.reflections);
-  final List<Reflection> reflections;
+class _NotebookScreenState extends ConsumerState<NotebookScreen> {
+  _Tab _tab = _Tab.saved;
 
   @override
   Widget build(BuildContext context) {
-    if (reflections.isEmpty) return const _Empty(Icons.lightbulb_outline, 'At the end of a chapter, write one idea you’ll use.');
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      for (final r in reflections)
-        Card(
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
-            title: Text(r.text),
-            subtitle: Padding(padding: const EdgeInsets.only(top: 8), child: Text('${r.bookTitle} · ${r.chapterTitle}')),
+    final n = ref.watch(notebookProvider);
+    final counts = {
+      _Tab.saved: n.saved.length,
+      _Tab.highlights: n.highlights.length,
+      _Tab.words: n.words.length,
+      _Tab.reflections: n.reflections.length,
+    };
+    String label(_Tab t) => switch (t) {
+          _Tab.saved => 'Saved',
+          _Tab.highlights => 'Highlights',
+          _Tab.words => 'Words',
+          _Tab.reflections => 'Reflections',
+        };
+    return KitPage(
+      back: false,
+      backdrop: false,
+      dock: true,
+      title: 'Notebook',
+      actions: [
+        KitIconButton(
+          icon: Icons.reply_rounded,
+          semanticLabel: 'Export as Markdown',
+          onPressed: () => SharePlus.instance.share(ShareParams(text: notebookToMarkdown(n), subject: 'My BookReel notebook')),
+          child: const ShareArrowIcon(size: 22),
+        ),
+      ],
+      header: SizedBox(
+        height: 46,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          children: [
+            for (final t in _Tab.values)
+              Padding(
+                padding: const EdgeInsets.only(right: 8, bottom: 6),
+                child: KitChip(label: '${label(t)} ${counts[t]}', selected: _tab == t, onTap: () => setState(() => _tab = t)),
+              ),
+          ],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
+      children: switch (_tab) {
+        _Tab.saved => _saved(context, n.saved),
+        _Tab.highlights => _highlights(context, n.highlights),
+        _Tab.words => _words(context, n.words),
+        _Tab.reflections => _reflections(context, n.reflections),
+      },
+    );
+  }
+
+  List<Widget> _saved(BuildContext context, List<SavedCard> saved) {
+    final kit = Kit.of(context);
+    if (saved.isEmpty) return const [KitEmpty(emoji: '🔖', title: 'Nothing saved yet', message: 'Tap 🔖 on any card to keep it here.')];
+    return [
+      for (final s in saved)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: KitPanel(
+            onTap: () => context.push('/read/${s.bookId}?sid=${s.startSid}'),
+            padding: const EdgeInsets.fromLTRB(16, 16, 6, 6),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: Text(s.text,
+                    maxLines: 6,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontFamily: 'Literata', fontSize: 16, height: 1.45, color: kit.ink)),
+              ),
+              Row(children: [
+                Expanded(child: Text('${s.bookTitle} · ${s.chapterTitle}', style: kit.caption, overflow: TextOverflow.ellipsis)),
+                KitIconButton(
+                  icon: Icons.reply_rounded,
+                  semanticLabel: 'Share',
+                  glass: false,
+                  onPressed: () => showShareSheet(
+                    context,
+                    QuoteShare(sentences: [s.text], bookTitle: s.bookTitle, author: s.author, publicDomain: false),
+                  ),
+                  child: ShareArrowIcon(size: 21, color: kit.inkSoft),
+                ),
+                KitIconButton(
+                  icon: Icons.delete_outline_rounded,
+                  semanticLabel: 'Remove',
+                  glass: false,
+                  color: kit.inkSoft,
+                  iconSize: 21,
+                  onPressed: () => ref.read(notebookProvider.notifier).removeSaved(s.id),
+                ),
+              ]),
+            ]),
           ),
         ),
-    ]);
+    ];
+  }
+
+  List<Widget> _highlights(BuildContext context, List<Highlight> highlights) {
+    final kit = Kit.of(context);
+    if (highlights.isEmpty) {
+      return const [KitEmpty(emoji: '✨', title: 'No highlights yet', message: 'Tap a sentence while reading to highlight it.')];
+    }
+    final colors = ReadingTheme.of(ReadingThemeId.paper).highlights;
+    return [
+      for (final h in highlights)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Dismissible(
+            key: ValueKey(h.id),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 24),
+              child: Icon(Icons.delete_outline_rounded, color: kit.danger),
+            ),
+            onDismissed: (_) => ref.read(notebookProvider.notifier).removeHighlight(h.id),
+            child: KitPanel(
+              onTap: () => context.push('/read/${h.bookId}?sid=${h.sid}'),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 5,
+                  height: 44,
+                  decoration: BoxDecoration(color: colors[h.color].withValues(alpha: 1), borderRadius: BorderRadius.circular(3)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(h.text, style: TextStyle(fontFamily: 'Literata', fontSize: 15.5, height: 1.4, color: kit.ink)),
+                    const SizedBox(height: 6),
+                    Text([h.bookTitle, if (h.note != null && h.note!.isNotEmpty) '📝 ${h.note}'].join('\n'), style: kit.caption),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+        ),
+    ];
+  }
+
+  List<Widget> _words(BuildContext context, List<WordEntry> words) {
+    final kit = Kit.of(context);
+    if (words.isEmpty) {
+      return const [KitEmpty(emoji: '🔤', title: 'No words yet', message: 'Long-press any word while reading, then “Add to word list”.')];
+    }
+    final due = words.where((w) => !w.dueAt.isAfter(DateTime.now())).length;
+    return [
+      KitButton(
+        label: due == 0 ? 'All caught up' : 'Review $due word${due == 1 ? '' : 's'}',
+        icon: Icons.style_rounded,
+        expand: true,
+        kind: due == 0 ? KitButtonKind.secondary : KitButtonKind.primary,
+        onPressed: due == 0 ? null : () => context.push('/review'),
+      ),
+      const SizedBox(height: 12),
+      KitGroup(children: [
+        for (final w in words)
+          KitRow(
+            title: w.word,
+            subtitle: w.meaning,
+            trailing: KitIconButton(
+              icon: Icons.close_rounded,
+              semanticLabel: 'Remove ${w.word}',
+              glass: false,
+              color: kit.inkSoft,
+              iconSize: 20,
+              onPressed: () => ref.read(notebookProvider.notifier).removeWord(w.word),
+            ),
+          ),
+      ]),
+    ];
+  }
+
+  List<Widget> _reflections(BuildContext context, List<Reflection> reflections) {
+    final kit = Kit.of(context);
+    if (reflections.isEmpty) {
+      return const [KitEmpty(emoji: '💡', title: 'No reflections yet', message: 'At the end of a chapter, write one idea you’ll use.')];
+    }
+    return [
+      for (final r in reflections)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: KitPanel(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(r.text, style: kit.body),
+              const SizedBox(height: 8),
+              Text('${r.bookTitle} · ${r.chapterTitle}', style: kit.caption),
+            ]),
+          ),
+        ),
+    ];
   }
 }

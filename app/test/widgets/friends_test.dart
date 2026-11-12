@@ -4,6 +4,8 @@ import 'package:book_reel/data/api_client.dart';
 import 'package:book_reel/data/json_store.dart';
 import 'package:book_reel/data/store_provider.dart';
 import 'package:book_reel/features/friends/friends_screen.dart';
+import 'package:book_reel/data/settings.dart';
+import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,7 +24,7 @@ void main() {
         storeProvider.overrideWithValue(store),
         apiProvider.overrideWithValue(BookReelApi(baseUrl: 'http://fake', deviceId: 'dev1', httpClient: server.client)),
       ],
-      child: MaterialApp(theme: buildAppTheme(brightness: Brightness.light), home: const FriendsScreen()),
+      child: MaterialApp(theme: buildAppTheme(Kit.forScene(Vibe.forest, ReadingTheme.of(ReadingThemeId.paper))), home: const FriendsScreen()),
     ));
     for (var i = 0; i < 20 && find.text('7PA756JQ').evaluate().isEmpty; i++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));

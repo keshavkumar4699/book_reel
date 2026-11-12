@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Companion to** | [`DESIGN.md`](./DESIGN.md) |
-| **Status** | Draft v1.0 (Revision 4) |
-| **Date** | 2026-11-09 |
+| **Status** | Draft v1.0 (Revision 6) |
+| **Date** | 2026-11-12 |
 | **Lenses** | Behavioural psychology · Interaction & visual design · Flutter engineering |
 
 ---
@@ -33,6 +33,21 @@
 > Revision 3's "text fitted to the screen" and "very large phrase on the same card" are superseded. Everything else stands: full-screen reels, the right-hand action rail, gestures, AI scenes and soundtrack.
 
 > **Revision 5 (scene sounds instead of AI music).** The AI soundtrack is gone: licensing music for use inside an app is costly and uncertain. Instead **each scene has its own ambient sound** (rain on the window for Rain, café murmur for Café, waves for Ocean, a crackling fire for Snow, soft brown noise for Paper). It is on for every tier, follows the scene (including Auto scenes) with a crossfade, never pauses the reader's own music app, and one tap on the speaker mutes it for readers who prefer their own music. Steady natural sound also doesn't compete with the words the way speech or music with lyrics can (the "irrelevant speech effect"), so it suits reading better than songs. §6.5 is superseded.
+
+> **Revision 6 (one immersive place, compact settings, smooth reels).** Device feedback: stock Android popups and lists broke the mood, the settings page showed every option at once, the streak and goal pills on reels did nothing, and the app felt a little slow. What changed:
+>
+> | Change | What the reader sees |
+> |---|---|
+> | **Our own UI, in the scene's colours** | Every sheet, dialog, menu, option list, toast, switch, slider, chip, time picker and the tab bar is drawn by the app (`app/lib/ui/kit.dart`), tinted with the current scene's palette (deep pine glass on Forest, espresso on Café, a warm veil on Meadow) and laid over the scene itself. No Material ripples, popup menus, snack bars or system dialogs remain. |
+> | **One scene everywhere** | The reader's scene sits behind Today, Library, Notebook, Friends and Settings under an even veil, and pages cross-fade, so moving around feels like staying in one place. It moves on Today and in the reader; lists sit on a still frame of it. A floating glass dock replaces the tab bar. |
+> | **Toasts that stay out of the way** | Confirmations ("Saved to your Notebook") drop in just below the top bar, leave on their own and let touches through, unless they offer an action ("Add note"). |
+> | **Sheets you can flick away** | Sheets rise from the bottom; drag the handle down, tap outside or press Back to close. Text fields in them stay above the keyboard. |
+> | **Reels-style share arrow** | The share button is the curved arrow of reels apps, on the rail, the swipe hint and every share button. |
+> | **Tappable flame and flag** | The flame opens **Your streak** (this week day by day, best run, freezes left). The flag opens **Daily goal** (progress, daily or weekly, size, reminder, habit anchor). Today's ring and streak open the same sheets. |
+> | **Compact settings** | One short list in five groups. Each row shows its current value ("Forest", "On · 60%", "Book's own fonts · 22") and opens a focused sheet; simple on/off options switch in place. |
+> | **Smoother** | Scenes paint their still parts once into an image and draw only light motion (fireflies, rain, snow, stars) with pre-blurred sprites, about 30 times a second. Nothing is blurred per frame, the scene no longer repaints while reels scroll (Revision 2's parallax is gone), and it stops when hidden or in the background. Reel entrances move layers instead of rebuilding the card each frame; hard words are found once per reel; covers decode at the size shown; text has one small shadow. CI now builds **release** APKs, which run several times faster than debug builds. |
+>
+> Accessibility is unchanged or better: every control has a label and its actions for screen readers (switch state, slider up and down), targets are at least 48 dp, and the kit's colours are checked for every scene: text on sheets ≥ 7:1, secondary text and button labels ≥ 4.5:1 (`app/test/ui/kit_test.dart`).
 
 ## 0. The answer in one paragraph
 

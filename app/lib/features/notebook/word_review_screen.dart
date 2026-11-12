@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/notebook.dart';
+import '../../ui/kit.dart';
 
 /// Spaced-repetition flashcards for saved words (DESIGN.md §2.5).
 class WordReviewScreen extends ConsumerStatefulWidget {
@@ -28,48 +29,52 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(_index < _queue.length ? 'Review ${_index + 1} of ${_queue.length}' : 'Review')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: _index >= _queue.length
-              ? Center(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.check_circle_outline, size: 64),
-                    const SizedBox(height: 16),
-                    Text(_queue.isEmpty ? 'Nothing to review right now' : 'Done! $_remembered of ${_queue.length} remembered',
-                        style: theme.textTheme.titleLarge),
-                    const SizedBox(height: 16),
-                    FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Back')),
-                  ]),
-                )
-              : Column(children: [
-                  const Spacer(),
-                  Text(_queue[_index].word, style: theme.textTheme.displaySmall),
-                  const SizedBox(height: 16),
-                  if (_queue[_index].sentence.isNotEmpty)
-                    Text('“${_queue[_index].sentence}”',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyLarge?.copyWith(fontFamily: 'Literata', fontStyle: FontStyle.italic)),
-                  const SizedBox(height: 24),
-                  if (_revealed) Text(_queue[_index].meaning, textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
-                  const Spacer(),
-                  if (!_revealed)
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(onPressed: () => setState(() => _revealed = true), child: const Text('Show meaning')),
-                    )
-                  else
-                    Row(children: [
-                      Expanded(child: OutlinedButton(onPressed: () => _answer(false), child: const Text('Still learning'))),
-                      const SizedBox(width: 12),
-                      Expanded(child: FilledButton(onPressed: () => _answer(true), child: const Text('I knew it'))),
-                    ]),
-                ]),
-        ),
-      ),
+    final kit = Kit.of(context);
+    final done = _index >= _queue.length;
+    final height = MediaQuery.sizeOf(context).height;
+    return KitPage(
+      title: done ? 'Review' : 'Review ${_index + 1} of ${_queue.length}',
+      children: [
+        if (done)
+          KitEmpty(
+            emoji: '✅',
+            title: _queue.isEmpty ? 'Nothing to review right now' : 'Done! $_remembered of ${_queue.length} remembered',
+            action: KitButton(label: 'Back', onPressed: () => Navigator.pop(context)),
+          )
+        else ...[
+          SizedBox(height: height * 0.06),
+          KitPanel(
+            padding: const EdgeInsets.fromLTRB(22, 32, 22, 28),
+            child: Column(children: [
+              Text(_queue[_index].word, textAlign: TextAlign.center, style: kit.display),
+              const SizedBox(height: 16),
+              if (_queue[_index].sentence.isNotEmpty)
+                Text('“${_queue[_index].sentence}”',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontFamily: 'Literata', fontStyle: FontStyle.italic, fontSize: 16, height: 1.45, color: kit.inkSoft)),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                child: _revealed
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 22),
+                        child: Text(_queue[_index].meaning, textAlign: TextAlign.center, style: kit.heading.copyWith(color: kit.accent)),
+                      )
+                    : const SizedBox(width: double.infinity),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 24),
+          if (!_revealed)
+            KitButton(label: 'Show meaning', expand: true, onPressed: () => setState(() => _revealed = true))
+          else
+            Row(children: [
+              Expanded(child: KitButton.secondary(label: 'Still learning', expand: true, onPressed: () => _answer(false))),
+              const SizedBox(width: 12),
+              Expanded(child: KitButton(label: 'I knew it', expand: true, onPressed: () => _answer(true))),
+            ]),
+        ],
+      ],
     );
   }
 }

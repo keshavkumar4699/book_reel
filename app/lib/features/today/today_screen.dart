@@ -7,12 +7,13 @@ import '../../data/habit.dart';
 import '../../data/library.dart';
 import '../../data/notebook.dart';
 import '../../data/settings_provider.dart';
-import '../../ui/theme.dart';
+import '../../ui/kit.dart';
 import '../../ui/vibes.dart';
 import '../../ui/widgets.dart';
+import '../reader/goal_setup_sheet.dart';
 
 /// Today (home): one main action, today's goal ring and streak, one social
-/// line (UX_DESIGN.md §5.1).
+/// line (UX_DESIGN.md §5.1), on the reader's moving scene.
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
 
@@ -36,7 +37,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final kit = Kit.of(context);
     final settings = ref.watch(settingsProvider);
     final habit = ref.watch(habitProvider);
     ref.watch(libraryProvider);
@@ -49,141 +50,116 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final streak = notifier.displayStreak();
     final dueWords = ref.watch(notebookProvider).dueWords(DateTime.now()).length;
     final value = goal.unit == GoalUnit.cards ? '${today.verifiedCards}' : today.minutes.floor().toString();
-
     final style = vibeStyles[settings.vibe]!;
-    final palette = scenePalettes[settings.vibe];
-    final heroTheme = palette == null ? theme : buildAppTheme(brightness: palette.lightInk ? Brightness.dark : Brightness.light);
-    final top = MediaQuery.paddingOf(context).top;
+    final freezes = notifier.freezesLeft();
 
-    return Scaffold(
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          // Hero: today's goal and streak over the reader's chosen scene.
-          SizedBox(
-            height: top + 300,
-            child: Stack(fit: StackFit.expand, children: [
-              VibeBackground(vibe: settings.vibe, animate: settings.animatedBackground, paperColor: theme.colorScheme.surface),
-              if (palette != null) DecoratedBox(decoration: BoxDecoration(gradient: palette.scrim)),
-              Theme(
-                data: heroTheme,
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, top + 8, 8, 16),
-                  child: Column(children: [
-                    Row(children: [
-                      Expanded(
-                        child: Text(
-                          '${_greeting()}${settings.displayName == 'Reader' ? '' : ', ${settings.displayName}'}',
-                          style: heroTheme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: palette?.ink,
-                            shadows: palette?.textShadows,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Your progress',
-                        onPressed: () => context.push('/profile'),
-                        icon: const CircleAvatar(child: Icon(Icons.person_outline)),
-                      ),
-                      IconButton(tooltip: 'Settings', onPressed: () => context.push('/settings'), icon: const Icon(Icons.settings_outlined)),
-                    ]),
-                    const Spacer(),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                      GoalRing(
-                        progress: today.progress(goal),
-                        label: '$value / ${goal.dailyTarget}',
-                        sublabel: goal.unit == GoalUnit.cards ? 'cards today' : 'min today',
-                      ),
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        StreakBadge(days: streak, weekly: weekly),
-                        const SizedBox(height: 6),
-                        if (weekly)
-                          Text('${notifier.activeDaysThisWeek()} of ${goal.weeklyDays} days this week', style: heroTheme.textTheme.bodySmall)
-                        else
-                          Text('${notifier.freezesLeft()} streak freeze${notifier.freezesLeft() == 1 ? '' : 's'} left',
-                              style: heroTheme.textTheme.bodySmall),
-                        const SizedBox(height: 6),
-                        Text(today.meets(goal) ? 'Goal done ✓' : '${style.emoji} ${style.tagline}',
-                            style: heroTheme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-                      ]),
-                    ]),
-                    const Spacer(),
-                  ]),
-                ),
+    return KitPage(
+      back: false,
+      backdrop: false,
+      dock: true,
+      title: '${_greeting()}${settings.displayName == 'Reader' ? '' : ','}',
+      subtitle: settings.displayName == 'Reader' ? '${style.emoji} ${style.tagline}' : settings.displayName,
+      actions: [
+        KitIconButton(icon: Icons.person_outline_rounded, semanticLabel: 'Your progress', onPressed: () => context.push('/profile')),
+        KitIconButton(icon: Icons.tune_rounded, semanticLabel: 'Settings', onPressed: () => context.push('/settings')),
+      ],
+      children: [
+        // Today's goal and streak, straight on the scene.
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+            KitPressable(
+              onTap: () => showGoalSheet(context),
+              semanticLabel: 'Daily goal: $value of ${goal.dailyTarget}. Change goal',
+              excludeSemantics: true,
+              child: GoalRing(
+                progress: today.progress(goal),
+                label: '$value / ${goal.dailyTarget}',
+                sublabel: goal.unit == GoalUnit.cards ? 'cards today' : 'min today',
+                size: 132,
               ),
-            ]),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            if (current != null)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    BookCover(book: current, width: 72),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(current.title, style: theme.textTheme.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 4),
-                        Text('${(current.progress * 100).round()}% · ~${_minutesLeft(current.wordCount, current.progress, habit.wpm)} min left',
-                            style: theme.textTheme.bodySmall),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(value: current.progress, borderRadius: BorderRadius.circular(4)),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                            onPressed: () => context.push('/read/${current.id}'),
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: const Text('Continue reading'),
-                          ),
-                        ),
-                      ]),
-                    ),
-                  ]),
-                ),
-              )
-            else
-              Card(
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  leading: const Icon(Icons.auto_stories_outlined, size: 32),
-                  title: const Text('Pick a book to start'),
-                  subtitle: const Text('Import an EPUB or PDF, or try a classic.'),
-                  onTap: () => context.go('/library'),
-                ),
+            ),
+            Flexible(
+              child: KitPressable(
+                onTap: () => showStreakSheet(context),
+                semanticLabel: '$streak ${weekly ? 'week' : 'day'} streak. Details',
+                excludeSemantics: true,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  StreakBadge(days: streak, weekly: weekly),
+                  const SizedBox(height: 6),
+                  Text(
+                    weekly
+                        ? '${notifier.activeDaysThisWeek()} of ${goal.weeklyDays} days this week'
+                        : '$freezes streak freeze${freezes == 1 ? '' : 's'} left',
+                    style: kit.caption,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(today.meets(goal) ? 'Goal done ✓' : 'Tap to see your week',
+                      style: kit.strong.copyWith(fontSize: 14, color: today.meets(goal) ? kit.accent : kit.ink)),
+                ]),
               ),
-            if (dueWords > 0) ...[
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.style_outlined),
-                  title: Text('$dueWords word${dueWords == 1 ? '' : 's'} to review'),
-                  subtitle: const Text('A quick review helps new words stick'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/review'),
-                ),
-              ),
-            ],
-            if (!settings.hideLeaderboards) ...[
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.people_outline),
-                  title: const Text('Read with friends'),
-                  subtitle: const Text('Invite a friend and keep each other going'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.go('/friends'),
-                ),
-              ),
-            ],
+            ),
           ]),
         ),
-      ]),
+        if (current != null)
+          KitPanel(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              BookCover(book: current, width: 76),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(current.title, style: kit.heading, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Text('${(current.progress * 100).round()}% · ~${_minutesLeft(current.wordCount, current.progress, habit.wpm)} min left',
+                      style: kit.caption),
+                  const SizedBox(height: 10),
+                  KitProgress(value: current.progress),
+                  const SizedBox(height: 16),
+                  KitButton(
+                    label: 'Continue reading',
+                    icon: Icons.play_arrow_rounded,
+                    expand: true,
+                    onPressed: () => context.push('/read/${current.id}'),
+                  ),
+                ]),
+              ),
+            ]),
+          )
+        else
+          KitPanel(
+            padding: EdgeInsets.zero,
+            child: KitRow(
+              icon: Icons.auto_stories_rounded,
+              title: 'Pick a book to start',
+              subtitle: 'Import an EPUB or PDF, or try a classic.',
+              onTap: () => context.go('/library'),
+            ),
+          ),
+        if (dueWords > 0) ...[
+          const SizedBox(height: 12),
+          KitPanel(
+            padding: EdgeInsets.zero,
+            child: KitRow(
+              icon: Icons.style_rounded,
+              title: '$dueWords word${dueWords == 1 ? '' : 's'} to review',
+              subtitle: 'A quick review helps new words stick',
+              onTap: () => context.push('/review'),
+            ),
+          ),
+        ],
+        if (!settings.hideLeaderboards) ...[
+          const SizedBox(height: 12),
+          KitPanel(
+            padding: EdgeInsets.zero,
+            child: KitRow(
+              icon: Icons.people_rounded,
+              title: 'Read with friends',
+              subtitle: 'Invite a friend and keep each other going',
+              onTap: () => context.go('/friends'),
+            ),
+          ),
+        ],
+      ],
     );
   }
 

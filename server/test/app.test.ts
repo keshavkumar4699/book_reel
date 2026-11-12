@@ -32,7 +32,7 @@ function app() {
 
 const device = { "x-device-id": "abcdef0123456789" };
 const friend = { "x-device-id": "0123456789abcdef" };
-const body = (tier = "plus") => ({
+const body = (tier = "lite") => ({
   book: { content_hash: "a".repeat(64), title: "T", author: "A" },
   tier,
   card_length: "standard",
@@ -43,7 +43,7 @@ describe("HTTP API", () => {
   it("requires credentials and validates payloads", async () => {
     const a = app();
     expect((await a.inject({ method: "POST", url: "/v1/segment", payload: body() })).statusCode).toBe(401);
-    expect((await a.inject({ method: "POST", url: "/v1/segment", headers: device, payload: { tier: "plus" } })).statusCode).toBe(400);
+    expect((await a.inject({ method: "POST", url: "/v1/segment", headers: device, payload: { tier: "lite" } })).statusCode).toBe(400);
     expect((await a.inject({ method: "POST", url: "/v1/segment", headers: device, payload: body("free") })).statusCode).toBe(403);
   });
 
@@ -65,6 +65,15 @@ describe("HTTP API", () => {
     expect(json.quota).toEqual({ used: 1, limit: 12 });
     const again = (await a.inject({ method: "POST", url: "/v1/segment", headers: device, payload: body() })).json();
     expect(again.cached).toBe(1);
+  });
+
+  it("AI usage reports each tier's monthly book limit", async () => {
+    const a = app();
+    const usage = async (q: string) => (await a.inject({ url: `/v1/me/ai-usage${q}`, headers: device })).json();
+    expect(await usage("")).toMatchObject({ books_used: 0, books_limit: 12 }); // Lite by default
+    expect((await usage("?tier=plus")).books_limit).toBe(6);
+    expect((await usage("?tier=scholar")).books_limit).toBe(6);
+    expect((await usage("?tier=gold")).books_limit).toBe(12); // unknown tiers read as Lite, never crash
   });
 
   it("friends: invite code, activity, league, friends board, feed and kudos", async () => {

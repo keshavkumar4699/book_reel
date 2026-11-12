@@ -11,10 +11,11 @@ import 'features/notebook/word_review_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/reader/reader_screen.dart';
+import 'features/settings/licenses_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/shell/home_shell.dart';
 import 'features/today/today_screen.dart';
-import 'ui/theme.dart';
+import 'ui/kit.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
 
@@ -50,6 +51,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/settings', parentNavigatorKey: _rootKey, builder: (c, s) => const SettingsScreen()),
       GoRoute(path: '/profile', parentNavigatorKey: _rootKey, builder: (c, s) => const ProfileScreen()),
       GoRoute(path: '/review', parentNavigatorKey: _rootKey, builder: (c, s) => const WordReviewScreen()),
+      GoRoute(path: '/licenses', parentNavigatorKey: _rootKey, builder: (c, s) => const LicensesScreen()),
     ],
   );
 });
@@ -62,6 +64,12 @@ class BookReelApp extends ConsumerStatefulWidget {
 }
 
 class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingObserver {
+  ThemeData? _theme;
+  Object? _themeKey;
+
+  @override
+  void didChangePlatformBrightness() => setState(() {});
+
   @override
   void initState() {
     super.initState();
@@ -86,11 +94,19 @@ class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
+    // The whole app wears the reader's scene. Only rebuild the theme when
+    // something it depends on changes (not on every settings tweak).
+    final look = ref.watch(settingsProvider.select((s) => (s.vibe, s.theme, s.followSystemDark, s.animatedBackground)));
+    final brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    final key = (look, brightness);
+    if (key != _themeKey) {
+      _themeKey = key;
+      _theme = buildAppTheme(Kit.fromSettings(ref.read(settingsProvider), brightness));
+    }
     return MaterialApp.router(
       title: 'BookReel',
       debugShowCheckedModeBanner: false,
-      theme: buildAppTheme(brightness: Brightness.light),
-      darkTheme: buildAppTheme(brightness: Brightness.dark),
+      theme: _theme,
       routerConfig: router,
     );
   }

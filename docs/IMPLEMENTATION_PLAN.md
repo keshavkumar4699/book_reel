@@ -105,7 +105,7 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 ## Phase 6 — AI segmentation backend (`server/`)
 - TypeScript + Fastify + Zod; `@anthropic-ai/sdk`.
 - `POST /v1/segment`: validates the chapter payload, checks the content-hash cache, applies tier quota, calls the tier's model, validates and repairs, caches, returns cards.
-- Model routing: Plus → `claude-haiku-5-5` (effort low), Pro → `claude-sonnet-5-5` (effort medium), Scholar → `claude-opus-5-5` (effort medium/high). Structured JSON output; server-side refusal fallback on Sonnet/Opus; Haiku refusal → retry on Sonnet → rules.
+- Model routing: Lite → `claude-haiku-5-5` (effort low), Plus → `claude-sonnet-5-5` (effort medium), Pro → `claude-opus-5-5` (effort medium/high), Scholar → `claude-fable-5-2` (effort medium). Structured JSON output; server-side refusal fallback on Sonnet/Opus/Fable; Haiku refusal → retry on Sonnet → rules.
 - Background chapters through the Message Batches API (50% cheaper): `POST /v1/segment/batch` + polling job.
 - Validator/repairer shared logic: coverage, order, length bounds, sID checks, extras sanity.
 - App client: `AiSegmentationClient` swaps AI cards in for upcoming chapters without moving the reading position; falls back to rule cards on any failure.
