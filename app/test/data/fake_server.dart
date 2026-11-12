@@ -16,6 +16,10 @@ class FakeServer {
   final List<Map<String, dynamic>> shares = [];
   final List<String> kudos = [];
 
+  /// Texts sent to /v1/tts; [speechStatus] other than 200 makes it fail.
+  final List<Map<String, dynamic>> speechRequests = [];
+  int speechStatus = 200;
+
   /// Voice returned by /v1/book/profile; null makes the endpoint fail.
   String? profileVoice = 'suspense';
   final List<Map<String, dynamic>> profileRequests = [];
@@ -54,6 +58,12 @@ class FakeServer {
           final events = (body()['events'] as List).cast<Map<String, dynamic>>();
           activity.addAll(events);
           return ok({'accepted': events.length, 'verified': events.length, 'streak': 1, 'wpm': 230});
+        }
+        if (path == '/v1/tts') {
+          if (speechStatus != 200) return http.Response('{"error":"tts_unavailable"}', speechStatus);
+          final b = body();
+          speechRequests.add(b);
+          return http.Response.bytes(utf8.encode('ID3 mp3 ${b['voice']} ${b['text']}'), 200, headers: {'content-type': 'audio/mpeg'});
         }
         if (path == '/v1/me/profile') {
           final b = body();

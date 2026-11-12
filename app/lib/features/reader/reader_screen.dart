@@ -23,7 +23,7 @@ import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../services/notifications.dart';
 import '../../services/scene_sound.dart';
-import '../../services/tts.dart';
+import '../../services/read_aloud.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/typography.dart';
@@ -61,6 +61,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// card's reading time is still recorded.
   late final HabitNotifier _habit;
   late final SceneSoundController _sound;
+  late final ReadAloud _readAloud;
   Map<int, ChapterSegments>? _segments;
   final Set<int> _requestedAi = {};
 
@@ -87,6 +88,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     WidgetsBinding.instance.addObserver(this);
     _habit = ref.read(habitProvider.notifier);
     _sound = ref.read(sceneSoundProvider.notifier);
+    _readAloud = ref.read(readAloudProvider);
   }
 
   /// Keeps the scene's ambient sound in step with the scene on screen
@@ -131,7 +133,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     scheduleMicrotask(_sound.stop);
     WidgetsBinding.instance.removeObserver(this);
     _pager?.dispose();
-    Tts.instance.stop();
+    unawaited(_readAloud.stop());
     super.dispose();
   }
 
@@ -373,10 +375,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     return null;
   }
 
+  /// The text of the next reel that has words, to fetch its audio early.
+  String? _nextReelText(int from) {
+    for (var i = from + 1; i < _feed.length && i <= from + 3; i++) {
+      if (_feed[i].kind == CardKind.text && _feed[i].card != null) return _reelText(_feed[i]);
+    }
+    return null;
+  }
+
   void _speak(FeedItem item) {
     final text = _reelText(item);
     _sound.duck(true);
-    Tts.instance.speak(text, onDone: () {
+    _readAloud.speak(text, next: _nextReelText(_page), onDone: () {
       _sound.duck(false);
       if (mounted && _tts && _pager != null && _page < _feed.length - 1) {
         _pager!.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
@@ -445,7 +455,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (_tts && _feed[_page].card != null) {
       _speak(_feed[_page]);
     } else {
-      Tts.instance.stop();
+      unawaited(_readAloud.stop());
       _sound.duck(false);
     }
   }

@@ -107,4 +107,20 @@ export const MIGRATIONS: string[] = [
   alter table users add column avatar text not null default '';
   create unique index users_handle_lower on users (lower(handle)) where handle is not null;
   `,
+  // Natural read-aloud: synthesised audio (by text and voice) and daily use.
+  `
+  create table tts_cache (
+    key text primary key,
+    content_type text not null,
+    audio bytea not null,
+    chars int not null,
+    created_at timestamptz not null default now()
+  );
+  create table tts_usage (
+    user_id text not null,
+    day date not null,
+    chars int not null default 0,
+    primary key (user_id, day)
+  );
+  `,
 ];

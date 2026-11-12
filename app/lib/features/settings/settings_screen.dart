@@ -8,6 +8,8 @@ import '../../core/text/lexicon.dart';
 import '../../data/ai_client.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
+import '../../data/api_client.dart';
+import '../../services/read_aloud.dart';
 import '../../services/scene_sound.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
@@ -44,6 +46,14 @@ class SettingsScreen extends ConsumerWidget {
             title: 'Scene sound',
             value: s.sceneSound ? 'On · ${(s.sceneSoundVolume * 100).round()}%' : 'Off',
             onTap: () => showKitSheet<void>(context, title: 'Scene sound', builder: (_) => const SoundSettings()),
+          ),
+          KitRow(
+            icon: Icons.record_voice_over_rounded,
+            title: 'Read aloud',
+            value: s.naturalVoice
+                ? 'Natural · ${speechVoices.where((v) => v.id == s.voiceName).firstOrNull?.label ?? 'Heart'}'
+                : 'Phone voice',
+            onTap: () => showKitSheet<void>(context, title: 'Read aloud', builder: (_) => const VoiceSettings()),
           ),
           KitRow(
             icon: Icons.text_fields_rounded,
@@ -244,6 +254,70 @@ class SoundSettings extends ConsumerWidget {
             ref.read(sceneSoundProvider.notifier).applyVolume();
           },
         ),
+    ]);
+  }
+}
+
+/// The read-aloud voice: natural AI voice or the phone's, which voice, speed.
+class VoiceSettings extends ConsumerWidget {
+  const VoiceSettings({super.key});
+
+  static const sample = 'Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do.';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final s = ref.watch(settingsProvider);
+    final n = ref.read(settingsProvider.notifier);
+    final server = ref.watch(apiProvider).enabled;
+    void play() => ref.read(readAloudProvider).speak(sample, onDone: () {});
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      KitSegmented<bool>(
+        values: const [true, false],
+        selected: s.naturalVoice,
+        label: (v) => v ? 'Natural AI voice' : 'Phone voice',
+        onChanged: (v) => n.update((x) => x.copyWith(naturalVoice: v)),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        s.naturalVoice
+            ? server
+                ? 'A neural voice that sounds close to a person reading. Each passage is kept on your phone, so '
+                    'listening again is instant and works offline. Free: about 25 minutes of new listening a day; '
+                    'paid plans: hours.'
+                : 'The natural voice comes from the BookReel server, which this build doesn\'t have yet, so your '
+                    'phone\'s most natural voice reads for now.'
+            : 'Your phone\'s own voice: works offline and costs nothing. We pick the most natural one it has installed.',
+        style: kit.caption,
+      ),
+      if (s.naturalVoice) ...[
+        const SizedBox(height: 12),
+        KitGroup(children: [
+          for (final v in speechVoices)
+            KitRow(
+              title: v.label,
+              subtitle: v.description,
+              selected: s.voiceName == v.id,
+              chevron: false,
+              trailing: s.voiceName == v.id ? null : Icon(Icons.radio_button_unchecked_rounded, color: kit.inkSoft),
+              onTap: () {
+                n.update((x) => x.copyWith(voiceName: v.id));
+                play();
+              },
+            ),
+        ]),
+      ],
+      _SliderField(
+        label: 'Speed',
+        value: s.voiceSpeed,
+        min: 0.8,
+        max: 1.3,
+        divisions: 10,
+        display: (v) => '${v.toStringAsFixed(2).replaceFirst(RegExp(r'0\$'), '')}×',
+        onChanged: (v) => n.update((x) => x.copyWith(voiceSpeed: double.parse(v.toStringAsFixed(2)))),
+      ),
+      const SizedBox(height: 14),
+      KitButton.secondary(label: 'Play a sample', icon: Icons.play_arrow_rounded, expand: true, onPressed: play),
     ]);
   }
 }

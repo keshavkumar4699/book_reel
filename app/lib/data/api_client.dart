@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -47,6 +48,17 @@ class BookReelApi {
   }
 
   Future<Map<String, dynamic>> me() async => (await _send('GET', '/v1/me')) as Map<String, dynamic>;
+
+  /// Natural read-aloud audio (MP3) for [text]. Throws [ApiException] 503
+  /// when the server has no voice provider, 429 over the daily allowance.
+  Future<Uint8List> speech({required String text, required String voice, required double speed, required String tier}) async {
+    final req = http.Request('POST', Uri.parse('$baseUrl/v1/tts'))
+      ..headers.addAll(_headers)
+      ..body = jsonEncode({'text': text, 'voice': voice, 'speed': speed, 'tier': tier});
+    final res = await http.Response.fromStream(await _http.send(req).timeout(const Duration(seconds: 30)));
+    if (res.statusCode >= 400) throw ApiException(res.statusCode, utf8.decode(res.bodyBytes, allowMalformed: true));
+    return res.bodyBytes;
+  }
 
   /// Updates the server's copy of the profile. Throws [ApiException] 409
   /// when [handle] belongs to someone else.

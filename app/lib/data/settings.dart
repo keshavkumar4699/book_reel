@@ -81,6 +81,9 @@ class AppSettings {
     this.goalSetupDone = false,
     this.tier = Tier.free,
     this.displayName = 'Reader',
+    this.naturalVoice = true,
+    this.voiceName = 'af_heart',
+    this.voiceSpeed = 1.0,
     this.username = '',
     this.pronouns = '',
     this.bio = '',
@@ -126,6 +129,13 @@ class AppSettings {
   final bool goalSetupDone;
   final Tier tier;
   final String displayName;
+
+  /// Read aloud with the natural AI voice (when the server offers it).
+  final bool naturalVoice;
+
+  /// The natural voice (a Kokoro voice name) and the reading speed.
+  final String voiceName;
+  final double voiceSpeed;
 
   /// Profile (Instagram-style): @username, pronouns and a short bio.
   final String username;
@@ -186,6 +196,9 @@ class AppSettings {
     bool? goalSetupDone,
     Tier? tier,
     String? displayName,
+    bool? naturalVoice,
+    String? voiceName,
+    double? voiceSpeed,
     String? username,
     String? pronouns,
     String? bio,
@@ -229,6 +242,9 @@ class AppSettings {
         goalSetupDone: goalSetupDone ?? this.goalSetupDone,
         tier: tier ?? this.tier,
         displayName: displayName ?? this.displayName,
+        naturalVoice: naturalVoice ?? this.naturalVoice,
+        voiceName: voiceName ?? this.voiceName,
+        voiceSpeed: voiceSpeed ?? this.voiceSpeed,
         username: username ?? this.username,
         pronouns: pronouns ?? this.pronouns,
         bio: bio ?? this.bio,
@@ -273,6 +289,9 @@ class AppSettings {
         'goalSetupDone': goalSetupDone,
         'tier': tier.name,
         'displayName': displayName,
+        'naturalVoice': naturalVoice,
+        'voiceName': voiceName,
+        'voiceSpeed': voiceSpeed,
         'username': username,
         'pronouns': pronouns,
         'bio': bio,
@@ -341,6 +360,9 @@ class AppSettings {
       goalSetupDone: (j['goalSetupDone'] as bool?) ?? d.goalSetupDone,
       tier: savedTier,
       displayName: (j['displayName'] as String?) ?? d.displayName,
+      naturalVoice: (j['naturalVoice'] as bool?) ?? d.naturalVoice,
+      voiceName: (j['voiceName'] as String?) ?? d.voiceName,
+      voiceSpeed: num_(j['voiceSpeed'], d.voiceSpeed).clamp(0.7, 1.4),
       username: (j['username'] as String?) ?? d.username,
       pronouns: (j['pronouns'] as String?) ?? d.pronouns,
       bio: (j['bio'] as String?) ?? d.bio,

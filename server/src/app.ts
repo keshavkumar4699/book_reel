@@ -12,6 +12,7 @@ import { QuotaExceeded, SegmentService, TierNotEligible, type Caller } from "./s
 import { landingPage, ShareSchema, ShareService } from "./social/shares.js";
 import { SyncPushSchema, SyncService } from "./social/sync.js";
 import type { QuotaStore } from "./stores/memory.js";
+import { SpeechQuotaExceeded, SpeechRequestSchema, SpeechUnavailable, type SpeechService } from "./speech/tts.js";
 import { BookProfiler, BookProfileRequestSchema, type VoiceChooser } from "./typography/profile.js";
 
 const ProfileBodySchema = z.object({
@@ -35,6 +36,8 @@ export interface AppDeps {
   androidCertFingerprints?: string[];
   /** AI book designer (picks each book's typographic voice). */
   voiceChooser?: VoiceChooser;
+  /** Natural read-aloud voice; without it the app uses the phone's voice. */
+  speech?: SpeechService;
   logger?: boolean;
 }
 
@@ -66,6 +69,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (err instanceof QuotaExceeded) return reply.code(402).send({ error: "quota_exceeded", limit: err.limit });
     if (err instanceof TierNotEligible) return reply.code(403).send({ error: "tier_not_eligible", message: err.message });
     if (err instanceof HandleTaken) return reply.code(409).send({ error: "handle_taken", message: err.message });
+    if (err instanceof SpeechQuotaExceeded) return reply.code(429).send({ error: "speech_quota", limit: err.limit });
+    if (err instanceof SpeechUnavailable) return reply.code(503).send({ error: "tts_unavailable", message: err.message });
     if (err instanceof InvalidHandle) return reply.code(400).send({ error: "invalid_handle", message: err.message });
     const status = (err as { statusCode?: number }).statusCode;
     if (status && status < 500) return reply.code(status).send({ error: (err as Error).message });
@@ -202,6 +207,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return reply.code(403).send({ error: "tier_not_eligible", message: "AI book design is available on Lite, Plus, Pro and Scholar." });
     }
     return profiler.profile(body);
+  });
+
+  // ------------------------------------------------------------ read aloud
+  app.post("/v1/tts", async (req, reply) => {
+    const c = await caller(req);
+    const body = SpeechRequestSchema.parse(req.body);
+    if (!deps.speech) return reply.code(503).send({ error: "tts_unavailable", message: "No speech provider is configured." });
+    const out = await deps.speech.speak(c.userId, body);
+    return reply
+      .header("content-type", out.contentType)
+      .header("cache-control", "private, max-age=31536000, immutable")
+      .header("x-cache", out.cached ? "hit" : "miss")
+      .send(out.audio);
   });
 
   // ------------------------------------------------------------ share links & web pages
