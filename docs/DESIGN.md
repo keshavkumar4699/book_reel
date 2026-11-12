@@ -103,7 +103,7 @@ Must-have reader features:
 - Full-text search inside a book.
 - Bookmarks, highlights (4 colours), notes.
 - Letter- and word-spacing controls (these help dyslexic readers more than special fonts).
-- Text-to-speech using Android TTS: plays the current card and auto-advances. Sentence highlighting during playback.
+- **Read aloud** with a natural neural voice: plays the current reel and auto-advances. The server (`POST /v1/tts`) synthesises each passage with an OpenAI-compatible speech API (default: Kokoro-82M, Apache-2.0, hosted); audio is cached on the server and on the phone (replays are instant, free and offline) and the next reel is fetched while one plays. Four voices and a speed setting. Free: about 25 minutes of new listening a day; paid: about 6 hours. Without a server, offline or over the allowance, the phone's most natural installed voice reads (Android TTS).
 - Brightness control and a "keep screen on" setting.
 - Offline reading; processed books are fully cached.
 - Multi-device sync of progress, highlights, notes and saved cards (signed-in users).
@@ -232,7 +232,7 @@ Reading (card length, AI hook titles on/off, key-point highlight style, hard-wor
 | PDF text | PDFium-based (e.g. `pdfrx`) | Text extraction plus layout heuristics: header/footer removal, de-hyphenation, column order |
 | Sentence splitting | Rule-based splitter (abbreviations list, quotes, ellipses) on device | Gives stable sentence IDs |
 | On-device LLM | Small open-weight model (Gemma-class, 1–2B, 4-bit) via MediaPipe LLM Inference / `flutter_gemma` | Optional ~0.6–1.5 GB download; only on devices with ≥ 6 GB RAM |
-| TTS | `flutter_tts` (Android TTS engine) | |
+| TTS | Server `/v1/tts` (Kokoro-82M via an OpenAI-compatible speech API) + `just_audio`; `flutter_tts` fallback | On-device neural voices were rejected for now: Kokoro runs slower than real time on mid-range phones and its espeak-ng phonemiser is GPL; Supertonic is OpenRAIL-restricted |
 | Share | `share_plus` + Instagram Stories intent via a small platform channel | Images rendered with `RepaintBoundary.toImage` at 1080×1920 |
 | Deep links | Android App Links (own domain) | Do not use Firebase Dynamic Links (shut down 2025) |
 | Billing | `in_app_purchase` (Google Play Billing) | Server-side verification required |
@@ -426,7 +426,9 @@ For comparison, v1 (one pass, ~120-word cards, no art direction) cost ≈ $0.02 
 Planning number: expected ≈ 40% of the worst case. Validate in a pilot with real token counts (`usage` logging is built in: `ai_usage` table).
 
 ### 5.3 Infrastructure cost (rough, at 50k MAU)
-Cloud Run + Cloud SQL + Storage + CDN ≈ $600–1,200/month → **≈ $0.02/MAU**. No audio streaming: scene sounds ship inside the app.
+Cloud Run + Cloud SQL + Storage + CDN ≈ $600–1,200/month → **≈ $0.02/MAU**. Scene sounds ship inside the app.
+
+**Read-aloud voice.** Hosted Kokoro-82M costs about $0.62–0.99 per million characters (OpenRouter / DeepInfra listings, Nov 2026). A whole novel (≈ 550k characters) is ≈ $0.50; a heavy listener (30 min a day) ≈ $0.45 a month. The daily allowance caps it: Free ≤ 20k characters (≈ $0.02/day), paid ≤ 300k (≈ $0.30/day, rarely reached). Audio is cached by text and voice, so popular public-domain books are synthesised once for everyone. (Cached audio sits in Postgres today; move it to Cloud Storage beyond a few GB.)
 
 ### 5.4 Cheaper model options (researched Nov 2026)
 Cost per book if **both passes** ran on one model, using this section's token profile (about 0.35M input and 0.2M output tokens per book, including some thinking). Prices are per million tokens (input / output) from the providers' published rates or price trackers in Nov 2026; trackers disagree in places, so re-check before switching.
@@ -497,6 +499,9 @@ US prices, net after the Play fee: Lite $3.39, Plus $7.64, Pro $16.99, Scholar $
 India (net after the fee at ₹88/$): Lite $1.44, Plus $3.85, Pro $8.68, Scholar $12.55. With India quotas (8 / 4 / 4 / 3) the typical-worst margins are 33% / 28% / 41% / 39% and the expected margins about 73% / 71% / 76% / 76%.
 
 Scholar's absolute-worst margin is thin (8% in the US, 7% in India) because Fable costs twice Opus per token. It stays positive, and Batch pricing, the shared cache and unfinished books bring the expected cost far lower. If the pilot measures more thinking than estimated, lower Scholar to 5 books, or move it to Opus at `high` effort with more books. Quotas and prices are set by region on the server (`server/src/config.ts`), so they can be tuned after the pilot without an app update.
+
+### 6.2b Billing (Google Play)
+Plans are Play subscriptions (`bookreel_<plan>`, monthly and yearly base plans, local prices set in Play Console). The app never decides the plan: the server verifies every purchase token with the Play Developer API, keeps the entitlement in step through real-time notifications, and (with `BILLING_ENFORCED=1`) serves the verified plan to all AI features. A cancelled plan lasts until its paid period ends; a payment on hold stops it. Restoring on a new phone moves the plan to that account.
 
 ### 6.3 Other revenue (later)
 - One-time "AI book pack" purchases: process 1 extra book with Sonnet/Opus, ₹49 / $0.99.

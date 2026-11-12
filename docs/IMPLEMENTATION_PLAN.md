@@ -36,11 +36,13 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 | 7c | Full AI direction | Two-pass AI (structure on the tier model, per-card art direction on Haiku), full-screen lyric typography, 8 scenes with AI Auto scene, v2 pricing | 7b | ✅ Done (verified against mocked Claude; live-API pilot still to do) |
 | 7d | Calm reels | Scene-matched text palettes with measured contrast, spotlight reels (one text size per reel), text kept in the middle of the screen with long text continued on the next reel, fonts chosen per book (AI on paid tiers, rules on device) | 7c | ✅ Done (feed is built on the UI thread: fine for novels, move to an isolate if very long books open slowly) |
 | 7e | Scene sounds | AI music removed (no licensing needed); each scene plays its own ambient sound from bundled public-domain/CC recordings, for every tier, mutable in one tap | 7d | ✅ Done |
+| 7f | Immersive UI, profile, highlights | App-drawn sheets/dialogs/toasts/controls over the scene, compact settings, tappable streak and goal, reels share arrow, smoother scenes; Instagram-style profile; highlights with drag handles | 7e | ✅ Done |
+| 7g | Natural voice | Read-aloud with a neural voice (Kokoro via `POST /v1/tts`, cached on server and phone, next reel prefetched), phone voice fallback with the best installed voice | 7f | ✅ Done in code; needs `TTS_API_KEY` on the server |
 | 8 | Monetization & free-tier AI | Play Billing, entitlements, tier routing, regional pricing, on-device LLM | 6, 7 | 🟡 Tier routing and regional quotas done; billing and on-device model to do |
 | 9 | Quality & launch | Gold-set evaluation, accessibility audit, performance, closed beta, Play listing | all | ⬜ Not started |
 
 ### Verification so far
-- App: `flutter analyze` clean; 50 tests (parsers, segmenter, lexicon, habit engine, feed, data layer, AI client contract, two-device sync against a fake server, reader and Friends widget tests).
+- App (Nov 2026): `flutter analyze` clean; 118 tests. Server: 58 tests. Earlier: app 50 tests (parsers, segmenter, lexicon, habit engine, feed, data layer, AI client contract, two-device sync against a fake server, reader and Friends widget tests).
 - Server: `tsc` clean; 35 tests against real Postgres SQL via embedded PGlite (segmenter, validator, prompt, Claude client against a mocked SDK, service incl. quota/refusal/batch, activity/streaks/leagues/friends, sync, share pages, Firebase token verification, HTTP API, data surviving a restart).
 - Android: CI builds a debug APK (first green run: CI #2). `flutter_local_notifications` is pinned to 22.x because 23.0 needs compileSdk 37, which Flutter 3.47's Android Gradle plugin (9.1) doesn't support yet.
 - **Not yet verified:** the app on real devices (behaviour and performance), and a live Claude call with a real API key.
@@ -129,7 +131,21 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 
 ## Phase 8 — Monetization & free-tier AI
 - **Done:** tier → model routing, monthly AI-book quotas with regional limits (server).
-- **To do:** Google Play Billing (`in_app_purchase`) + server verification + RTDN; paywall surfaces (Today/settings only, weekly cap); on-device open-weight LLM for the Free tier (`flutter_gemma` / MediaPipe) with a device capability check; rules-only fallback (already the default).
+- **Done (code):** Google Play Billing. The app (`app/lib/services/billing.dart`) sells `bookreel_lite`, `bookreel_plus`, `bookreel_pro` and `bookreel_scholar` subscriptions with `monthly` and `yearly` base plans at Play's local prices, shows free trials, switches plans with proration and restores purchases. Every purchase is verified by the server (`server/src/billing/play.ts`: Play Developer API `purchases.subscriptionsv2` with a service account) before the plan changes and is acknowledged only after that. Real-time developer notifications (`POST /v1/billing/rtdn`) keep renewals, cancellations, holds and upgrades in step. With `BILLING_ENFORCED=1` the server serves the verified plan to every AI endpoint instead of the plan the app claims.
+- **To do:** paywall surfaces beyond the plan sheet (Today/settings only, weekly cap); an on-device open-weight LLM for the Free tier (`flutter_gemma` / MediaPipe) with a device capability check (rules-only fallback is already the default).
+
+## Launch checklist (needs your accounts)
+These steps need your own accounts, keys or decisions, so they can't be done in code. In order:
+
+1. **Server hosting.** Create a Google Cloud project. Deploy `server/` to Cloud Run with a Cloud SQL (Postgres) database: set `DATABASE_URL`, `PUBLIC_BASE_URL` (your domain) and the keys below as **secrets** (Secret Manager), never in code.
+2. **AI keys.** An Anthropic API key (`ANTHROPIC_API_KEY`, with standard 30-day retention so Scholar's Fable model works) and a speech key (`TTS_API_KEY`; default provider DeepInfra running Kokoro-82M, about $1 per million characters; any OpenAI-compatible speech API works via `TTS_BASE_URL`/`TTS_MODEL`). Run a small pilot and compare real `ai_usage` costs with DESIGN.md §5.
+3. **Release signing.** Create an upload key and Play App Signing; replace the debug signing in `app/android/app/build.gradle.kts`, choose the final application ID (`PLAY_PACKAGE_NAME`).
+4. **Play Console** ($25 one-time developer account). Create the app, the store listing, the content rating and the Data safety form, plus a privacy policy page (DPDP/GDPR).
+5. **Subscriptions.** In Play Console create the four products (`bookreel_lite`, `bookreel_plus`, `bookreel_pro`, `bookreel_scholar`), each with `monthly` and `yearly` base plans and regional prices (DESIGN.md §6.1), plus a 7-day free-trial offer.
+6. **Billing verification.** Create a Google Cloud service account, grant it access in Play Console (Users and permissions → financial data and order management), save its JSON key as `PLAY_SERVICE_ACCOUNT_JSON`. Create a Pub/Sub topic for real-time developer notifications with a push subscription to `https://<server>/v1/billing/rtdn?secret=<PLAY_RTDN_SECRET>`, and set `BILLING_ENFORCED=1` once purchases verify end to end.
+7. **Google sign-in and push.** Create a Firebase project (adds the app's SHA-1/SHA-256), set `FIREBASE_PROJECT_ID`, then add `firebase_auth`/`google_sign_in` and FCM to the app (Phase 7 to-do).
+8. **App Links.** Point your domain at the server, set `ANDROID_CERT_SHA256` and add the intent filter (Phase 7 to-do).
+9. **Closed testing.** Upload a release build to an internal/closed test track, add licence testers (test purchases cost nothing), test buying, switching, cancelling and restoring plans, then run the Phase 9 checks (accessibility, low-end phones) before production.
 
 ## Phase 9 — Quality & launch
 - Segmentation gold set (40 books, human boundaries) + evaluation script; gate prompt/model changes on it.

@@ -85,6 +85,14 @@ Configuration (all optional locally):
 | `FIREBASE_PROJECT_ID` | Enables Google sign-in (Firebase ID tokens); without it, accounts are per device |
 | `PUBLIC_BASE_URL` | Base URL for share and invite links |
 | `ANDROID_CERT_SHA256` | Signing-certificate fingerprints for Android App Links |
+| `TTS_API_KEY` | Natural read-aloud voice (secret). Without it the app uses the phone's voice |
+| `TTS_BASE_URL`, `TTS_MODEL` | OpenAI-compatible speech API (default `https://api.deepinfra.com/v1/openai`, `hexgrad/Kokoro-82M`) |
+| `PLAY_PACKAGE_NAME` | Android package name, for Play Billing |
+| `PLAY_SERVICE_ACCOUNT_JSON` | Service-account key with Play Console access, to verify purchases (secret) |
+| `PLAY_RTDN_SECRET` | Secret in the Pub/Sub push URL for Play real-time notifications (secret) |
+| `BILLING_ENFORCED` | `1`: serve the verified plan instead of the one the app asks for |
+
+Keep keys in your host's secret store (e.g. Cloud Run secrets), never in the repository. What else is needed to launch (Play Console, subscriptions, signing, Firebase) is listed in `docs/IMPLEMENTATION_PLAN.md`, "Launch checklist".
 
 ### AI direction (paid tiers)
 

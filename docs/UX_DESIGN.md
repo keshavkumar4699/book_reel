@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Companion to** | [`DESIGN.md`](./DESIGN.md) |
-| **Status** | Draft v1.0 (Revision 6) |
+| **Status** | Draft v1.0 (Revision 7) |
 | **Date** | 2026-11-12 |
 | **Lenses** | Behavioural psychology · Interaction & visual design · Flutter engineering |
 
@@ -48,6 +48,14 @@
 > | **Smoother** | Scenes paint their still parts once into an image and draw only light motion (fireflies, rain, snow, stars) with pre-blurred sprites, about 30 times a second. Nothing is blurred per frame, the scene no longer repaints while reels scroll (Revision 2's parallax is gone), and it stops when hidden or in the background. Reel entrances move layers instead of rebuilding the card each frame; hard words are found once per reel; covers decode at the size shown; text has one small shadow. CI now builds **release** APKs, which run several times faster than debug builds. |
 >
 > Accessibility is unchanged or better: every control has a label and its actions for screen readers (switch state, slider up and down), targets are at least 48 dp, and the kit's colours are checked for every scene: text on sheets ≥ 7:1, secondary text and button labels ≥ 4.5:1 (`app/test/ui/kit_test.dart`).
+
+> **Revision 7 (adjustable highlights, a real profile, a natural voice).**
+>
+> | Change | What the reader sees |
+> |---|---|
+> | **Highlights you can shape** | A tap still highlights the sentence at once, and now shows two handles (a caret with a round knob, like text selection) and a small toolbar: four colours, note, copy, remove, done. Dragging a handle snaps to whole words and can run across sentences on the reel; dragging one past the other swaps them. The reel holds still while adjusting; a tap elsewhere finishes. Tapping a highlight picks it up again; overlapping highlights merge (notes kept). |
+> | **Profile, Instagram style** | Avatar (photo, emoji or initial; a ring once today's goal is done), books / streak / saved, name and pronouns, @username, bio, what you're reading, favourite genres, Edit profile and Share profile, a shelf of book circles with progress rings, and tabs for saved quotes (a grid), books and stats. No follower counts, no public likes: the ethical guardrails (§8) still hold. |
+> | **A natural reading voice** | Listen uses a neural voice that sounds close to a person reading, with four voices and a speed setting. Audio is kept on the phone (instant, offline replays) and the next reel is fetched while one plays, so listening flows. The phone's best installed voice takes over offline. |
 
 ## 0. The answer in one paragraph
 
