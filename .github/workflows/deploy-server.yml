@@ -1,0 +1,66 @@
+name: Deploy server
+
+# Builds the server image and deploys it to Cloud Run (Production plan A6).
+# Runs on a tag like server-v1.2.0, or by hand from the Actions tab. It does
+# nothing until the Google Cloud variables below are set (docs/DEPLOY.md).
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["server-v*"]
+
+jobs:
+  deploy:
+    if: vars.GCP_PROJECT != ''
+    name: Build and deploy to Cloud Run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # keyless sign-in to Google Cloud (Workload Identity Federation)
+    env:
+      PROJECT: ${{ vars.GCP_PROJECT }}
+      REGION: ${{ vars.GCP_REGION || 'asia-south1' }}
+      SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'cloro-api' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push the image
+        run: |
+          IMAGE="$REGION-docker.pkg.dev/$PROJECT/cloro/api:${GITHUB_SHA::12}"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" server
+          docker push "$IMAGE"
+
+      - name: Deploy
+        env:
+          # Extra settings and secrets, as Cloud Run expects them (docs/DEPLOY.md):
+          # CLOUD_RUN_ENV      e.g. PUBLIC_BASE_URL=https://cloro.example,SUPPORT_EMAIL=help@cloro.example
+          # CLOUD_RUN_SECRETS  e.g. DATABASE_URL=cloro-database-url:latest,ANTHROPIC_API_KEY=cloro-anthropic-key:latest
+          EXTRA_ENV: ${{ vars.CLOUD_RUN_ENV }}
+          SECRETS: ${{ vars.CLOUD_RUN_SECRETS }}
+          SQL: ${{ vars.CLOUD_SQL_INSTANCE }}
+          RUNTIME_SA: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+        run: |
+          args=(--image "$IMAGE" --region "$REGION" --project "$PROJECT"
+                --allow-unauthenticated --port 8080 --cpu 1 --memory 512Mi
+                --min-instances 0 --max-instances 10 --concurrency 80 --timeout 120)
+          envs="NODE_ENV=production,TRUST_PROXY=1"
+          [ -n "$EXTRA_ENV" ] && envs="$envs,$EXTRA_ENV"
+          args+=(--set-env-vars "$envs")
+          [ -n "$SECRETS" ] && args+=(--set-secrets "$SECRETS")
+          [ -n "$SQL" ] && args+=(--add-cloudsql-instances "$SQL")
+          [ -n "$RUNTIME_SA" ] && args+=(--service-account "$RUNTIME_SA")
+          gcloud run deploy "$SERVICE" "${args[@]}"
+
+      - name: Smoke test
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT" --format 'value(status.url)')
+          curl -fsS --retry 5 --retry-delay 3 "$URL/healthz"

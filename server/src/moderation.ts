@@ -38,6 +38,8 @@ export const LIMITS = {
   share: [{ limit: 60, windowMs: HOUR }],
   report: [{ limit: 30, windowMs: DAY }],
   block: [{ limit: 60, windowMs: HOUR }],
+  /** Crash reports from the app. */
+  error: [{ limit: 30, windowMs: HOUR }],
   /** Every /v1 request, per IP address. */
   ip: [{ limit: 600, windowMs: MIN }],
 } satisfies Record<string, Limit[]>;

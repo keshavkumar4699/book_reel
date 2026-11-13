@@ -23,10 +23,20 @@ import { MoodInvalid, MoodQuotaExceeded, MoodSuggestSchema, MoodUnavailable, typ
 import { SegmentRequestSchema } from "./segmentation/schema.js";
 import { QuotaExceeded, SegmentService, TierNotEligible, type Caller } from "./segmentation/service.js";
 import { escapeHtml, landingPage, ShareSchema, ShareService } from "./social/shares.js";
+import { errorEvent } from "./logging.js";
 import { SyncPushSchema, SyncService } from "./social/sync.js";
 import type { QuotaStore } from "./stores/memory.js";
 import { SpeechQuotaExceeded, SpeechRequestSchema, SpeechUnavailable, type SpeechService } from "./speech/tts.js";
 import { BookProfiler, BookProfileRequestSchema, type VoiceChooser } from "./typography/profile.js";
+
+const AppErrorSchema = z
+  .object({
+    message: z.string().max(500),
+    stack: z.string().max(8000).default(""),
+    version: z.string().max(40).default("unknown"),
+    platform: z.string().max(40).default("android"),
+  })
+  .strict();
 
 const ProfileBodySchema = z.object({
   display_name: z.string().max(80).optional(),
@@ -69,13 +79,14 @@ export interface AppDeps {
   limiter?: RateLimiter;
   /** Behind a load balancer: the client's address comes from X-Forwarded-For. */
   trustProxy?: boolean;
-  logger?: boolean;
+  /** true, false, or pino options (Cloud Run: cloudLoggerOptions). */
+  logger?: boolean | Record<string, unknown>;
 }
 
 const ANDROID_PACKAGE = "app.sweatik2.cloro";
 
 export function buildApp(deps: AppDeps): FastifyInstance {
-  const app = Fastify({ logger: deps.logger ?? false, bodyLimit: 8 * 1024 * 1024, trustProxy: deps.trustProxy ?? false });
+  const app = Fastify({ logger: (deps.logger ?? false) as boolean, bodyLimit: 8 * 1024 * 1024, trustProxy: deps.trustProxy ?? false });
   const baseUrl = (deps.publicBaseUrl ?? "http://localhost:8787").replace(/\/$/, "");
   const activity = new ActivityService(deps.db);
   const feeds = new FeedService(deps.db);
@@ -114,7 +125,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   };
   const week = (req: FastifyRequest) => weekKey(localDateKey(new Date(), tzOffset(req)));
 
-  app.setErrorHandler((err, _req, reply) => {
+  app.setErrorHandler((err, req, reply) => {
     if (err instanceof ZodError) return reply.code(400).send({ error: "invalid_request", issues: err.issues.slice(0, 10) });
     if (err instanceof RateLimited) {
       return reply.code(429).header("retry-after", String(err.retryAfterSec)).send({ error: "rate_limited", retry_after: err.retryAfterSec });
@@ -137,7 +148,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (err instanceof MoodInvalid) return reply.code(502).send({ error: "mood_invalid", message: err.message });
     const status = (err as { statusCode?: number }).statusCode;
     if (status && status < 500) return reply.code(status).send({ error: (err as Error).message });
-    app.log.error(err);
+    // An Error Reporting event: grouped by stack trace, with counts and alerts.
+    const e = err as Error;
+    app.log.error(
+      errorEvent("cloro-api", process.env.K_REVISION, e.stack ?? String(err), { httpRequest: { method: req.method, url: req.routeOptions.url ?? "" } }),
+      e.message,
+    );
     return reply.code(500).send({ error: "internal" });
   });
 
@@ -190,6 +206,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       daily_goal_cards: u.daily_goal_cards,
       signed_in: !u.id.startsWith("device:"),
     };
+  });
+
+  // Crash reports from the app (Production plan A7): logged as Error Reporting
+  // events. No account is created and no reader id is logged.
+  app.post("/v1/errors", async (req, reply) => {
+    const c = await auth.resolve(req);
+    limit("error", c.userId);
+    const e = AppErrorSchema.parse(req.body);
+    app.log.error(errorEvent("cloro-app", e.version, `${e.message}\n${e.stack}`.trim(), { platform: e.platform }), e.message);
+    return reply.code(204).send();
   });
 
   // Your data (Production plan A3): download all of it, or delete the account.

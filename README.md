@@ -11,6 +11,7 @@ Read books as a feed of short "reel" cards: real pages from your EPUBs and PDFs,
 | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Phases, status, and the launch checklist |
 | [`docs/CLORO_PLAN.md`](docs/CLORO_PLAN.md) | The Cloro redesign (steps 1–9, all done) |
 | [`docs/PRODUCTION_PLAN.md`](docs/PRODUCTION_PLAN.md) | What's left for a production launch, in order |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md) | Deploying the server (Cloud Run), release signing, error reporting and alerts |
 
 ## The app at a glance
 
@@ -108,6 +109,7 @@ ANTHROPIC_API_KEY=... npm run dev     # http://localhost:8787
 | `POST /v1/mood/suggest` | Gemma's guess at the reader's mood, from the mood log only |
 | `POST`/`DELETE /v1/social/block/:userId`, `GET /v1/social/blocked`, `POST /v1/reports` | Blocking (both ways: no follows, profiles, feed or comments) and reports |
 | `GET /v1/admin/reports`, `POST /v1/admin/reports/:id` | Report review (only with `ADMIN_TOKEN`) |
+| `POST /v1/errors` | Crash reports from the app (Error Reporting events) |
 | `GET /v1/sync?since=`, `PUT /v1/sync` | Notebook and reading-position sync |
 | `POST /v1/share`, `GET /c/:id`, `GET /i/:code`, `GET /.well-known/assetlinks.json` | Share links, preview pages, invites, App Links |
 | `POST /v1/book/profile` | The AI's choice of fonts for a book (paid plans) |
@@ -133,6 +135,7 @@ Configuration (all optional locally):
 | `MODERATION_WORDS_FILE` | Words and phrases (one per line) kept out of names, bios and comments. Links and staff-like usernames are always refused |
 | `ADMIN_TOKEN` | Turns on report review (secret; sent as `x-admin-token`) |
 | `TRUST_PROXY` | `1` behind a load balancer (Cloud Run), so rate limits see the reader's address |
+| `NODE_ENV` | `production` on Cloud Run: requires a Postgres `DATABASE_URL` and logs in Cloud Logging's format |
 
 Keep keys in your host's secret store (e.g. Cloud Run secrets), never in the repository. What else is needed to launch (Play Console, subscriptions, signing, Firebase) is listed in `docs/IMPLEMENTATION_PLAN.md`, "Launch checklist".
 

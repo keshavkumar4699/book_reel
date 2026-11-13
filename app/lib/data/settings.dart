@@ -122,6 +122,7 @@ class AppSettings {
     this.moodScenes = true,
     this.moodAsk = MoodAsk.learning,
     this.online = true,
+    this.crashReports = true,
   });
 
   final ReadingThemeId theme;
@@ -204,6 +205,9 @@ class AppSettings {
   /// deleted, so nothing is uploaded again until you choose to.
   final bool online;
 
+  /// Send error details (never book text on purpose) to help fix crashes.
+  final bool crashReports;
+
   GoalConfig get goal => GoalConfig(
         unit: goalUnit,
         dailyTarget: dailyGoal,
@@ -264,6 +268,7 @@ class AppSettings {
     bool? moodScenes,
     MoodAsk? moodAsk,
     bool? online,
+    bool? crashReports,
   }) =>
       AppSettings(
         theme: theme ?? this.theme,
@@ -316,6 +321,7 @@ class AppSettings {
         moodScenes: moodScenes ?? this.moodScenes,
         moodAsk: moodAsk ?? this.moodAsk,
         online: online ?? this.online,
+        crashReports: crashReports ?? this.crashReports,
       );
 
   Map<String, dynamic> toJson() => {
@@ -369,6 +375,7 @@ class AppSettings {
         'moodScenes': moodScenes,
         'moodAsk': moodAsk.name,
         'online': online,
+        'crashReports': crashReports,
         'planVersion': currentPlanVersion,
       };
 
@@ -447,6 +454,7 @@ class AppSettings {
       moodScenes: (j['moodScenes'] as bool?) ?? d.moodScenes,
       moodAsk: pick(MoodAsk.values, j['moodAsk'], d.moodAsk),
       online: (j['online'] as bool?) ?? d.online,
+      crashReports: (j['crashReports'] as bool?) ?? d.crashReports,
     );
   }
 }

@@ -150,6 +150,14 @@ class SettingsScreen extends ConsumerWidget {
             ),
           if (bookreelApi.isNotEmpty)
             KitSwitchRow(
+              icon: Icons.bug_report_outlined,
+              title: 'Send crash reports',
+              subtitle: 'What went wrong and where, never your books',
+              value: s.crashReports,
+              onChanged: (v) => n.update((x) => x.copyWith(crashReports: v)),
+            ),
+          if (bookreelApi.isNotEmpty)
+            KitSwitchRow(
               icon: s.online ? Icons.cloud_rounded : Icons.cloud_off_rounded,
               title: 'Online features',
               subtitle: s.online ? 'Following, the feed, sync, AI cards and share links' : 'Off: everything stays on this phone',

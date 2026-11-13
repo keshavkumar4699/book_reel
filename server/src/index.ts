@@ -8,6 +8,7 @@ import { AnthropicBatchClient } from "./segmentation/batch.js";
 import { ClaudeSegmenter } from "./segmentation/claudeSegmenter.js";
 import { SegmentService } from "./segmentation/service.js";
 import { BillingService, verifierFromEnv } from "./billing/play.js";
+import { cloudLoggerOptions } from "./logging.js";
 import { MoodService, moodModelFromEnv } from "./mood/suggest.js";
 import { SpeechService, speechProviderFromEnv } from "./speech/tts.js";
 import { SqlJobStore, SqlQuotaStore, SqlSegmentCache, SqlUsageLog } from "./stores/sql.js";
@@ -35,6 +36,12 @@ import { SqlJobStore, SqlQuotaStore, SqlSegmentCache, SqlUsageLog } from "./stor
  * - TRUST_PROXY=1        behind a load balancer (Cloud Run): rate limits use the client's address
  */
 const port = Number(process.env.PORT ?? 8787);
+// In production the database must be Postgres: a container's disk is wiped on
+// every restart, so the embedded fallback would silently lose everyone's data.
+if (process.env.NODE_ENV === "production" && !/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "")) {
+  console.error("DATABASE_URL must be a postgres:// URL in production (see docs/DEPLOY.md).");
+  process.exit(1);
+}
 const db = await openDb(process.env.DATABASE_URL ?? "./data/pglite");
 const client = new Anthropic();
 const quota = new SqlQuotaStore(db);
@@ -64,6 +71,17 @@ const app = buildApp({
   supportEmail: process.env.SUPPORT_EMAIL,
   adminToken: process.env.ADMIN_TOKEN,
   trustProxy: process.env.TRUST_PROXY === "1",
-  logger: true,
+  // Cloud Run: JSON lines Cloud Logging and Error Reporting understand.
+  logger: process.env.NODE_ENV === "production" ? cloudLoggerOptions : true,
 });
 await app.listen({ port, host: "0.0.0.0" });
+
+// Cloud Run sends SIGTERM before stopping an instance: finish requests, close the pool.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.once(signal, async () => {
+    app.log.info({ signal }, "shutting down");
+    await app.close();
+    await db.close();
+    process.exit(0);
+  });
+}

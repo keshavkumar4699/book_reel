@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'app.dart';
 import 'data/json_store.dart';
 import 'data/store_provider.dart';
+import 'services/error_reporter.dart';
 import 'services/litert_runtime.dart';
 import 'services/notifications.dart';
 import 'services/on_device_ai.dart';
@@ -18,8 +19,8 @@ Future<void> main() async {
   await ReminderService.instance.init();
   // The Free plan's on-device model runs on LiteRT-LM (loaded only when used).
   OnDeviceAiController.runtimeFactory = LiteRtRuntime.new;
-  runApp(ProviderScope(
-    overrides: [storeProvider.overrideWithValue(store)],
-    child: const BookReelApp(),
-  ));
+  final container = ProviderContainer(overrides: [storeProvider.overrideWithValue(store)]);
+  // Crash reports (Settings → Send crash reports), from here on.
+  ErrorReporter(container).install();
+  runApp(UncontrolledProviderScope(container: container, child: const BookReelApp()));
 }

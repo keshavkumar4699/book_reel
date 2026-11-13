@@ -24,10 +24,17 @@ jobs:
 
   app-build:
     # Release (AOT-compiled) APKs: debug builds run several times slower and
-    # stutter, so judge smoothness on these. Signed with the debug key for now.
-    name: Android release APKs
+    # stutter, so judge smoothness on these. With the upload-key secrets set
+    # (docs/DEPLOY.md, "Release signing") everything is signed with it and a
+    # Play-ready App Bundle is built too; otherwise the debug key signs.
+    name: Android release builds
     runs-on: ubuntu-latest
     needs: app
+    env:
+      HAS_UPLOAD_KEY: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 != '' }}
+      BOOKREEL_API: ${{ vars.BOOKREEL_API }}
+      # Each CI run gets a higher version code, as Play requires.
+      BUILD_NUMBER: ${{ github.run_number }}
     defaults:
       run:
         working-directory: app
@@ -43,11 +50,38 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      # Set the repository variable BOOKREEL_API (your server's https address)
-      # to build APKs that use it; unset builds the offline Free app.
-      - run: flutter build apk --release --split-per-abi --dart-define=BOOKREEL_API="$BOOKREEL_API"
+      - name: Version (pubspec name + CI run number)
+        run: echo "APP_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)+$BUILD_NUMBER" >> "$GITHUB_ENV"
+      - name: Upload key (when set)
+        if: env.HAS_UPLOAD_KEY == 'true'
         env:
-          BOOKREEL_API: ${{ vars.BOOKREEL_API }}
+          KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE" | base64 -d > android/app/upload-keystore.jks
+          {
+            echo "storeFile=upload-keystore.jks"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/key.properties
+      # Set the repository variable BOOKREEL_API (your server's https address)
+      # to build apps that use it; unset builds the offline Free app.
+      - run: >
+          flutter build apk --release --split-per-abi --build-number="$BUILD_NUMBER"
+          --dart-define=BOOKREEL_API="$BOOKREEL_API" --dart-define=APP_VERSION="$APP_VERSION"
+      - name: App Bundle for Google Play
+        if: env.HAS_UPLOAD_KEY == 'true'
+        run: >
+          flutter build appbundle --release --build-number="$BUILD_NUMBER"
+          --dart-define=BOOKREEL_API="$BOOKREEL_API" --dart-define=APP_VERSION="$APP_VERSION"
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_UPLOAD_KEY == 'true'
+        with:
+          name: cloro-release-aab
+          path: app/build/app/outputs/bundle/release/app-release.aab
       - uses: actions/upload-artifact@v4
         with:
           name: bookreel-release-apk
@@ -72,3 +106,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # The production image (Dockerfile) builds and serves /healthz.
+      - name: Build and smoke-test the server image
+        run: |
+          docker build -t cloro-api .
+          docker run -d --name api -p 8080:8080 -e NODE_ENV=development cloro-api
+          curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://localhost:8080/healthz
+          docker rm -f api

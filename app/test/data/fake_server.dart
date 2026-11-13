@@ -25,6 +25,9 @@ class FakeServer {
   final Set<String> blocked = {};
   final List<Map<String, dynamic>> reports = [];
 
+  /// Crash reports received (POST /v1/errors).
+  final List<Map<String, dynamic>> errors = [];
+
   /// Comments answer 429 while set (too many too fast).
   bool commentsRateLimited = false;
 
@@ -264,6 +267,10 @@ class FakeServer {
         }
         if (path == '/v1/social/blocked') {
           return ok({'items': [for (final id in blocked) if (readers[id] != null) {for (final k in ['user_id', 'display_name', 'handle', 'avatar']) k: readers[id]![k]}]});
+        }
+        if (path == '/v1/errors') {
+          errors.add(body());
+          return http.Response('', 204);
         }
         if (path == '/v1/reports') {
           reports.add(body());

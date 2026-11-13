@@ -103,6 +103,11 @@ class BookReelApi {
     }
   }
 
+  /// A crash report (Settings → Send crash reports): the error and where it
+  /// happened, the app version and platform.
+  Future<void> reportError({required String message, required String stack, required String version}) =>
+      _send('POST', '/v1/errors', {'message': message, 'stack': stack, 'version': version, 'platform': 'android'});
+
   /// Everything the server keeps about you (GET /v1/me/export).
   Future<Map<String, dynamic>> exportData() async => (await _send('GET', '/v1/me/export')) as Map<String, dynamic>;
 
