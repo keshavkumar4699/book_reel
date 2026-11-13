@@ -299,6 +299,6 @@ A scrolling feed of reading activities, newest first:
 | 6 | Light/dark scenes (§5), mood learning + Gemma suggestion (§8) | L — ✅ done |
 | 7 | Profile redesign + followers/following (§11) | L — ✅ done |
 | 8 | Today feed + comments on the server (§10) | L — ✅ done |
-| 9 | Docs, tests, CI, APK | S |
+| 9 | Docs, tests, CI, APK | S — ✅ done (README, `docs/PRODUCTION_PLAN.md`) |
 
 Steps 1–3 are independent and ship first; 4 and 5 go together; 6 needs 3's colour system; 7 and 8 replace the Friends tab, so they ship together with 4's new dock.

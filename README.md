@@ -2,13 +2,34 @@
 
 _Formerly BookReel. Android package `app.sweatik2.cloro`._
 
-Read books as a feed of short "reel" cards: real pages from your EPUBs and PDFs, cut by AI at the right places, with streaks, goals, highlights, word meanings and one-tap sharing.
+Read books as a feed of short "reel" cards: real pages from your EPUBs and PDFs, cut by AI at the right places, on calm moving scenes, with streaks, goals, highlights, word meanings, one-tap sharing, and a Strava-style feed of your reading and the readers you follow.
 
 | Document | What it covers |
 |---|---|
 | [`docs/DESIGN.md`](docs/DESIGN.md) | Product & technical design, AI pipeline, cost model, pricing |
-| [`docs/UX_DESIGN.md`](docs/UX_DESIGN.md) | UX/UI guidelines grounded in behavioural research |
-| [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Phases, status, and what's left |
+| [`docs/UX_DESIGN.md`](docs/UX_DESIGN.md) | UX/UI guidelines grounded in behavioural research (Revisions 1–12) |
+| [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Phases, status, and the launch checklist |
+| [`docs/CLORO_PLAN.md`](docs/CLORO_PLAN.md) | The Cloro redesign (steps 1–9, all done) |
+| [`docs/PRODUCTION_PLAN.md`](docs/PRODUCTION_PLAN.md) | What's left for a production launch, in order |
+
+## The app at a glance
+
+Five tabs, icons only: **Reading · Library · Notebook · Today · Profile**.
+
+- **Reading.** The reels of the book you're reading, and the app opens here.
+  - A book opens at its introduction, not the copyright page.
+  - It opens in **focus mode**: just the scene and the text. Tap empty space to show the controls; the eye button hides them again.
+  - Tap a word for its meaning. Long-press a word to highlight it, or long-press empty space for options.
+  - Swipe left to save, right to share.
+  - The right rail: like, save, note, share, listen, streak, goal, options.
+- **Scenes.** 4 by day (Meadow, Forest morning, Beach, Snow day) and 4 by night (Night, Rain, City, Café), each with its own ambient sound and contrast-tested text colours.
+- **Mood.** While learning, Cloro asks "How are you feeling?" (at most every 3 hours) and opens the book in a scene to match. After that, Google's **Gemma** predicts your mood, on the phone or on the server, with a "· change" chip to correct it.
+- **Today.** Your goal ring, streak and the book to continue. Below them, the **Activity** feed: your reading sessions and milestones and those of readers you follow, with kudos and comments. Offline it shows your own sessions.
+- **Profile.**
+  - Photo (with a crop step), name · pronouns, public **followers · following**, bio, what you're reading and up to 3 genres.
+  - This week, streak, stats, trophies, books and saved quotes.
+  - Find people by @username.
+- **Look.** Black, white and greys everywhere except the reader's scene. The logo red appears only on the logo, the streak flame, the liked heart and badges. Flat lists, with lines only between groups.
 
 ## Repository layout
 
@@ -45,7 +66,11 @@ Every CI run builds release APKs (artifact **bookreel-release-apk** on the run's
 flutter build apk --release --split-per-abi
 ```
 
-With a server configured the app also syncs your notebook and reading position, uploads reading activity, and turns on the Friends tab (league, friends board, feed with kudos, invite codes) and share links.
+With a server configured the app also:
+- syncs your notebook and reading position;
+- uploads reading activity and sessions;
+- turns on following, the Today feed (kudos and comments), the League page (league, board, invite codes) and share links;
+- uses Gemma mood suggestions when `MOOD_API_KEY` is set.
 
 How a reel looks (details and sources in `docs/UX_DESIGN.md`, Revision 4):
 
@@ -75,7 +100,11 @@ ANTHROPIC_API_KEY=... npm run dev     # http://localhost:8787
 | `GET /v1/me`, `PUT /v1/me/profile`, `GET /v1/me/streak`, `GET /v1/me/ai-usage` | Account, invite code, streak, AI quota |
 | `POST /v1/activity/batch`, `POST /v1/activity/book-finished` | Reading events, re-verified server-side |
 | `GET /v1/leagues/current`, `GET /v1/leaderboards/friends` | Weekly league and friends board |
-| `POST /v1/social/follow-code`, `DELETE /v1/social/follow/:userId`, `GET /v1/feed`, `POST /v1/activities/:id/kudos` | Friends, feed and kudos |
+| `POST /v1/social/follow/:userId`, `DELETE /v1/social/follow/:userId`, `POST /v1/social/follow-handle`, `POST /v1/social/follow-code` | Following (one way); an invite code makes both readers follow each other |
+| `GET /v1/users/:id`, `GET /v1/users/:id/followers`, `GET /v1/users/:id/following` | A reader's public profile (`me`, a user id or `@handle`) and their lists |
+| `GET /v1/feed?before=`, `POST /v1/activities/session`, `POST /v1/activities/:id/kudos` | The Today feed (20 at a time), reading sessions, kudos |
+| `GET`/`POST /v1/activities/:id/comments`, `DELETE /v1/comments/:id` | Comments on activities |
+| `POST /v1/mood/suggest` | Gemma's guess at the reader's mood, from the mood log only |
 | `GET /v1/sync?since=`, `PUT /v1/sync` | Notebook and reading-position sync |
 | `POST /v1/share`, `GET /c/:id`, `GET /i/:code`, `GET /.well-known/assetlinks.json` | Share links, preview pages, invites, App Links |
 | `POST /v1/book/profile` | The AI's choice of fonts for a book (paid plans) |
@@ -91,6 +120,8 @@ Configuration (all optional locally):
 | `ANDROID_CERT_SHA256` | Signing-certificate fingerprints for Android App Links |
 | `TTS_API_KEY` | Natural read-aloud voice (secret). Without it the app uses the phone's voice |
 | `TTS_BASE_URL`, `TTS_MODEL` | OpenAI-compatible speech API (default `https://api.deepinfra.com/v1/openai`, `hexgrad/Kokoro-82M`) |
+| `MOOD_API_KEY` | Gemma mood suggestions (secret; falls back to `TTS_API_KEY`). Without it the app predicts the mood itself |
+| `MOOD_BASE_URL`, `MOOD_MODEL` | OpenAI-compatible chat API (default `https://api.deepinfra.com/v1/openai`, `google/gemma-3-12b-it`) |
 | `PLAY_PACKAGE_NAME` | Android package name, for Play Billing |
 | `PLAY_SERVICE_ACCOUNT_JSON` | Service-account key with Play Console access, to verify purchases (secret) |
 | `PLAY_RTDN_SECRET` | Secret in the Pub/Sub push URL for Play real-time notifications (secret) |
@@ -108,14 +139,14 @@ Each scene has its own ambient sound, mixed from looping field recordings bundle
 
 | Scene | Sound |
 |---|---|
-| Forest | wind in the pines, birds, crickets |
-| Café | café murmur, rain outside |
-| Rain | rain, a little distant city |
-| Ocean | waves, sea wind |
+| Meadow (day) | birdsong, a breeze |
+| Forest morning (day) | birdsong, wind in the pines |
+| Beach (day) | surf, sea wind |
+| Snow day (day) | winter wind, a fire in the cabin |
 | Night | crickets, night wind |
-| Meadow | birdsong, a breeze |
-| Snow | crackling fire, wind |
-| City | distant traffic |
+| Rain (night) | rain, a little distant city |
+| City (night) | distant traffic |
+| Café (night) | café murmur, rain outside |
 | Paper | soft brown noise |
 
 It is on by default and follows the scene, including the AI's **Auto** scenes, with a crossfade. The speaker button in the reader (or **Settings → Scene sound**) mutes it, so readers can play their own music instead. The sound mixes with other apps rather than pausing them, stops when the app goes to the background, and gets quieter during read-aloud.

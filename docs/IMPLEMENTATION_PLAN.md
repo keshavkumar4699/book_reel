@@ -40,7 +40,7 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 | 7g | Natural voice | Read-aloud with a neural voice (Kokoro via `POST /v1/tts`, cached on server and phone, next reel prefetched), phone voice fallback with the best installed voice | 7f | ✅ Done in code; needs `TTS_API_KEY` on the server |
 | 7h | Light & dark app, scenes in the reader | Screens outside the reader use a plain light or dark theme (Settings → Appearance: system default, light, dark); scenes appear only while reading (and on its session-end screen); onboarding previews the scene in a window | 7g | ✅ Done |
 | 8 | Monetization & free-tier AI | Play Billing, entitlements, tier routing, regional pricing, on-device LLM | 6, 7 | 🟡 Done in code: Play subscriptions with server verification and real-time notifications, enforced plans, tier routing, regional quotas, and the Free plan's on-device model (LiteRT-LM). To go live: Play Console products + service account (checklist below). Paywall surfaces to do |
-| 10 | Cloro redesign | New name and logo, black/white colour system (the logo red only for the flame, liked heart and badges), flat lists, 4 light + 4 dark scenes, Reading tab with a distraction-free reel, open at the introduction, mood picks the scene (Gemma), Strava-style Today feed and Profile — see `docs/CLORO_PLAN.md` | 8 | 🟡 Steps 1–8 done; final docs, CI and APK (step 9) next |
+| 10 | Cloro redesign | New name and logo, black/white colour system (the logo red only for the flame, liked heart and badges), flat lists, 4 light + 4 dark scenes, Reading tab with a distraction-free reel, open at the introduction, mood picks the scene (Gemma), Strava-style Today feed and Profile — see `docs/CLORO_PLAN.md` | 8 | ✅ Done (steps 1–9). Next: `docs/PRODUCTION_PLAN.md` |
 | 9 | Quality & launch | Gold-set evaluation, accessibility audit, performance, closed beta, Play listing | all | ⬜ Not started |
 
 ### Verification so far
@@ -138,6 +138,8 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 - **To do:** paywall surfaces beyond the plan sheet (Today/settings only, weekly cap); measure on-device speed and recap quality on low and mid-range phones (Phase 9).
 
 ## Launch checklist (needs your accounts)
+_The full road to production, including work that needs no accounts (account deletion, abuse protection, deployment, monitoring), is in `docs/PRODUCTION_PLAN.md`._
+
 These steps need your own accounts, keys or decisions, so they can't be done in code. In order:
 
 1. **Server hosting.** Create a Google Cloud project. Deploy `server/` to Cloud Run with a Cloud SQL (Postgres) database: set `DATABASE_URL`, `PUBLIC_BASE_URL` (your domain) and the keys below as **secrets** (Secret Manager), never in code.
