@@ -1,6 +1,6 @@
 # Cloro redesign — implementation plan
 
-Status: **planned** (Nov 2026). Phase 10 of `IMPLEMENTATION_PLAN.md`.
+Status: **in progress** (Nov 2026): step 1 done. Phase 10 of `IMPLEMENTATION_PLAN.md`.
 Source: the product owner's change list of 13 Nov 2026. Each item below says what changes, where in the code, and how we know it's done.
 
 ## 0. Before we start (needs you)
@@ -209,7 +209,7 @@ A scrolling feed of reading activities, newest first:
 
 | Step | Items | Size |
 |---|---|---|
-| 1 | Name and package ID (§1), gear icon (§4), colour system (§3) | M |
+| 1 | Name and package ID (§1), gear icon (§4), colour system (§3), icon-only tabs (§9) | M — ✅ done |
 | 2 | Logo, icon, splash (§2) — needs 0.1 | S |
 | 3 | Open at the introduction (§7) | M |
 | 4 | Reading tab + reel overhaul (focus mode, gestures, buttons, note box, progress line) + tab dock (§6, §9) | L |

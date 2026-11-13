@@ -52,7 +52,7 @@ export interface AppDeps {
   logger?: boolean;
 }
 
-const ANDROID_PACKAGE = "app.bookreel.book_reel";
+const ANDROID_PACKAGE = "app.sweatik2.cloro";
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: deps.logger ?? false, bodyLimit: 8 * 1024 * 1024 });
@@ -277,10 +277,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const code = req.params.code.replace(/[^A-Za-z0-9]/g, "").slice(0, 12).toUpperCase();
     return reply.type("text/html; charset=utf-8").send(
       landingPage({
-        title: "Read with me on BookReel",
+        title: "Read with me on Cloro",
         description: "Books as bite-sized cards. Let's keep each other going.",
         url: `${baseUrl}/i/${code}`,
-        body: `<h1>Read with me on BookReel</h1><p>Install the app, open <strong>Friends → Add a friend</strong> and enter this code:</p><p style="font-size:2rem;letter-spacing:.2em;color:inherit"><strong>${code}</strong></p>`,
+        body: `<h1>Read with me on Cloro</h1><p>Install the app, open <strong>Friends → Add a friend</strong> and enter this code:</p><p style="font-size:2rem;letter-spacing:.2em;color:inherit"><strong>${code}</strong></p>`,
       }),
     );
   });

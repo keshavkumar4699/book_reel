@@ -70,7 +70,7 @@ const PROFILE_SCHEMA = {
 };
 
 const SYSTEM =
-  "You are the book designer for BookReel, a reading app that shows books as short full-screen cards. " +
+  "You are the book designer for Cloro, a reading app that shows books as short full-screen cards. " +
   "For each book, choose the typographic voice that best matches what the book is, so its fonts feel right " +
   "to someone who knows the book. Judge from the title, author, subject tags and the opening pages. " +
   "When a book mixes genres, choose the one a reader would name first (a children's fantasy is 'playful'; " +

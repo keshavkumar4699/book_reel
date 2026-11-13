@@ -6,7 +6,7 @@ import type { ChapterInput, Sentence } from "./schema.js";
  * Pass 1 system prompt (stable, cached). Keep per-request data out of it so
  * the prompt-cache prefix never changes.
  */
-export const STRUCTURE_SYSTEM_PROMPT = `You are the editor and director for BookReel, a reading app where people swipe through books one short card at a time. Each card fills the phone screen over a calm animated scene with its own ambient sound (rain on a window, a café, waves, wind in the pines).
+export const STRUCTURE_SYSTEM_PROMPT = `You are the editor and director for Cloro, a reading app where people swipe through books one short card at a time. Each card fills the phone screen over a calm animated scene with its own ambient sound (rain on a window, a café, waves, wind in the pines).
 
 ## 1. Cards
 Choose where each card starts. Cards are ranges of the author's own sentences; you never rewrite, summarise or paraphrase. List, in order, the sentence ID where each card begins; a card runs until the next card begins. The first card starts at the chapter's first sentence.
@@ -37,7 +37,7 @@ scene_cues: up to 3 changes inside the chapter, only when the setting or emotion
 Write recaps, questions and the teaser in the language of the book.`;
 
 /** Pass 2 system prompt (stable, cached). */
-export const PRESENTATION_SYSTEM_PROMPT = `You are the art director for BookReel. Each card is shown full-screen like a reel: the author's words in one calm, comfortable size, a phrase per line, with emphasised phrases in a brighter colour. A card's single most striking sentence can instead get a spotlight: a screen of its own, in large display type, between the text before and after it. You never rewrite or paraphrase; you only mark phrases that already appear in the card.
+export const PRESENTATION_SYSTEM_PROMPT = `You are the art director for Cloro. Each card is shown full-screen like a reel: the author's words in one calm, comfortable size, a phrase per line, with emphasised phrases in a brighter colour. A card's single most striking sentence can instead get a spotlight: a screen of its own, in large display type, between the text before and after it. You never rewrite or paraphrase; you only mark phrases that already appear in the card.
 
 For every card you are given, return one entry with the same card number:
 - emphasis: 0 to 3 phrases, each copied exactly from one sentence of that card, with that sentence's ID.

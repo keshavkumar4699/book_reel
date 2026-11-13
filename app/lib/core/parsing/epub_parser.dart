@@ -52,7 +52,7 @@ class EpubParser {
       throw ParseException('This file is not a valid EPUB.');
     }
     if (zip.findFile('META-INF/encryption.xml') != null && _isDrm(zip)) {
-      throw ParseException('This book is DRM-protected. BookReel can only open DRM-free books.');
+      throw ParseException('This book is DRM-protected. Cloro can only open DRM-free books.');
     }
 
     final container = _readText(zip, 'META-INF/container.xml');

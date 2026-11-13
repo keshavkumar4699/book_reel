@@ -157,7 +157,7 @@ export class BillingService {
   async verify(userId: string, productId: string, purchaseToken: string): Promise<Entitlement> {
     if (!this.verifier) throw new BillingUnavailable("Billing is not configured on this server.");
     const sub = await this.verifier.verify(purchaseToken);
-    if (sub.productId !== productId || !PLAN_PRODUCTS[sub.productId]) throw new InvalidPurchase("purchase is not a BookReel plan");
+    if (sub.productId !== productId || !PLAN_PRODUCTS[sub.productId]) throw new InvalidPurchase("purchase is not a Cloro plan");
     await this.store(purchaseToken, userId, sub);
     return this.current(userId);
   }

@@ -59,7 +59,7 @@ export class ShareService {
     const p = rows[0]?.payload;
     if (!p) return null;
     const title = p.type === "quote" ? `“${limitWords(p.text, 24)}”` : p.headline;
-    const desc = p.type === "quote" ? `${p.author}, ${p.book_title}. Read it on BookReel.` : [...p.lines, "Reading on BookReel"].join(" · ");
+    const desc = p.type === "quote" ? `${p.author}, ${p.book_title}. Read it on Cloro.` : [...p.lines, "Reading on Cloro"].join(" · ");
     const body =
       p.type === "quote"
         ? `<blockquote>${escapeHtml(p.text)}</blockquote><p class="by">— ${escapeHtml(p.author)}, <em>${escapeHtml(p.book_title)}</em></p>`
@@ -71,11 +71,11 @@ export class ShareService {
 export function landingPage(o: { title: string; description: string; url: string; body: string }): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(o.title)} · BookReel</title>
+<title>${escapeHtml(o.title)} · Cloro</title>
 <meta property="og:title" content="${escapeHtml(o.title)}">
 <meta property="og:description" content="${escapeHtml(o.description)}">
 <meta property="og:url" content="${escapeHtml(o.url)}">
-<meta property="og:site_name" content="BookReel">
+<meta property="og:site_name" content="Cloro">
 <meta name="twitter:card" content="summary">
 <style>
 :root{--bg:#FBF8F1;--fg:#1F1D1A;--muted:#7A746A;--accent:#D9822B}
@@ -86,6 +86,6 @@ blockquote{margin:0;font-size:1.25rem}
 .by,p{color:var(--muted)}
 a.cta{display:inline-block;margin-top:24px;background:var(--accent);color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none;font-family:system-ui,sans-serif}
 </style></head><body><main>${o.body}
-<a class="cta" href="https://play.google.com/store/apps/details?id=app.bookreel.book_reel">Read on BookReel</a>
+<a class="cta" href="https://play.google.com/store/apps/details?id=app.sweatik2.cloro">Read on Cloro</a>
 </main></body></html>`;
 }

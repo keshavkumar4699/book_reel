@@ -89,9 +89,9 @@ abstract class DeviceProbe {
   Future<DeviceProfile> read();
 }
 
-/// Asks MainActivity over `app.bookreel/device`.
+/// Asks MainActivity over `app.cloro/device`.
 class PlatformDeviceProbe implements DeviceProbe {
-  static const _channel = MethodChannel('app.bookreel/device');
+  static const _channel = MethodChannel('app.cloro/device');
 
   @override
   Future<DeviceProfile> read() async {

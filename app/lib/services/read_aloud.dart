@@ -56,7 +56,7 @@ class JustAudioSpeechPlayer implements SpeechPlayer {
 }
 
 /// Reads reels aloud (DESIGN.md §2.4). The natural AI voice comes from the
-/// BookReel server (a neural model, Kokoro by default); each passage is kept
+/// Cloro server (a neural model, Kokoro by default); each passage is kept
 /// on the phone, so replays are instant, free and work offline, and the next
 /// reel is fetched while this one plays, so listening flows without gaps.
 /// Without a server, offline or over the daily allowance, the phone's most

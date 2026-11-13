@@ -47,7 +47,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
         KitIconButton(
           icon: Icons.reply_rounded,
           semanticLabel: 'Export as Markdown',
-          onPressed: () => SharePlus.instance.share(ShareParams(text: notebookToMarkdown(n), subject: 'My BookReel notebook')),
+          onPressed: () => SharePlus.instance.share(ShareParams(text: notebookToMarkdown(n), subject: 'My Cloro notebook')),
           child: const ShareArrowIcon(size: 22),
         ),
       ],

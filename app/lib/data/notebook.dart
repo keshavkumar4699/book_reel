@@ -463,7 +463,7 @@ final notebookProvider = NotifierProvider<NotebookNotifier, NotebookState>(Noteb
 
 /// Exports the notebook to Markdown (DESIGN.md §2.7).
 String notebookToMarkdown(NotebookState n) {
-  final b = StringBuffer('# My BookReel notebook\n');
+  final b = StringBuffer('# My Cloro notebook\n');
   final byBook = <String, List<Highlight>>{};
   for (final h in n.highlights) {
     byBook.putIfAbsent(h.bookTitle, () => []).add(h);

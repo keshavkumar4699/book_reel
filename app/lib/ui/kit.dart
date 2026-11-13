@@ -1,4 +1,4 @@
-/// BookReel's own UI kit (UX_DESIGN.md Revisions 6 and 8).
+/// Cloro's own UI kit (UX_DESIGN.md Revisions 6 and 8).
 ///
 /// The reader wears its scene (forest, café, rain…): there every sheet,
 /// dialog, menu, toast and control is drawn in the scene's colours, on top of
@@ -43,66 +43,31 @@ class Kit extends ThemeExtension<Kit> {
     this.motion = true,
   });
 
-  /// The scene's colours, or the reading theme's on the plain paper scene.
+  /// The reader's chrome: the same neutral white or black as the rest of the
+  /// app (by whether the scene is light or dark), keeping the scene itself
+  /// for the backdrop. Sheets and menus no longer take the scene's colour.
   factory Kit.forScene(Vibe vibe, ReadingTheme paper, {bool motion = true}) {
     final p = scenePalettes[vibe];
-    if (p == null) {
-      final dark = paper.isDark;
-      return Kit(
-        vibe: vibe,
-        dark: dark,
-        motion: motion,
-        ink: paper.text,
-        inkSoft: paper.muted,
-        accent: paper.accent,
-        onAccent: dark ? const Color(0xFF1A1208) : const Color(0xFFFFFFFF),
-        glass: dark ? const Color(0x14FFFFFF) : const Color(0xB8FFFFFF),
-        sheet: dark ? Color.alphaBlend(const Color(0x14FFFFFF), paper.background) : Color.alphaBlend(const Color(0xB3FFFFFF), paper.background),
-        stroke: dark ? const Color(0x1FFFFFFF) : const Color(0x17000000),
-        field: dark ? const Color(0x14FFFFFF) : const Color(0x0F000000),
-        barrier: dark ? const Color(0x99000000) : const Color(0x59000000),
-        base: paper.background,
-        danger: dark ? const Color(0xFFFF8A80) : const Color(0xFFB3261E),
-      );
-    }
-    if (p.lightInk) {
-      // Night-side scenes: deep tinted glass, the scene's own light ink.
-      final deep = Color.lerp(p.tint, const Color(0xFF000000), 0.2)!;
-      return Kit(
-        vibe: vibe,
-        palette: p,
-        dark: true,
-        motion: motion,
-        ink: p.ink,
-        inkSoft: p.ink.withValues(alpha: 0.74),
-        accent: p.accent,
-        onAccent: deep,
-        glass: deep.withValues(alpha: 0.46),
-        sheet: Color.alphaBlend(p.ink.withValues(alpha: 0.06), deep),
-        stroke: p.ink.withValues(alpha: 0.13),
-        field: p.ink.withValues(alpha: 0.09),
-        barrier: const Color(0x8C000000),
-        base: deep,
-        danger: const Color(0xFFFF9C94),
-      );
-    }
-    // Daylight scenes: a warm veil and dark ink.
+    final dark = p?.lightInk ?? paper.isDark;
+    final k = dark ? appDark : appLight;
     return Kit(
       vibe: vibe,
       palette: p,
-      dark: false,
+      dark: dark,
       motion: motion,
-      ink: p.ink,
-      inkSoft: p.ink.withValues(alpha: 0.76),
-      accent: p.accent,
-      onAccent: p.tint,
-      glass: p.tint.withValues(alpha: 0.66),
-      sheet: p.tint,
-      stroke: p.ink.withValues(alpha: 0.12),
-      field: p.ink.withValues(alpha: 0.07),
-      barrier: const Color(0x52000000),
-      base: p.tint,
-      danger: const Color(0xFFA1271D),
+      ink: k.ink,
+      inkSoft: k.inkSoft,
+      // On plain pages the page's own red (deep enough for sepia).
+      accent: p == null ? paper.accent : k.accent,
+      onAccent: k.onAccent,
+      // Panels that sit on the scene stay see-through.
+      glass: dark ? const Color(0x99000000) : const Color(0xC2FFFFFF),
+      sheet: k.sheet,
+      stroke: k.stroke,
+      field: k.field,
+      barrier: k.barrier,
+      base: p == null ? paper.background : k.base,
+      danger: k.danger,
     );
   }
 
@@ -110,41 +75,45 @@ class Kit extends ThemeExtension<Kit> {
   factory Kit.fromSettings(AppSettings s, Brightness platform) =>
       Kit.forScene(s.vibe, ReadingTheme.of(effectiveReadingTheme(s, platform)), motion: s.animatedBackground);
 
-  /// Light chrome for screens outside the reader: warm paper white, ember accent.
+  /// Light chrome: white and greys; the logo's red–orange only as an accent.
   static const appLight = Kit(
     vibe: Vibe.paper,
     dark: false,
     motion: false,
-    ink: Color(0xFF1D1B18),
-    inkSoft: Color(0xFF625D55), // 5.8:1 on [base]
-    accent: Color(0xFFA4511A), // 5.0:1 on [base], 5.6:1 on white
-    onAccent: Color(0xFFFFFFFF),
-    glass: Color(0xFFFFFFFF),
+    ink: Color(0xFF111111),
+    inkSoft: Color(0xFF5C5C5C), // 6.7:1 on white
+    accent: Color(0xFFD91F1F), // accent text and icons: 5.0:1 on white
+    onAccent: Color(0xFF111111), // on the logo gradient: 5.2–8.5:1
+    glass: Color(0xFFF4F4F4),
     sheet: Color(0xFFFFFFFF),
-    stroke: Color(0x17000000),
+    stroke: Color(0x14000000),
     field: Color(0x0D000000),
     barrier: Color(0x66000000),
-    base: Color(0xFFF5F2EC),
+    base: Color(0xFFFFFFFF),
     danger: Color(0xFFB3261E),
   );
 
-  /// Dark chrome for screens outside the reader: warm near-black, amber accent.
+  /// Dark chrome: black and greys; the logo's red–orange only as an accent.
   static const appDark = Kit(
     vibe: Vibe.paper,
     dark: true,
     motion: false,
-    ink: Color(0xFFECE7DF),
-    inkSoft: Color(0xFFA59E94), // 7.1:1 on [base]
-    accent: Color(0xFFE9A85A), // 9.2:1 on [base]
-    onAccent: Color(0xFF1E1408),
-    glass: Color(0xFF1E1C1A),
-    sheet: Color(0xFF242220),
+    ink: Color(0xFFF2F2F2),
+    inkSoft: Color(0xFFA3A3A3), // 7.8:1 on black
+    accent: Color(0xFFFF7A4A), // 8.1:1 on black
+    onAccent: Color(0xFF111111),
+    glass: Color(0xFF121212),
+    sheet: Color(0xFF161616),
     stroke: Color(0x1FFFFFFF),
     field: Color(0x14FFFFFF),
     barrier: Color(0x99000000),
-    base: Color(0xFF121110),
+    base: Color(0xFF000000),
     danger: Color(0xFFFF8A80),
   );
+
+  /// The logo's gradient, for filled accent surfaces (primary buttons, the
+  /// selected tab, switches, chips, badges, progress). Text on it: [onAccent].
+  static const gradient = LinearGradient(colors: [Color(0xFFFF3131), Color(0xFFFF914D)]);
 
   /// The app kit for [brightness].
   static Kit app(Brightness brightness) => brightness == Brightness.dark ? appDark : appLight;
@@ -592,7 +561,7 @@ class KitButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
     final (Color bg, Color fg, Color? border) = switch (kind) {
-      KitButtonKind.primary => (kit.accent, kit.onAccent, null),
+      KitButtonKind.primary => (const Color(0x00000000), kit.onAccent, null),
       KitButtonKind.secondary => (kit.field, kit.ink, kit.stroke),
       KitButtonKind.ghost => (const Color(0x00000000), kit.accent, null),
       KitButtonKind.danger => (kit.danger.withValues(alpha: 0.14), kit.danger, kit.danger.withValues(alpha: 0.4)),
@@ -625,6 +594,7 @@ class KitButton extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 22),
           decoration: BoxDecoration(
             color: bg,
+            gradient: kind == KitButtonKind.primary ? Kit.gradient : null,
             borderRadius: BorderRadius.circular(h / 2),
             border: border == null ? null : Border.all(color: border),
           ),
@@ -838,7 +808,8 @@ class KitSwitch extends StatelessWidget {
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(15),
-            color: value ? kit.accent : kit.ink.withValues(alpha: 0.18),
+            color: value ? null : kit.ink.withValues(alpha: 0.18),
+            gradient: value ? Kit.gradient : null,
           ),
           child: AnimatedAlign(
             duration: d,
@@ -920,7 +891,8 @@ class KitSegmented<T> extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: v == selected ? kit.accent : const Color(0x00000000),
+                  color: v == selected ? null : const Color(0x00000000),
+                  gradient: v == selected ? Kit.gradient : null,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: FittedBox(
@@ -962,9 +934,10 @@ class KitChip extends StatelessWidget {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
-          color: selected ? kit.accent : kit.field,
+          color: selected ? null : kit.field,
+          gradient: selected ? Kit.gradient : null,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? kit.accent : kit.stroke),
+          border: Border.all(color: selected ? const Color(0x00000000) : kit.stroke),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (emoji != null) ...[Text(emoji!, style: const TextStyle(fontSize: 15)), const SizedBox(width: 6)],
@@ -1102,7 +1075,7 @@ class KitProgress extends StatelessWidget {
             FractionallySizedBox(
               alignment: AlignmentDirectional.centerStart,
               widthFactor: value.clamp(0.0, 1.0),
-              child: ColoredBox(color: color ?? kit.accent),
+              child: color != null ? ColoredBox(color: color!) : const DecoratedBox(decoration: BoxDecoration(gradient: Kit.gradient)),
             ),
           ]),
         ),
@@ -1254,7 +1227,7 @@ class KitBadge extends StatelessWidget {
           height: 18,
           padding: const EdgeInsets.symmetric(horizontal: 5),
           alignment: Alignment.center,
-          decoration: BoxDecoration(color: kit.accent, borderRadius: BorderRadius.circular(9)),
+          decoration: BoxDecoration(gradient: Kit.gradient, borderRadius: BorderRadius.circular(9)),
           child: Text(count > 99 ? '99+' : '$count', style: kit.label.copyWith(color: kit.onAccent, fontSize: 10.5, letterSpacing: 0)),
         ),
       ),
@@ -1337,25 +1310,20 @@ class KitNavBar extends StatelessWidget {
                 semanticLabel: '${items[i].label} tab',
                 excludeSemantics: true,
                 pressedScale: 0.9,
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  KitBadge(
+                // Icons only (the label is for screen readers); the selected
+                // one wears the logo gradient.
+                child: Center(
+                  child: KitBadge(
                     count: items[i].badge,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: i == index ? kit.accent.withValues(alpha: 0.2) : const Color(0x00000000),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(i == index ? items[i].activeIcon : items[i].icon,
-                          size: 23, color: i == index ? kit.accent : kit.inkSoft),
-                    ),
+                    child: i == index
+                        ? ShaderMask(
+                            blendMode: BlendMode.srcIn,
+                            shaderCallback: (r) => Kit.gradient.createShader(r),
+                            child: Icon(items[i].activeIcon, size: 30, color: const Color(0xFFFFFFFF)),
+                          )
+                        : Icon(items[i].icon, size: 30, color: kit.inkSoft),
                   ),
-                  const SizedBox(height: 3),
-                  Text(items[i].label,
-                      style: kit.label.copyWith(fontSize: 11, letterSpacing: 0.2, color: i == index ? kit.ink : kit.inkSoft)),
-                ]),
+                ),
               ),
             ),
         ]),

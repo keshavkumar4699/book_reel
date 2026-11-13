@@ -65,7 +65,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return KitPage(
       title: s.username.isEmpty ? s.displayName : '@${s.username}',
       actions: [
-        KitIconButton(icon: Icons.tune_rounded, semanticLabel: 'Settings', onPressed: () => context.push('/settings')),
+        KitIconButton(icon: Icons.settings_rounded, semanticLabel: 'Settings', onPressed: () => context.push('/settings')),
       ],
       children: [
         // Avatar and numbers.
@@ -131,7 +131,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 context,
                 ProgressShare(
                   emoji: s.avatarEmoji.isNotEmpty ? s.avatarEmoji : '📖',
-                  headline: s.username.isEmpty ? '${s.displayName} on BookReel' : '${s.displayName} · @${s.username}',
+                  headline: s.username.isEmpty ? '${s.displayName} on Cloro' : '${s.displayName} · @${s.username}',
                   lines: [
                     '$streak-day streak · ${habit.booksFinished} books finished',
                     if (reading != null) 'Reading ${reading.title}',

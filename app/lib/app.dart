@@ -100,7 +100,7 @@ class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingOb
     final router = ref.watch(routerProvider);
     final appearance = ref.watch(settingsProvider.select((s) => s.appearance));
     return MaterialApp.router(
-      title: 'BookReel',
+      title: 'Cloro',
       debugShowCheckedModeBanner: false,
       theme: _light,
       darkTheme: _dark,

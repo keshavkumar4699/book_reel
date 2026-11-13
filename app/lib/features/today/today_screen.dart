@@ -67,7 +67,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           onPressed: () => context.push('/profile'),
           child: ReaderAvatar(settings: settings, size: 40, ring: today.meets(goal)),
         ),
-        KitIconButton(icon: Icons.tune_rounded, semanticLabel: 'Settings', onPressed: () => context.push('/settings')),
+        KitIconButton(icon: Icons.settings_rounded, semanticLabel: 'Settings', onPressed: () => context.push('/settings')),
       ],
       children: [
         // Today's goal and streak, straight on the scene.

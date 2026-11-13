@@ -1,4 +1,4 @@
-package app.bookreel.book_reel
+package app.sweatik2.cloro
 
 import android.app.ActivityManager
 import android.content.Context
@@ -13,7 +13,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         // What the phone can run, for the Free plan's on-device AI
         // (lib/services/on_device_ai.dart): Android version, ABIs, memory, free space.
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.bookreel/device").setMethodCallHandler { call, result ->
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.cloro/device").setMethodCallHandler { call, result ->
             when (call.method) {
                 "capability" -> {
                     val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager

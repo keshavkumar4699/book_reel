@@ -84,7 +84,7 @@ class LibraryNotifier extends Notifier<List<BookMeta>> {
       await File(path).writeAsBytes(bytes, flush: true);
       content = await const PdfExtractor().extract(path, fallbackTitle: _titleFromFileName(fileName));
     } else {
-      throw ParseException('BookReel supports EPUB and PDF files.');
+      throw ParseException('Cloro supports EPUB and PDF files.');
     }
 
     await store.writeBlob('$id.content.json', await compute(_encode, content));

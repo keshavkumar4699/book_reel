@@ -50,7 +50,7 @@ class FriendsScreen extends ConsumerWidget {
               error: (e, _) => [
                 KitEmpty(
                   emoji: '☁️',
-                  title: 'Can’t reach BookReel right now',
+                  title: 'Can’t reach Cloro right now',
                   message: 'Your reading is saved and will sync later.',
                   action: KitButton.secondary(label: 'Try again', onPressed: () => ref.invalidate(friendsDataProvider)),
                 ),
@@ -139,7 +139,7 @@ class _InviteCard extends StatelessWidget {
             leading: const ShareArrowIcon(),
             compact: true,
             onPressed: () => SharePlus.instance.share(ShareParams(
-              text: 'Read with me on BookReel: books as bite-sized cards. Add me with code $code\n$url',
+              text: 'Read with me on Cloro: books as bite-sized cards. Add me with code $code\n$url',
             )),
           ),
         ]),
@@ -367,7 +367,7 @@ class _OfflineFriends extends ConsumerWidget {
         padding: EdgeInsets.zero,
         child: const KitRow(
           icon: Icons.cloud_off_rounded,
-          title: 'Friends and leagues need the BookReel server',
+          title: 'Friends and leagues need the Cloro server',
           subtitle: 'This build runs offline. Everything you read still counts toward your streak.',
         ),
       ),

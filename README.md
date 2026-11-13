@@ -1,4 +1,6 @@
-# BookReel
+# Cloro
+
+_Formerly BookReel. Android package `app.sweatik2.cloro`._
 
 Read books as a feed of short "reel" cards: real pages from your EPUBs and PDFs, cut by AI at the right places, with streaks, goals, highlights, word meanings and one-tap sharing.
 

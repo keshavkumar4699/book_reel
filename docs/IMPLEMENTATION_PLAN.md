@@ -57,7 +57,7 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 ---
 
 ## Phase 0 — Foundations
-- Flutter app (`app/`), Android only, package `app.bookreel`.
+- Flutter app (`app/`), Android only, package `app.sweatik2.cloro`.
 - `analysis_options.yaml` with `flutter_lints`.
 - Design system: `ThemeData` (Material 3) + `ReadingTheme` `ThemeExtension` (Paper, White, Sepia, Dark, Black), bundled reading fonts (Literata, Atkinson Hyperlegible).
 - State: Riverpod. Navigation: go_router with a 4-tab `StatefulShellRoute` (Today, Library, Notebook, Friends) + full-screen reader route.

@@ -53,7 +53,7 @@ void main() {
       overrides: [storeProvider.overrideWithValue(store)],
       child: const MaterialApp(home: FriendsScreen()),
     ));
-    expect(find.text('Friends and leagues need the BookReel server'), findsOneWidget);
+    expect(find.text('Friends and leagues need the Cloro server'), findsOneWidget);
     await tester.runAsync(() async => dir.deleteSync(recursive: true));
   });
 }

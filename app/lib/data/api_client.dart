@@ -15,7 +15,7 @@ class ApiException implements Exception {
   String toString() => 'API error $status: $body';
 }
 
-/// Client for the BookReel server's account, activity, social, sync and share
+/// Client for the Cloro server's account, activity, social, sync and share
 /// endpoints (server/src/app.ts). Callers are identified by device ID until
 /// Google sign-in is configured (IMPLEMENTATION_PLAN.md Phase 7).
 class BookReelApi {

@@ -60,7 +60,7 @@ NotebookState applyRemote(NotebookState n, List<Map<String, dynamic>> items) {
 
 String _hash(Object? data) => sha1.convert(utf8.encode(jsonEncode(data))).toString().substring(0, 16);
 
-/// Background sync with the BookReel server (IMPLEMENTATION_PLAN.md Phase 7):
+/// Background sync with the Cloro server (IMPLEMENTATION_PLAN.md Phase 7):
 /// uploads queued reading events (for server-verified streaks and leagues),
 /// and syncs the notebook and reading positions across devices. Pull first,
 /// then push local changes; the server keeps the newest write per item.

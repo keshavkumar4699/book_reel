@@ -6,7 +6,7 @@
     <!-- Re-schedule the reminder after a reboot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
-        android:label="BookReel"
+        android:label="Cloro"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

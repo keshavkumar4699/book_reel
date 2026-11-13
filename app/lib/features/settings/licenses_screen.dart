@@ -35,7 +35,7 @@ class _LicensesScreenState extends State<LicensesScreen> {
         final data = snap.data;
         return KitPage(
           title: 'Licences',
-          subtitle: 'Fonts, scene sounds, dictionary and code that BookReel is built on',
+          subtitle: 'Fonts, scene sounds, dictionary and code that Cloro is built on',
           children: [
             if (data == null)
               const Padding(padding: EdgeInsets.all(40), child: Center(child: KitSpinner()))

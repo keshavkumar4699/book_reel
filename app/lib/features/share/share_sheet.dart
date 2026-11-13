@@ -80,8 +80,8 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
     final c = widget.content;
     return switch (c) {
       QuoteShare() =>
-        '“${limitQuote(c.sentences, publicDomain: c.publicDomain).text}”\n— ${c.author}, ${c.bookTitle}\n\nRead it on BookReel',
-      ProgressShare() => '${c.emoji} ${c.headline}\n${c.lines.join('\n')}\n\nReading on BookReel',
+        '“${limitQuote(c.sentences, publicDomain: c.publicDomain).text}”\n— ${c.author}, ${c.bookTitle}\n\nRead it on Cloro',
+      ProgressShare() => '${c.emoji} ${c.headline}\n${c.lines.join('\n')}\n\nReading on Cloro',
     };
   }
 
@@ -239,7 +239,7 @@ class ShareCardArt extends StatelessWidget {
             Row(children: [
               Icon(Icons.auto_stories, size: 16, color: muted),
               const SizedBox(width: 6),
-              Text('BookReel', style: TextStyle(fontFamily: null, fontWeight: FontWeight.w700, fontSize: 13, color: muted)),
+              Text('Cloro', style: TextStyle(fontFamily: null, fontWeight: FontWeight.w700, fontSize: 13, color: muted)),
               const Spacer(),
               Text('bookreel.app', style: TextStyle(fontFamily: null, fontSize: 12, color: muted)),
             ]),

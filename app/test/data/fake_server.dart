@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-/// In-memory stand-in for the BookReel server's sync/activity/social API,
+/// In-memory stand-in for the Cloro server's sync/activity/social API,
 /// following server/src/social/sync.ts (last write wins, tombstones, cursor).
 class FakeServer {
   final Map<String, Map<String, Map<String, dynamic>>> items = {}; // user -> key -> item

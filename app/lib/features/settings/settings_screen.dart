@@ -470,7 +470,7 @@ class VoiceSettings extends ConsumerWidget {
                 ? 'A neural voice that sounds close to a person reading. Each passage is kept on your phone, so '
                     'listening again is instant and works offline. Free: about 25 minutes of new listening a day; '
                     'paid plans: hours.'
-                : 'The natural voice comes from the BookReel server, which this build doesn\'t have yet, so your '
+                : 'The natural voice comes from the Cloro server, which this build doesn\'t have yet, so your '
                     'phone\'s most natural voice reads for now.'
             : 'Your phone\'s own voice: works offline and costs nothing. We pick the most natural one it has installed.',
         style: kit.caption,
@@ -716,7 +716,7 @@ class _PlanPickerState extends ConsumerState<PlanPicker> {
         const SizedBox(height: 10),
         Text(
           bookreelApi.isEmpty
-              ? 'AI cards need the BookReel server. This build has none configured, so on-device cards are used.'
+              ? 'AI cards need the Cloro server. This build has none configured, so on-device cards are used.'
               : 'Google Play subscriptions aren\u2019t set up for this build, so choosing a plan here only switches '
                   'which AI model the server uses. US prices; local prices are shown at checkout.',
           style: kit.caption,

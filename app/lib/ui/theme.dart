@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../data/settings.dart';
 
-/// Brand accent: warm amber "ember" (UX_DESIGN.md §6.2).
-const emberSeed = Color(0xFFD9822B);
+/// Brand accent: the Cloro logo's red (gradient #FF3131 → #FF914D).
+const emberSeed = Color(0xFFFF3131);
 
 /// Reading-surface tokens, separate from the app chrome's colour scheme.
 ///
@@ -29,7 +29,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
     this.textShadows,
   })  : emphasis = emphasis ?? text,
         spot = spot ?? text,
-        accent = accent ?? const Color(0xFFA8551A);
+        accent = accent ?? const Color(0xFFC01818);
 
   final Color background;
   final Color text;
@@ -70,7 +70,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             highlights: _lightHighlights,
             isDark: false,
             emphasis: Color(0xFF8A4B12),
-            accent: Color(0xFFA8551A),
+            accent: Color(0xFFC01818),
           ),
         ReadingThemeId.white => const ReadingTheme(
             background: Color(0xFFFFFFFF),
@@ -81,7 +81,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             highlights: _lightHighlights,
             isDark: false,
             emphasis: Color(0xFF8A4B12),
-            accent: Color(0xFFA8551A),
+            accent: Color(0xFFC01818),
           ),
         ReadingThemeId.sepia => const ReadingTheme(
             background: Color(0xFFF1E7D0),
@@ -92,7 +92,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             highlights: _lightHighlights,
             isDark: false,
             emphasis: Color(0xFF773D0B),
-            accent: Color(0xFF8E4512),
+            accent: Color(0xFFC01818),
           ),
         ReadingThemeId.dark => const ReadingTheme(
             background: Color(0xFF141414),
@@ -103,7 +103,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             highlights: _darkHighlights,
             isDark: true,
             emphasis: Color(0xFFE9BC72),
-            accent: Color(0xFFE0A84A),
+            accent: Color(0xFFFF7A4A),
           ),
         ReadingThemeId.black => const ReadingTheme(
             background: Color(0xFF000000),
@@ -114,7 +114,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             highlights: _darkHighlights,
             isDark: true,
             emphasis: Color(0xFFE2B66C),
-            accent: Color(0xFFE0A84A),
+            accent: Color(0xFFFF7A4A),
           ),
       };
 
@@ -146,6 +146,6 @@ String? fontFamilyFor(ReadingFont f) => switch (f) {
       ReadingFont.system => null,
     };
 
-/// Accent used for the streak flame and goal progress regardless of the
-/// dynamic colour scheme.
-const ember = Color(0xFFE08A2E);
+/// The streak flame and goal progress: the logo's red, deep enough for 3:1 on
+/// white (3.9:1) and black (5.4:1).
+const ember = Color(0xFFF23A2E);

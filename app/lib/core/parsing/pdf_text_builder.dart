@@ -30,7 +30,7 @@ BookContent buildBookFromPdfPages(
   final emptyPages = pages.where((p) => p.replaceAll(RegExp(r'\s'), '').length < 25).length;
   if (emptyPages / pages.length > 0.2 && emptyPages > 1) {
     throw ParseException(
-        'This looks like a scanned PDF (no text layer). BookReel needs PDFs with selectable text.');
+        'This looks like a scanned PDF (no text layer). Cloro needs PDFs with selectable text.');
   }
 
   final pageLines = [

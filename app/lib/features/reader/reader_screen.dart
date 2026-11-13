@@ -628,7 +628,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       KitAction('page', 'Page mode', icon: Icons.chrome_reader_mode_rounded, subtitle: 'Read the chapter as one page'),
       KitAction('goal', 'Daily goal', icon: Icons.flag_rounded),
       KitAction('gestures', 'Gestures', icon: Icons.touch_app_rounded),
-      KitAction('settings', 'Settings', icon: Icons.tune_rounded),
+      KitAction('settings', 'Settings', icon: Icons.settings_rounded),
       KitAction('report', 'This cut feels wrong', icon: Icons.content_cut_rounded),
     ]);
     if (!mounted) return;

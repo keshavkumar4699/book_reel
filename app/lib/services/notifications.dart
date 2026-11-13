@@ -77,7 +77,7 @@ class ReminderService {
       scheduledDate: at,
       notificationDetails: _details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      title: 'BookReel',
+      title: 'Cloro',
       body: body,
       matchDateTimeComponents: DateTimeComponents.time,
     );
@@ -98,7 +98,7 @@ class ReminderService {
       scheduledDate: at,
       notificationDetails: _details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      title: 'BookReel',
+      title: 'Cloro',
       body: body,
     );
   }

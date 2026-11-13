@@ -21,6 +21,8 @@ Iterable<(String, Kit)> _kits() sync* {
   for (final t in ReadingThemeId.values) {
     yield ('paper/${t.name}', Kit.forScene(Vibe.paper, ReadingTheme.of(t)));
   }
+  yield ('app light', Kit.appLight);
+  yield ('app dark', Kit.appDark);
 }
 
 Widget _app(Widget child, {Kit? kit}) => MaterialApp(
@@ -34,9 +36,25 @@ void main() {
       expect(kit.sheet.a, 1, reason: '$name: sheets are opaque, so nothing ghosts through');
       expect(_contrast(kit.ink, kit.sheet), greaterThanOrEqualTo(7), reason: '$name ink (AAA)');
       expect(_contrast(Color.alphaBlend(kit.inkSoft, kit.sheet), kit.sheet), greaterThanOrEqualTo(4.5), reason: '$name secondary text');
-      expect(_contrast(kit.onAccent, kit.accent), greaterThanOrEqualTo(4.5), reason: '$name button text');
-      expect(_contrast(kit.accent, kit.sheet), greaterThanOrEqualTo(3), reason: '$name accent controls (non-text 3:1)');
+      // Buttons, chips and the selected tab are filled with the logo gradient.
+      for (final stop in Kit.gradient.colors) {
+        expect(_contrast(kit.onAccent, stop), greaterThanOrEqualTo(4.5), reason: '$name text on the gradient');
+      }
+      expect(_contrast(kit.accent, kit.sheet), greaterThanOrEqualTo(4.5), reason: '$name accent text');
+      expect(_contrast(kit.accent, kit.base.a == 1 ? kit.base : kit.sheet), greaterThanOrEqualTo(4.5), reason: '$name accent on the page');
     }
+  });
+
+  test('outside the reader the app is only white, black and greys; colour comes from the logo', () {
+    for (final kit in [Kit.appLight, Kit.appDark]) {
+      for (final c in [kit.base, kit.sheet, kit.glass, kit.ink, kit.inkSoft]) {
+        expect((c.r - c.g).abs() < 0.01 && (c.g - c.b).abs() < 0.01, isTrue, reason: '$c is a neutral');
+      }
+    }
+    expect(Kit.gradient.colors, [const Color(0xFFFF3131), const Color(0xFFFF914D)]);
+    // The reader's sheets and menus use the same neutrals, whatever the scene.
+    expect(Kit.forScene(Vibe.forest, ReadingTheme.of(ReadingThemeId.paper)).sheet, Kit.appDark.sheet);
+    expect(Kit.forScene(Vibe.meadow, ReadingTheme.of(ReadingThemeId.paper)).sheet, Kit.appLight.sheet);
   });
 
   testWidgets('a toast drops in, lets taps through to what is under it, and leaves', (tester) async {

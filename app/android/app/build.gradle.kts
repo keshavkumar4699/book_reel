@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "app.bookreel.book_reel"
+    namespace = "app.sweatik2.cloro"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -17,7 +17,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "app.bookreel.book_reel"
+        applicationId = "app.sweatik2.cloro"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
