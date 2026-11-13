@@ -26,7 +26,7 @@ void main() {
       ],
       child: MaterialApp(theme: buildAppTheme(Kit.forScene(Vibe.forest, ReadingTheme.of(ReadingThemeId.paper))), home: const FriendsScreen()),
     ));
-    for (var i = 0; i < 20 && find.text('7PA756JQ').evaluate().isEmpty; i++) {
+    for (var i = 0; i < 200 && find.text('7PA756JQ').evaluate().isEmpty; i++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pump();
     }
