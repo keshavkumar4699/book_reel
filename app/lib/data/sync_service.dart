@@ -9,6 +9,7 @@ import 'api_client.dart';
 import '../core/habit/habit_engine.dart' show GoalUnit;
 import 'library.dart';
 import 'notebook.dart';
+import 'sessions.dart';
 import 'settings_provider.dart';
 import 'store_provider.dart';
 
@@ -93,6 +94,7 @@ class SyncService {
     try {
       await syncProfile();
       await flushActivity();
+      await flushSessions();
       await syncNotebook();
       await syncPositions();
     } catch (e) {
@@ -152,6 +154,16 @@ class SyncService {
       // Remove only what was sent; new events may have been queued meanwhile.
       final current = ((store.doc('outbox')?['events'] as List?) ?? const []).cast<Map<String, dynamic>>();
       await store.saveDoc('outbox', {'events': current.skip(chunk.length).toList()});
+    }
+  }
+
+  /// Reading sessions for the feed of readers who follow you; each upload
+  /// updates the session's one card as it grows.
+  Future<void> flushSessions() async {
+    final log = ref.read(sessionLogProvider.notifier);
+    for (final s in log.pending.take(30)) {
+      await _api.postSession(s.toUpload());
+      log.markUploaded(s);
     }
   }
 

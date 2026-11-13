@@ -22,6 +22,7 @@ import '../../data/local_ai.dart';
 import '../../data/notebook.dart';
 import '../../data/segments.dart';
 import '../../data/settings.dart';
+import '../../data/sessions.dart';
 import '../../data/settings_provider.dart';
 import '../../services/mood.dart';
 import '../../services/notifications.dart';
@@ -79,6 +80,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// card's reading time is still recorded.
   late final HabitNotifier _habit;
   late final MoodController _mood;
+  late final SessionLog _sessions;
+
+  /// The book's library entry as last built (title, progress), for the
+  /// session log, which can still be written to while the reader closes.
+  BookMeta? _meta;
   late final SceneSoundController _sound;
   late final ReadAloud _readAloud;
   Map<int, ChapterSegments>? _segments;
@@ -130,6 +136,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     WidgetsBinding.instance.addObserver(this);
     _habit = ref.read(habitProvider.notifier);
     _mood = ref.read(moodProvider.notifier);
+    _sessions = ref.read(sessionLogProvider.notifier);
     _sound = ref.read(sceneSoundProvider.notifier);
     _readAloud = ref.read(readAloudProvider);
   }
@@ -390,6 +397,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (total < 300) return null;
     CardRecord record() {
       _mood.addMinutes(total);
+      final meta = _meta;
+      if (meta != null) {
+        _sessions.record(
+          bookId: widget.bookId,
+          title: meta.title,
+          author: meta.author,
+          dwellMs: total,
+          progress: meta.progress,
+          mood: _mood.recent?.name,
+        );
+      }
       return _habit.recordCard(
         words: words,
         dwellMs: total,
@@ -552,6 +570,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       createdAt: DateTime.now(),
     ));
     HapticFeedback.lightImpact();
+    // A saved line from a public-domain book goes on the session's card.
+    if (saved && (_meta?.isPublicDomain ?? false)) {
+      _sessions.quote(widget.bookId, [for (final sid in item.shownSids) _sentences[sid]?.sentence.text ?? ''].join(' '));
+    }
     showKitToast(
       _ui,
       saved ? 'Saved to your Notebook 🔖' : 'Removed from saved',
@@ -740,6 +762,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final scene = _sceneFor(settings);
     final readingTheme = readingThemeForVibe(scene, paperTheme);
     final meta = ref.watch(libraryProvider).where((b) => b.id == widget.bookId).firstOrNull;
+    _meta = meta;
     final contentAsync = ref.watch(bookContentProvider(widget.bookId));
     final segmentsAsync = ref.watch(segmentsProvider((bookId: widget.bookId, length: settings.cardLength)));
     final lexicon = ref.watch(lexiconProvider).value ?? Lexicon.empty;
@@ -939,7 +962,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           onCreateHighlight: (sentence) => ref
               .read(notebookProvider.notifier)
               .addHighlight(bookId: widget.bookId, bookTitle: book.title, sid: sentence.id, text: sentence.text),
-          onSaveHighlight: (h, absorbed) => ref.read(notebookProvider.notifier).saveHighlight(h, absorbed: absorbed),
+          onSaveHighlight: (h, absorbed) {
+            ref.read(notebookProvider.notifier).saveHighlight(h, absorbed: absorbed);
+            if (_meta?.isPublicDomain ?? false) _sessions.quote(widget.bookId, h.text);
+          },
           onRemoveHighlight: (id) => ref.read(notebookProvider.notifier).removeHighlight(id),
           onNoteHighlight: _editNote,
           onSelecting: _setSelecting,

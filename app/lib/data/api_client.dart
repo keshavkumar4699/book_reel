@@ -132,8 +132,25 @@ class BookReelApi {
   Future<List<Map<String, dynamic>>> friendsBoard() async =>
       (((await _send('GET', '/v1/leaderboards/friends')) as Map<String, dynamic>)['rows'] as List).cast<Map<String, dynamic>>();
 
-  Future<List<Map<String, dynamic>>> feed() async =>
-      (((await _send('GET', '/v1/feed')) as Map<String, dynamic>)['items'] as List).cast<Map<String, dynamic>>();
+  /// The Today feed, newest first, 20 at a time; [before] (an activity's
+  /// `at`) loads the next page.
+  Future<List<Map<String, dynamic>>> feed({String? before}) async => (((await _send(
+              'GET', before == null ? '/v1/feed' : '/v1/feed?before=${Uri.encodeQueryComponent(before)}')) as Map<String, dynamic>)['items']
+          as List)
+      .cast<Map<String, dynamic>>();
+
+  /// A reading session (see ReadingSession.toUpload); re-sending updates it.
+  Future<void> postSession(Map<String, dynamic> session) => _send('POST', '/v1/activities/session', session);
+
+  Future<List<Map<String, dynamic>>> comments(String activityId) async =>
+      (((await _send('GET', '/v1/activities/${Uri.encodeComponent(activityId)}/comments')) as Map<String, dynamic>)['items'] as List)
+          .cast<Map<String, dynamic>>();
+
+  Future<Map<String, dynamic>> addComment(String activityId, String text) async =>
+      ((await _send('POST', '/v1/activities/${Uri.encodeComponent(activityId)}/comments', {'text': text})) as Map<String, dynamic>)['comment']
+          as Map<String, dynamic>;
+
+  Future<void> deleteComment(String commentId) => _send('DELETE', '/v1/comments/${Uri.encodeComponent(commentId)}');
 
   Future<void> kudos(String activityId) => _send('POST', '/v1/activities/$activityId/kudos');
 

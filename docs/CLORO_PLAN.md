@@ -197,6 +197,20 @@ A scrolling feed of reading activities, newest first:
 - Data: the existing activity/feed/kudos endpoints (`/v1/…friends feed`), extended with session stats, mood and comments (new `comments` table and endpoints on the server). Offline/no server: your own sessions only, from the local habit log.
 - **Done when:** feed shows own + friends' sessions with kudos and comments; offline shows own sessions; server tests for comments.
 
+✅ **Done (step 8).**
+
+*App*
+- `lib/data/sessions.dart` builds sessions from the reader's card records: cards in one book within 30 minutes are one session. It keeps the minutes, cards, progress, your mood (from §8) and a line you saved. Lines come only from public-domain books and are cut to 280 characters.
+- Sync uploads each session, and uploads it again as it grows. The app's session id makes each upload update the same card.
+- `lib/features/today/feed.dart` holds the feed (paged, 20 at a time, with optimistic kudos), the activity cards and the comments sheet.
+- Today keeps the goal ring, the streak and the book to continue, then **Activity**. The old Friends page is now **League** (the league and board), opened from Today.
+
+*Server*
+- `server/src/habit/feed.ts`: `POST /v1/activities/session`, and `GET /v1/feed?before=` with author, stats, kudos and comment counts. Goal lines stay out of the feed, and so do hidden readers.
+- A **best reading week** milestone.
+- Comments: `GET`/`POST /v1/activities/:id/comments` and `DELETE /v1/comments/:id`. Kudos and comments need you to be able to see the activity.
+- Migration 7.
+
 ## 11. Profile tab: Strava-style, redesigned header
 
 **Header** (as you described):
@@ -284,7 +298,7 @@ A scrolling feed of reading activities, newest first:
 | 5 | Save/share swipe animation (§6) | M — ✅ done |
 | 6 | Light/dark scenes (§5), mood learning + Gemma suggestion (§8) | L — ✅ done |
 | 7 | Profile redesign + followers/following (§11) | L — ✅ done |
-| 8 | Today feed + comments on the server (§10) | L |
+| 8 | Today feed + comments on the server (§10) | L — ✅ done |
 | 9 | Docs, tests, CI, APK | S |
 
 Steps 1–3 are independent and ship first; 4 and 5 go together; 6 needs 3's colour system; 7 and 8 replace the Friends tab, so they ship together with 4's new dock.

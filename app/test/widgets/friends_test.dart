@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../data/fake_server.dart';
 
 void main() {
-  testWidgets('Friends tab shows invite code, league, friends and feed with kudos', (tester) async {
+  testWidgets('League page shows the invite code, the league and readers you follow (the feed is on Today)', (tester) async {
     final dir = Directory.systemTemp.createTempSync('bookreel_friends');
     final server = FakeServer();
     late JsonStore store;
@@ -33,15 +33,8 @@ void main() {
     expect(find.text('7PA756JQ'), findsOneWidget);
     expect(find.text('Silver league'), findsOneWidget);
     expect(find.text('Asha (you)'), findsWidgets);
-    await tester.scrollUntilVisible(find.text('Ravi finished Walden 📚'), 200);
-    expect(find.text('👏 2'), findsOneWidget);
-    await tester.ensureVisible(find.text('👏 2'));
-    await tester.pump();
-    await tester.tap(find.text('👏 2'));
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
-    await tester.pump();
-    expect(find.text('👏 3'), findsOneWidget);
-    expect(server.kudos, ['f1']);
+    expect(find.text('League'), findsOneWidget);
+    expect(find.text('Ravi finished Walden 📚'), findsNothing);
     await tester.runAsync(() async {
       // A store write can still land in the folder as it goes: retry once.
       for (var i = 0; i < 2 && dir.existsSync(); i++) {

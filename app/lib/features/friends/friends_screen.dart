@@ -12,28 +12,27 @@ import '../../ui/kit.dart';
 import '../../ui/widgets.dart';
 
 class FriendsData {
-  const FriendsData({required this.me, required this.league, required this.board, required this.feed});
+  const FriendsData({required this.me, required this.league, required this.board});
   final Map<String, dynamic> me;
   final Map<String, dynamic>? league;
   final List<Map<String, dynamic>> board;
-  final List<Map<String, dynamic>> feed;
 }
 
 final friendsDataProvider = FutureProvider.autoDispose<FriendsData>((ref) async {
   final api = ref.read(apiProvider);
   // Upload pending reading first so the tables include today.
   await ref.read(syncServiceProvider).syncNow();
-  final results = await Future.wait([api.me(), api.league(), api.friendsBoard(), api.feed()]);
+  final results = await Future.wait([api.me(), api.league(), api.friendsBoard()]);
   return FriendsData(
     me: results[0]! as Map<String, dynamic>,
     league: results[1] as Map<String, dynamic>?,
     board: results[2]! as List<Map<String, dynamic>>,
-    feed: results[3]! as List<Map<String, dynamic>>,
   );
 });
 
-/// Friends tab (UX_DESIGN.md §5.7): weekly league of similar readers, friends
-/// board, activity feed with kudos (no dislikes, no follower counts), invites.
+/// League (opened from Today): this week's league of similar readers and the
+/// board of readers you follow, plus your invite. The activity feed with
+/// kudos and comments is on Today (Cloro plan §10).
 class FriendsScreen extends ConsumerWidget {
   const FriendsScreen({super.key, this.asPage = false});
 
@@ -67,15 +66,13 @@ class FriendsScreen extends ConsumerWidget {
                   const SizedBox(height: 14),
                   _FriendsBoard(rows: d.board, onAdd: () => _addFriend(context, ref)),
                 ],
-                const SizedBox(height: 14),
-                _Feed(items: d.feed),
               ],
             );
     return KitPage(
       back: asPage,
       backdrop: asPage,
       dock: !asPage,
-      title: 'Friends',
+      title: 'League',
       onRefresh: api.enabled ? () => ref.refresh(friendsDataProvider.future) : null,
       actions: [
         if (api.enabled)
@@ -254,79 +251,6 @@ class _FriendsBoard extends StatelessWidget {
   }
 }
 
-class _Feed extends ConsumerStatefulWidget {
-  const _Feed({required this.items});
-  final List<Map<String, dynamic>> items;
-
-  @override
-  ConsumerState<_Feed> createState() => _FeedState();
-}
-
-class _FeedState extends ConsumerState<_Feed> {
-  final Set<String> _given = {};
-
-  @override
-  Widget build(BuildContext context) {
-    final kit = Kit.of(context);
-    return KitPanel(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Activity', style: kit.heading),
-        if (widget.items.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text('When you or your friends hit a goal or finish a book, it shows up here.', style: kit.caption),
-          ),
-        for (final item in widget.items)
-          Builder(builder: (context) {
-            final id = item['id'] as String;
-            final gave = item['gaveKudos'] == true || _given.contains(id);
-            final count = (item['kudos'] as int) + (_given.contains(id) && item['gaveKudos'] != true ? 1 : 0);
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(children: [
-                Text(switch (item['type']) { 'book_finished' => '📚', 'streak_milestone' => '🔥', _ => '✅' }, style: const TextStyle(fontSize: 24)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(item['text'] as String, style: kit.body),
-                    Text(_ago(DateTime.parse(item['at'] as String)), style: kit.caption),
-                  ]),
-                ),
-                if (item['mine'] == true)
-                  if (count > 0) Text('👏 $count', style: kit.strong) else const SizedBox.shrink()
-                else
-                  KitChip(
-                    label: count > 0 ? '👏 $count' : '👏 Kudos',
-                    selected: gave,
-                    onTap: gave
-                        ? null
-                        : () async {
-                            HapticFeedback.lightImpact();
-                            setState(() => _given.add(id));
-                            try {
-                              await ref.read(apiProvider).kudos(id);
-                            } catch (_) {
-                              if (mounted) setState(() => _given.remove(id));
-                            }
-                          },
-                  ),
-              ]),
-            );
-          }),
-      ]),
-    );
-  }
-
-  String _ago(DateTime at) {
-    final d = DateTime.now().difference(at);
-    if (d.inMinutes < 1) return 'just now';
-    if (d.inHours < 1) return '${d.inMinutes} min ago';
-    if (d.inDays < 1) return '${d.inHours} h ago';
-    return '${d.inDays} d ago';
-  }
-}
-
-/// Shown when no server is configured: the reader's own week and an invite.
 class _OfflineFriends extends ConsumerWidget {
   const _OfflineFriends();
 

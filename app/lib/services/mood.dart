@@ -311,6 +311,12 @@ class MoodController extends Notifier<MoodState> {
     return s.moodScenes && !(s.autoScene && s.tier.paid);
   }
 
+  /// The mood set in the last 6 hours, if any (it goes on the session's card).
+  Mood? get recent {
+    final at = state.currentAt;
+    return at != null && clock().difference(at) <= const Duration(hours: 6) ? state.current : null;
+  }
+
   /// Still learning: under 15 answers, unless two weeks have passed with at
   /// least 5.
   bool get learning {

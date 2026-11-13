@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/habit/habit_engine.dart';
+import '../../data/api_client.dart';
 import '../../data/habit.dart';
 import '../../data/library.dart';
 import '../../data/notebook.dart';
@@ -12,9 +13,11 @@ import '../../ui/vibes.dart';
 import '../../ui/widgets.dart';
 import '../profile/profile_screen.dart';
 import '../reader/goal_setup_sheet.dart';
+import 'feed.dart';
 
-/// Today (home): one main action, today's goal ring and streak, one social
-/// line (UX_DESIGN.md §5.1), on the reader's moving scene.
+/// Today (Cloro plan §10), Strava-style: today's goal ring and streak, the
+/// book to continue, then the feed of your reading sessions and milestones
+/// and those of readers you follow, with kudos and comments.
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
 
@@ -54,10 +57,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final style = vibeStyles[settings.vibe]!;
     final freezes = notifier.freezesLeft();
 
+    final api = ref.watch(apiProvider);
+    final feed = ref.watch(todayFeedProvider);
     return KitPage(
       back: false,
       backdrop: false,
       dock: true,
+      onRefresh: () => ref.refresh(todayFeedProvider.future),
       leading: const CloroLogo(size: 40),
       title: '${_greeting()}${settings.displayName == 'Reader' ? '' : ','}',
       subtitle: settings.displayName == 'Reader' ? '${style.emoji} ${style.tagline}' : settings.displayName,
@@ -154,18 +160,62 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             ),
           ),
         ],
-        if (!settings.hideLeaderboards) ...[
+        if (!settings.hideLeaderboards && api.enabled) ...[
           const SizedBox(height: 12),
           KitPanel(
             padding: EdgeInsets.zero,
             child: KitRow(
-              icon: Icons.people_rounded,
-              title: 'Read with friends',
-              subtitle: 'Invite a friend and keep each other going',
+              icon: Icons.emoji_events_outlined,
+              title: 'This week’s league',
+              subtitle: 'Read alongside readers like you',
               onTap: () => context.push('/friends'),
             ),
           ),
         ],
+        const KitDivider(),
+        Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 8),
+          child: Row(children: [
+            Expanded(child: Text('Activity', style: kit.heading)),
+            if (api.enabled)
+              KitIconButton(
+                icon: Icons.person_search_rounded,
+                semanticLabel: 'Find people',
+                onPressed: () => context.push('/people/me?tab=following'),
+              ),
+          ]),
+        ),
+        ...feed.when(
+          loading: () => const [Padding(padding: EdgeInsets.all(40), child: Center(child: KitSpinner()))],
+          error: (e, _) => [
+            KitEmpty(
+              emoji: '☁️',
+              title: 'Can’t reach Cloro right now',
+              message: 'Your reading is saved and will sync later.',
+              action: KitButton.secondary(label: 'Try again', onPressed: () => ref.invalidate(todayFeedProvider)),
+            ),
+          ],
+          data: (page) => page.items.isEmpty
+              ? [
+                  KitEmpty(
+                    emoji: '📖',
+                    title: api.enabled ? 'Your feed is quiet' : 'Your reading shows here',
+                    message: api.enabled
+                        ? 'Read a few cards, or follow readers to see their reading, kudos and comments here.'
+                        : 'Each reading session appears here: the book, minutes, cards and your mood.',
+                    action: api.enabled
+                        ? KitButton.secondary(label: 'Find people', onPressed: () => context.push('/people/me?tab=following'))
+                        : null,
+                  ),
+                ]
+              : [
+                  for (final (i, e) in page.items.indexed) ...[
+                    if (i > 0) const KitDivider(),
+                    ActivityCard(key: ValueKey(e.id), entry: e),
+                  ],
+                  if (page.more) FeedLoadMore(key: ValueKey(page.items.length)),
+                ],
+        ),
       ],
     );
   }

@@ -16,6 +16,53 @@ class FakeServer {
   final List<Map<String, dynamic>> shares = [];
   final List<String> kudos = [];
 
+  /// The Today feed, newest first (GET /v1/feed pages through it 20 at a time).
+  late final List<Map<String, dynamic>> feed = [
+    {
+      'id': 'f1',
+      'userId': 'device:ravi',
+      'type': 'session',
+      'text': 'Ravi read Walden',
+      'at': DateTime.now().subtract(const Duration(minutes: 30)).toUtc().toIso8601String(),
+      'data': {
+        'book': {'title': 'Walden', 'author': 'Henry David Thoreau'},
+        'minutes': 34,
+        'cards': 21,
+        'progress': 0.41,
+        'mood': 'calm',
+        'quote': 'I went to the woods because I wished to live deliberately.',
+      },
+      'author': {'name': 'Ravi', 'handle': 'ravi', 'avatar': '🦊'},
+      'kudos': 2,
+      'gaveKudos': false,
+      'comments': 1,
+      'mine': false,
+    },
+    {
+      'id': 'f2',
+      'userId': 'device:ravi',
+      'type': 'book_finished',
+      'text': 'Ravi finished Walden 📚',
+      'at': DateTime.now().subtract(const Duration(days: 2)).toUtc().toIso8601String(),
+      'data': <String, dynamic>{},
+      'author': {'name': 'Ravi', 'handle': 'ravi', 'avatar': '🦊'},
+      'kudos': 0,
+      'gaveKudos': false,
+      'comments': 0,
+      'mine': false,
+    },
+  ];
+
+  /// Sessions posted (by client_id: the latest upload wins).
+  final Map<String, Map<String, dynamic>> sessions = {};
+
+  /// Comments by activity id.
+  final Map<String, List<Map<String, dynamic>>> comments = {
+    'f1': [
+      {'id': 'c1', 'user_id': 'device:meera', 'name': 'Meera', 'handle': 'meera.reads', 'avatar': '', 'text': 'Such a calm book.', 'at': DateTime.now().subtract(const Duration(minutes: 10)).toUtc().toIso8601String(), 'mine': false, 'can_delete': false},
+    ],
+  };
+
   /// Play purchase tokens the "server" accepts, by plan; verified plans by user.
   final Map<String, String> playTokens = {};
   final Map<String, String> entitled = {};
@@ -167,12 +214,45 @@ class FakeServer {
           ]});
         }
         if (path == '/v1/feed') {
-          return ok({'items': [
-            {'id': 'f1', 'userId': 'x', 'type': 'book_finished', 'text': 'Ravi finished Walden 📚', 'at': DateTime.now().toUtc().toIso8601String(), 'kudos': 2, 'gaveKudos': false, 'mine': false},
-          ]});
+          final before = DateTime.tryParse(req.url.queryParameters['before'] ?? '');
+          final list = [
+            for (final f in feed)
+              if (before == null || DateTime.parse(f['at'] as String).isBefore(before)) f,
+          ];
+          return ok({'items': list.take(20).toList()});
+        }
+        if (path == '/v1/activities/session') {
+          final b = body();
+          sessions[b['client_id'] as String] = b;
+          return ok({'id': 'srv-${b['client_id']}'});
         }
         if (path.startsWith('/v1/activities/') && path.endsWith('/kudos')) {
           kudos.add(path.split('/')[3]);
+          return ok({'ok': true});
+        }
+        if (seg.length == 4 && seg[1] == 'activities' && seg[3] == 'comments') {
+          final list = comments.putIfAbsent(seg[2], () => []);
+          if (req.method == 'POST') {
+            final c = {
+              'id': 'c${list.length + 100}',
+              'user_id': 'device:$user',
+              'name': 'Asha',
+              'handle': null,
+              'avatar': '',
+              'text': body()['text'],
+              'at': DateTime.now().toUtc().toIso8601String(),
+              'mine': true,
+              'can_delete': true,
+            };
+            list.add(c);
+            return ok({'comment': c});
+          }
+          return ok({'items': list});
+        }
+        if (seg.length == 3 && seg[1] == 'comments' && req.method == 'DELETE') {
+          for (final list in comments.values) {
+            list.removeWhere((c) => c['id'] == seg[2]);
+          }
           return ok({'ok': true});
         }
         if (path == '/v1/book/profile') {

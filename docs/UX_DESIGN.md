@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Companion to** | [`DESIGN.md`](./DESIGN.md) |
-| **Status** | Draft v1.0 (Revision 11) |
+| **Status** | Draft v1.0 (Revision 12) |
 | **Date** | 2026-11-12 |
 | **Lenses** | Behavioural psychology · Interaction & visual design · Flutter engineering |
 
@@ -84,6 +84,17 @@
 > - **Other readers:** their profiles use the same header, with Follow and "Follows you".
 >
 > Details: `docs/CLORO_PLAN.md` §11.
+
+> **Revision 12 (Today: a Strava-style feed).**
+> - **Layout:** Today keeps your goal ring, streak and the book to continue on top. Below is **Activity**: your reading sessions and milestones and those of readers you follow, newest first, loading more as you scroll. Pull to refresh.
+> - **A session:** the book and author, time, cards, how far into the book, your mood, and a line you saved. Lines are only shared from public-domain books.
+> - **Milestones:** finished books, streak milestones and a new best reading week.
+> - **Responses:** kudos (no dislikes) and comments. Authors can remove comments on their own activity.
+> - **Offline:** Today shows your own sessions from the phone.
+> - **Goal lines** ("hit today's goal") stay out of the feed; the streak already shows them.
+> - **League:** the league and the board of readers you follow move to their own League page, opened from Today and hidden with "Hide leaderboards".
+>
+> Details: `docs/CLORO_PLAN.md` §10.
 
 ## 0. The answer in one paragraph
 
