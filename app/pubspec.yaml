@@ -82,6 +82,9 @@ flutter:
   uses-material-design: true
 
   assets:
+    # The logo (made from assets/images/logo.png; Android icons in res/mipmap-*).
+    - assets/images/logo_512.png
+    - assets/images/logo_mark.png
     - assets/books/
     # Scene sounds (licences in assets/sounds/CREDITS.md).
     - assets/sounds/

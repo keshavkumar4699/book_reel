@@ -299,7 +299,11 @@ class KitPage extends StatelessWidget {
     this.padding = const EdgeInsets.fromLTRB(16, 4, 16, 28),
     this.header,
     this.onRefresh,
+    this.leading,
   });
+
+  /// Shown before the title (tab screens), e.g. the logo.
+  final Widget? leading;
 
   final String? title;
   final String? subtitle;
@@ -332,7 +336,7 @@ class KitPage extends StatelessWidget {
     final pad = padding.copyWith(bottom: padding.bottom + bottom);
     Widget content = CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
       SliverToBoxAdapter(
-        child: SafeArea(bottom: false, child: KitTopBar(title: title, subtitle: subtitle, back: back, actions: actions)),
+        child: SafeArea(bottom: false, child: KitTopBar(title: title, subtitle: subtitle, back: back, actions: actions, leading: leading)),
       ),
       if (header != null) SliverToBoxAdapter(child: header),
       if (slivers != null)
@@ -358,8 +362,10 @@ class KitPage extends StatelessWidget {
 
 /// Back button, title and actions, drawn on the scene.
 class KitTopBar extends StatelessWidget {
-  const KitTopBar({super.key, this.title, this.subtitle, this.back = true, this.actions = const []});
+  const KitTopBar({super.key, this.title, this.subtitle, this.back = true, this.actions = const [], this.leading});
 
+  /// Before the title on screens without a back button (e.g. the logo).
+  final Widget? leading;
   final String? title;
   final String? subtitle;
   final bool back;
@@ -375,6 +381,7 @@ class KitTopBar extends StatelessWidget {
           KitIconButton(icon: Icons.arrow_back_rounded, semanticLabel: 'Back', onPressed: () => Navigator.maybePop(context)),
           const SizedBox(width: 8),
         ],
+        if (leading != null && !back) ...[leading!, const SizedBox(width: 12)],
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             if (title != null)
@@ -1333,6 +1340,27 @@ class KitNavBar extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------- icons
+
+/// The Cloro logo (the dotted C on the gradient), with the name beside it
+/// when [wordmark] is on.
+class CloroLogo extends StatelessWidget {
+  const CloroLogo({super.key, this.size = 36, this.wordmark = false});
+
+  final double size;
+  final bool wordmark;
+
+  @override
+  Widget build(BuildContext context) {
+    final kit = Kit.of(context);
+    final mark = Image.asset('assets/images/logo_512.png', width: size, height: size, semanticLabel: wordmark ? null : 'Cloro');
+    if (!wordmark) return mark;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      mark,
+      SizedBox(width: size * 0.3),
+      Text('Cloro', style: kit.display.copyWith(fontSize: size * 0.72, letterSpacing: -0.5)),
+    ]);
+  }
+}
 
 /// The share glyph of reels apps: a solid arrow curving up and to the right.
 class ShareArrowIcon extends StatelessWidget {

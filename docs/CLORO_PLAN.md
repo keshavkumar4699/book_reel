@@ -1,13 +1,13 @@
 # Cloro redesign — implementation plan
 
-Status: **in progress** (Nov 2026): step 1 done. Phase 10 of `IMPLEMENTATION_PLAN.md`.
+Status: **in progress** (Nov 2026): steps 1–2 done. Phase 10 of `IMPLEMENTATION_PLAN.md`.
 Source: the product owner's change list of 13 Nov 2026. Each item below says what changes, where in the code, and how we know it's done.
 
 ## 0. Before we start (needs you)
 
 | # | What | Why |
 |---|---|---|
-| 0.1 | **Commit and push `app/assets/logo.png`** (it is on your PC, not in the repository yet). Ideally 1024×1024 px, transparent background, the mark alone (no text). If you also have a version with the word "Cloro", add it as `app/assets/logo_wordmark.png`. | Icons, splash screen and in-app logo are generated from it. |
+| 0.1 | ✅ Done (`app/assets/images/logo.png`, 2000 px). ~~Commit and push `app/assets/logo.png`~~ (it is on your PC, not in the repository yet). Ideally 1024×1024 px, transparent background, the mark alone (no text). If you also have a version with the word "Cloro", add it as `app/assets/logo_wordmark.png`. | Icons, splash screen and in-app logo are generated from it. |
 | 0.2 | Answer the **open decisions** in §12 (or accept the recommended defaults). | They change what gets built. |
 
 ## 1. Name: BookReel → Cloro
@@ -210,7 +210,7 @@ A scrolling feed of reading activities, newest first:
 | Step | Items | Size |
 |---|---|---|
 | 1 | Name and package ID (§1), gear icon (§4), colour system (§3), icon-only tabs (§9) | M — ✅ done |
-| 2 | Logo, icon, splash (§2) — needs 0.1 | S |
+| 2 | Logo, icon, splash (§2) | S — ✅ done |
 | 3 | Open at the introduction (§7) | M |
 | 4 | Reading tab + reel overhaul (focus mode, gestures, buttons, note box, progress line) + tab dock (§6, §9) | L |
 | 5 | Save/share swipe animation (§6) | M |

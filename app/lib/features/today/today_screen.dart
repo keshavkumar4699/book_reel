@@ -58,6 +58,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       back: false,
       backdrop: false,
       dock: true,
+      leading: const CloroLogo(size: 40),
       title: '${_greeting()}${settings.displayName == 'Reader' ? '' : ','}',
       subtitle: settings.displayName == 'Reader' ? '${style.emoji} ${style.tagline}' : settings.displayName,
       actions: [

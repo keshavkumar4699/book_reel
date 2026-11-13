@@ -53,6 +53,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       // 1. Welcome
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Spacer(),
+        const CloroLogo(size: 56, wordmark: true),
+        const SizedBox(height: 28),
         Text('Scroll books\nlike reels.', style: titleStyle),
         const SizedBox(height: 14),
         Text('Real books in short, beautiful cards. A few calm minutes a day, and a habit that sticks.', style: bodyStyle),
