@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import type { Db } from "../db/db.js";
+import { notBlocked } from "../moderation.js";
 import {
   DAILY_MINUTES_CAP,
   displayStreak,
@@ -282,7 +283,7 @@ export class ActivityService {
       [code.trim().toUpperCase()],
     );
     const other = rows[0];
-    if (!other || other.id === userId) return undefined;
+    if (!other || other.id === userId || (await this.blockedEither(userId, other.id))) return undefined;
     await this.db.query("insert into follows (follower, followee) values ($1, $2), ($2, $1) on conflict do nothing", [userId, other.id]);
     return { userId: other.id, name: other.display_name };
   }
@@ -292,8 +293,13 @@ export class ActivityService {
     if (userId === other) throw new CannotFollowSelf("You can't follow yourself.");
     await this.user(userId);
     const found = await this.db.query<{ id: string; hidden: boolean }>("select id, hidden from users where id = $1", [other]);
-    if (!found[0] || found[0].hidden) throw new NotFollowable("No reader found.");
+    // A block either way looks the same as no such reader.
+    if (!found[0] || found[0].hidden || (await this.blockedEither(userId, other))) throw new NotFollowable("No reader found.");
     await this.db.query("insert into follows (follower, followee) values ($1, $2) on conflict do nothing", [userId, other]);
+  }
+
+  async blockedEither(a: string, b: string): Promise<boolean> {
+    return (await this.db.query(`select 1 from blocks where (blocker = $1 and blocked = $2) or (blocker = $2 and blocked = $1)`, [a, b])).length > 0;
   }
 
   /** The reader with this @username (any case, "@" optional), if any. */
@@ -327,7 +333,7 @@ export class ActivityService {
       `select u.id, u.display_name, u.handle, u.avatar,
               exists (select 1 from follows y where y.follower = $2 and y.followee = u.id) as you_follow
        from follows f join users u on u.id = f.${other}
-       where f.${match} = $1 and not u.hidden
+       where f.${match} = $1 and not u.hidden and ${notBlocked("$2", "u.id")}
        order by f.created_at desc limit $3`,
       [userId, viewer, limit],
     );
@@ -339,7 +345,8 @@ export class ActivityService {
     const u = idOrHandle.startsWith("@")
       ? await this.byHandle(idOrHandle)
       : (await this.db.query<UserRow>("select * from users where id = $1", [idOrHandle]))[0];
-    return !u || (u.hidden && u.id !== viewer) ? undefined : u;
+    if (!u || u.id === viewer) return u;
+    return u.hidden || (await this.blockedEither(viewer, u.id)) ? undefined : u;
   }
 
   /** What anyone can see of a reader (by id or @username). */

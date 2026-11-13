@@ -20,6 +20,7 @@ import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/vibes.dart';
 import '../reader/goal_setup_sheet.dart';
+import '../social/safety.dart';
 
 /// Settings, compact (UX_DESIGN.md Revision 6): one short list where each row
 /// shows its current value and opens a focused sheet. Simple on/off options
@@ -140,6 +141,13 @@ class SettingsScreen extends ConsumerWidget {
             value: s.hideLeaderboards,
             onChanged: (v) => n.update((x) => x.copyWith(hideLeaderboards: v)),
           ),
+          if (ref.watch(apiProvider).enabled)
+            KitRow(
+              icon: Icons.block_rounded,
+              title: 'Blocked readers',
+              onTap: () => showKitSheet<void>(context,
+                  title: 'Blocked readers', subtitle: 'They can’t find, follow or comment on you', builder: (_) => const BlockedReaders()),
+            ),
           if (bookreelApi.isNotEmpty)
             KitSwitchRow(
               icon: s.online ? Icons.cloud_rounded : Icons.cloud_off_rounded,

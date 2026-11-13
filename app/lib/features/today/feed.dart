@@ -14,6 +14,7 @@ import '../../ui/kit.dart';
 import '../../ui/widgets.dart';
 import '../profile/profile_screen.dart' show ReaderAvatar;
 import '../social/profile_header.dart' show PersonAvatar;
+import '../social/safety.dart';
 
 /// One card in the Today feed (Cloro plan §10): a reading session or a
 /// milestone, yours or from a reader you follow.
@@ -246,6 +247,20 @@ class ActivityCard extends ConsumerWidget {
           ]),
         ),
       ),
+      if (!e.mine && !e.local)
+        KitIconButton(
+          icon: Icons.more_horiz_rounded,
+          semanticLabel: 'More: report or block',
+          onPressed: () => showSafetyActions(
+            context,
+            ref,
+            type: 'activity',
+            id: e.id,
+            userId: e.userId,
+            name: e.name,
+            onBlocked: () => ref.invalidate(todayFeedProvider),
+          ),
+        ),
     ]);
 
     final Widget body;
@@ -395,8 +410,10 @@ class _CommentsState extends ConsumerState<_Comments> {
     try {
       await ref.read(apiProvider).addComment(widget.entry.id, text.trim());
       await _load();
-    } catch (_) {
-      if (mounted) showKitToast(context, 'Couldn’t post your comment. Check your connection.', icon: Icons.cloud_off_rounded);
+    } catch (e) {
+      if (mounted) {
+        showKitToast(context, apiErrorMessage(e, fallback: 'Couldn’t post your comment. Check your connection.'), icon: Icons.info_outline_rounded);
+      }
     }
   }
 
@@ -438,6 +455,23 @@ class _CommentsState extends ConsumerState<_Comments> {
                   Text('${c['text']}', style: kit.body),
                 ]),
               ),
+              if (c['mine'] != true)
+                KitIconButton(
+                  icon: Icons.more_horiz_rounded,
+                  semanticLabel: 'More: report or block',
+                  onPressed: () => showSafetyActions(
+                    context,
+                    ref,
+                    type: 'comment',
+                    id: c['id'] as String,
+                    userId: '${c['user_id']}',
+                    name: '${c['name']}',
+                    onBlocked: () {
+                      _load();
+                      ref.invalidate(todayFeedProvider);
+                    },
+                  ),
+                ),
               if (c['can_delete'] == true)
                 KitIconButton(icon: Icons.delete_outline_rounded, semanticLabel: 'Remove comment', onPressed: () => _delete(c)),
             ]),

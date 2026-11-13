@@ -668,6 +668,9 @@ class _EditProfile extends ConsumerStatefulWidget {
   ConsumerState<_EditProfile> createState() => _EditProfileState();
 }
 
+/// Links in a name or bio (the server refuses them too: spam).
+final _profileLink = RegExp(r'(https?://|www\.|\b[a-z0-9-]{2,}\.(com|net|org|io|xyz|ru|cn|info|biz|top|link|click|site|online|shop|live|app|me|ly|gg|co|in)\b)', caseSensitive: false);
+
 class _EditProfileState extends ConsumerState<_EditProfile> {
   late final AppSettings _start = ref.read(settingsProvider);
   late final _name = TextEditingController(text: _start.displayName == 'Reader' ? '' : _start.displayName);
@@ -736,20 +739,31 @@ class _EditProfileState extends ConsumerState<_EditProfile> {
       setState(() => _error = 'Usernames are 3–24 letters, numbers, dots or underscores.');
       return;
     }
+    // Other readers see these: no links (the server checks the same).
+    if (_profileLink.hasMatch(_name.text) || _profileLink.hasMatch(_bio.text)) {
+      setState(() => _error = 'Links aren’t allowed in your name or bio.');
+      return;
+    }
     setState(() {
       _error = null;
       _saving = true;
     });
     final api = ref.read(apiProvider);
-    if (api.enabled && username != _start.username) {
-      // Claim the name first: it must be free on the server.
+    if (api.enabled) {
+      // Check with the server first: the name must be free, and what others
+      // see must pass its checks, so a refusal shows here and now.
       try {
-        await api.updateProfile(handle: username);
+        await api.updateProfile(
+          handle: username != _start.username ? username : null,
+          displayName: _name.text.trim().isEmpty ? 'Reader' : _name.text.trim(),
+          pronouns: _pronounChoice == 'custom' ? _pronouns.text.trim() : _pronounChoice,
+          bio: _bio.text.trim(),
+        );
       } on ApiException catch (e) {
         if (e.status == 409 || e.status == 400) {
           if (mounted) {
             setState(() {
-              _error = '@$username is taken. Try another.';
+              _error = e.status == 400 && e.message != null ? e.message! : '@$username is taken. Try another.';
               _saving = false;
             });
           }

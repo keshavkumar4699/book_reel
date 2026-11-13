@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import type { Db } from "../db/db.js";
+import { notBlocked } from "../moderation.js";
 import { MOODS } from "../mood/suggest.js";
 
 /**
@@ -104,7 +105,8 @@ export class FeedService {
   async canSee(userId: string, activityId: string): Promise<{ authorId: string } | undefined> {
     const rows = await this.db.query<{ user_id: string }>(
       `select f.user_id from feed_items f join users u on u.id = f.user_id
-       where f.id = $2 and (f.user_id = $1 or (not u.hidden and exists (select 1 from follows where follower = $1 and followee = f.user_id)))`,
+       where f.id = $2 and (f.user_id = $1 or (not u.hidden and exists (select 1 from follows where follower = $1 and followee = f.user_id)
+         and ${notBlocked("$1", "f.user_id")}))`,
       [userId, activityId],
     );
     return rows[0] ? { authorId: rows[0].user_id } : undefined;
@@ -130,9 +132,9 @@ export class FeedService {
       `select f.id, f.user_id, f.type, f.text, f.at, f.data, u.display_name, u.handle, u.avatar,
               (select count(*) from kudos k where k.activity_id = f.id) as kudos,
               exists (select 1 from kudos k where k.activity_id = f.id and k.user_id = $1) as gave,
-              (select count(*) from comments c where c.activity_id = f.id) as comments
+              (select count(*) from comments c where c.activity_id = f.id and not c.hidden) as comments
        from feed_items f join users u on u.id = f.user_id
-       where (f.user_id = $1 or (not u.hidden and f.user_id in (select followee from follows where follower = $1)))
+       where (f.user_id = $1 or (not u.hidden and f.user_id in (select followee from follows where follower = $1) and ${notBlocked("$1", "f.user_id")}))
          and f.type <> 'goal_met'
          and ($3::timestamptz is null or f.at < $3::timestamptz)
        order by f.at desc, f.id desc limit $2`,
@@ -167,7 +169,7 @@ export class FeedService {
     const rows = await this.db.query<{ id: string; user_id: string; display_name: string; handle: string | null; avatar: string; text: string; at: string | Date }>(
       `select c.id, c.user_id, u.display_name, u.handle, u.avatar, c.text, c.at
        from comments c join users u on u.id = c.user_id
-       where c.activity_id = $1 and (not u.hidden or c.user_id = $2)
+       where c.activity_id = $1 and (c.user_id = $2 or (not u.hidden and not c.hidden and ${notBlocked("$2", "c.user_id")}))
        order by c.at asc, c.id asc limit 200`,
       [activityId, userId],
     );

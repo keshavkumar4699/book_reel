@@ -169,4 +169,29 @@ export const MIGRATIONS: string[] = [
   );
   create index comments_activity on comments (activity_id, at);
   `,
+  // Abuse protection (Production plan A4): blocks, reports, held-back comments.
+  `
+  create table blocks (
+    blocker text not null references users(id),
+    blocked text not null references users(id),
+    created_at timestamptz not null default now(),
+    primary key (blocker, blocked)
+  );
+  create index blocks_blocked on blocks (blocked);
+  create table reports (
+    id text primary key,
+    reporter text not null references users(id),
+    target_type text not null,
+    target_id text not null,
+    target_user text not null,
+    reason text not null,
+    note text not null default '',
+    status text not null default 'open',
+    created_at timestamptz not null default now(),
+    unique (reporter, target_type, target_id)
+  );
+  create index reports_target_user on reports (target_user, created_at);
+  create index reports_open on reports (status, created_at);
+  alter table comments add column hidden boolean not null default false;
+  `,
 ];

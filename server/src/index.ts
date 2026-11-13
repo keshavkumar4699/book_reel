@@ -30,6 +30,9 @@ import { SqlJobStore, SqlQuotaStore, SqlSegmentCache, SqlUsageLog } from "./stor
  * - PLAY_RTDN_SECRET     secret in the Pub/Sub push URL for Play notifications (secret)
  * - BILLING_ENFORCED=1   serve the verified plan instead of the one the app asks for
  * - SUPPORT_EMAIL        shown on /account/delete for readers who no longer have the app
+ * - MODERATION_WORDS_FILE  words and phrases (one per line) kept out of names, bios and comments
+ * - ADMIN_TOKEN          enables report review at /v1/admin/reports (secret; sent as x-admin-token)
+ * - TRUST_PROXY=1        behind a load balancer (Cloud Run): rate limits use the client's address
  */
 const port = Number(process.env.PORT ?? 8787);
 const db = await openDb(process.env.DATABASE_URL ?? "./data/pglite");
@@ -59,6 +62,8 @@ const app = buildApp({
   billing: new BillingService(db, verifierFromEnv(), { enforced: process.env.BILLING_ENFORCED === "1" }),
   rtdnSecret: process.env.PLAY_RTDN_SECRET,
   supportEmail: process.env.SUPPORT_EMAIL,
+  adminToken: process.env.ADMIN_TOKEN,
+  trustProxy: process.env.TRUST_PROXY === "1",
   logger: true,
 });
 await app.listen({ port, host: "0.0.0.0" });

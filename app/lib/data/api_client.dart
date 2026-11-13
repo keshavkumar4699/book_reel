@@ -14,6 +14,19 @@ class ApiException implements Exception {
   final String body;
   @override
   String toString() => 'API error $status: $body';
+
+  /// The server's own explanation (e.g. "Links aren't allowed here."), if any.
+  String? get message {
+    try {
+      final j = jsonDecode(body);
+      return j is Map && j['message'] is String ? j['message'] as String : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Too many requests: try again in a moment.
+  bool get rateLimited => status == 429;
 }
 
 /// Client for the Cloro server's account, activity, social, sync and share
@@ -172,6 +185,19 @@ class BookReelApi {
       rethrow;
     }
   }
+
+  /// Blocks a reader: you stop following each other and neither can find,
+  /// follow or comment on the other.
+  Future<void> block(String userId) => _send('POST', '/v1/social/block/${Uri.encodeComponent(userId)}');
+
+  Future<void> unblock(String userId) => _send('DELETE', '/v1/social/block/${Uri.encodeComponent(userId)}');
+
+  Future<List<Map<String, dynamic>>> blocked() async =>
+      (((await _send('GET', '/v1/social/blocked')) as Map<String, dynamic>)['items'] as List).cast<Map<String, dynamic>>();
+
+  /// Reports a reader, an activity or a comment ([type]: user, activity, comment).
+  Future<void> report({required String type, required String id, required String reason, String note = ''}) =>
+      _send('POST', '/v1/reports', {'type': type, 'id': id, 'reason': reason, 'note': note});
 
   /// Follows a reader (one way).
   Future<void> follow(String userId) => _send('POST', '/v1/social/follow/${Uri.encodeComponent(userId)}');

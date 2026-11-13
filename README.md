@@ -106,6 +106,8 @@ ANTHROPIC_API_KEY=... npm run dev     # http://localhost:8787
 | `GET /v1/feed?before=`, `POST /v1/activities/session`, `POST /v1/activities/:id/kudos` | The Today feed (20 at a time), reading sessions, kudos |
 | `GET`/`POST /v1/activities/:id/comments`, `DELETE /v1/comments/:id` | Comments on activities |
 | `POST /v1/mood/suggest` | Gemma's guess at the reader's mood, from the mood log only |
+| `POST`/`DELETE /v1/social/block/:userId`, `GET /v1/social/blocked`, `POST /v1/reports` | Blocking (both ways: no follows, profiles, feed or comments) and reports |
+| `GET /v1/admin/reports`, `POST /v1/admin/reports/:id` | Report review (only with `ADMIN_TOKEN`) |
 | `GET /v1/sync?since=`, `PUT /v1/sync` | Notebook and reading-position sync |
 | `POST /v1/share`, `GET /c/:id`, `GET /i/:code`, `GET /.well-known/assetlinks.json` | Share links, preview pages, invites, App Links |
 | `POST /v1/book/profile` | The AI's choice of fonts for a book (paid plans) |
@@ -128,6 +130,9 @@ Configuration (all optional locally):
 | `PLAY_RTDN_SECRET` | Secret in the Pub/Sub push URL for Play real-time notifications (secret) |
 | `BILLING_ENFORCED` | `1`: serve the verified plan instead of the one the app asks for |
 | `SUPPORT_EMAIL` | Shown on `/account/delete` for readers who no longer have the app |
+| `MODERATION_WORDS_FILE` | Words and phrases (one per line) kept out of names, bios and comments. Links and staff-like usernames are always refused |
+| `ADMIN_TOKEN` | Turns on report review (secret; sent as `x-admin-token`) |
+| `TRUST_PROXY` | `1` behind a load balancer (Cloud Run), so rate limits see the reader's address |
 
 Keep keys in your host's secret store (e.g. Cloud Run secrets), never in the repository. What else is needed to launch (Play Console, subscriptions, signing, Firebase) is listed in `docs/IMPLEMENTATION_PLAN.md`, "Launch checklist".
 

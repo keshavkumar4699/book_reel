@@ -37,6 +37,8 @@ export class AccountService {
          bj as (delete from batch_jobs where user_id = $1),
          au as (update ai_usage set user_id = 'deleted' where user_id = $1),
          en as (update entitlements set user_id = null where user_id = $1),
+         bl as (delete from blocks where blocker = $1 or blocked = $1),
+         rp as (delete from reports where reporter = $1 or target_user = $1),
          al as (delete from aliases where user_id = $1)
        delete from users where id = $1 returning id`,
       [userId],

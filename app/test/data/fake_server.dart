@@ -21,6 +21,13 @@ class FakeServer {
   final List<String> deletedAccounts = [];
   int deleteStatus = 204;
 
+  /// Readers you blocked, and reports sent.
+  final Set<String> blocked = {};
+  final List<Map<String, dynamic>> reports = [];
+
+  /// Comments answer 429 while set (too many too fast).
+  bool commentsRateLimited = false;
+
   /// The Today feed, newest first (GET /v1/feed pages through it 20 at a time).
   late final List<Map<String, dynamic>> feed = [
     {
@@ -144,6 +151,9 @@ class FakeServer {
         if (path == '/v1/me/profile') {
           final b = body();
           if (takenHandles.contains(b['handle'])) return http.Response('{"error":"handle_taken"}', 409);
+          if (b['handle'] == 'support') {
+            return http.Response('{"error":"not_allowed","message":"That username is reserved. Try another."}', 400);
+          }
           profiles[user] = {...?profiles[user], ...b};
           return ok(profiles[user]!);
         }
@@ -248,8 +258,25 @@ class FakeServer {
           kudos.add(path.split('/')[3]);
           return ok({'ok': true});
         }
+        if (seg.length == 4 && seg[1] == 'social' && seg[2] == 'block') {
+          req.method == 'DELETE' ? blocked.remove(seg[3]) : blocked.add(seg[3]);
+          return ok({'ok': true});
+        }
+        if (path == '/v1/social/blocked') {
+          return ok({'items': [for (final id in blocked) if (readers[id] != null) {for (final k in ['user_id', 'display_name', 'handle', 'avatar']) k: readers[id]![k]}]});
+        }
+        if (path == '/v1/reports') {
+          reports.add(body());
+          return ok({'ok': true});
+        }
         if (seg.length == 4 && seg[1] == 'activities' && seg[3] == 'comments') {
           final list = comments.putIfAbsent(seg[2], () => []);
+          if (req.method == 'POST' && commentsRateLimited) {
+            return http.Response('{"error":"rate_limited","retry_after":30}', 429);
+          }
+          if (req.method == 'POST' && '${body()['text']}'.contains('http')) {
+            return http.Response('{"error":"not_allowed","message":"Links aren\'t allowed here."}', 400);
+          }
           if (req.method == 'POST') {
             final c = {
               'id': 'c${list.length + 100}',

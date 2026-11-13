@@ -1,6 +1,8 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 
+import { timingSafeEqual } from "node:crypto";
+
 import { AccountService } from "./account.js";
 import { AuthError, Authenticator } from "./auth.js";
 import {
@@ -16,6 +18,7 @@ import { ActivityBatchSchema, ActivityService, CannotFollowSelf, HandleTaken, In
 import { localDateKey, weekKey } from "./habit/engine.js";
 import { CommentSchema, FeedService, NotVisible, SessionSchema } from "./habit/feed.js";
 import { LeagueService } from "./habit/leagues.js";
+import { ModerationService, NotAllowed, RateLimited, RateLimiter, ReportSchema, TextFilter, type LimitName } from "./moderation.js";
 import { MoodInvalid, MoodQuotaExceeded, MoodSuggestSchema, MoodUnavailable, type MoodService } from "./mood/suggest.js";
 import { SegmentRequestSchema } from "./segmentation/schema.js";
 import { QuotaExceeded, SegmentService, TierNotEligible, type Caller } from "./segmentation/service.js";
@@ -58,17 +61,34 @@ export interface AppDeps {
   rtdnSecret?: string;
   /** Where readers without the app can ask for their account to be deleted. */
   supportEmail?: string;
+  /** Words and phrases kept out of names, bios and comments (default: MODERATION_WORDS_FILE). */
+  textFilter?: TextFilter;
+  /** Enables the report review endpoints (sent as `x-admin-token`). */
+  adminToken?: string;
+  /** Rate-limit clock, for tests. */
+  limiter?: RateLimiter;
+  /** Behind a load balancer: the client's address comes from X-Forwarded-For. */
+  trustProxy?: boolean;
   logger?: boolean;
 }
 
 const ANDROID_PACKAGE = "app.sweatik2.cloro";
 
 export function buildApp(deps: AppDeps): FastifyInstance {
-  const app = Fastify({ logger: deps.logger ?? false, bodyLimit: 8 * 1024 * 1024 });
+  const app = Fastify({ logger: deps.logger ?? false, bodyLimit: 8 * 1024 * 1024, trustProxy: deps.trustProxy ?? false });
   const baseUrl = (deps.publicBaseUrl ?? "http://localhost:8787").replace(/\/$/, "");
   const activity = new ActivityService(deps.db);
   const feeds = new FeedService(deps.db);
   const accounts = new AccountService(deps.db);
+  const moderation = new ModerationService(deps.db);
+  const limiter = deps.limiter ?? new RateLimiter();
+  const filter = deps.textFilter ?? TextFilter.fromEnv();
+  const limit = (name: LimitName, key: string) => limiter.hit(name, key);
+
+  // Every API request counts against its IP address (floods, scripts).
+  app.addHook("onRequest", async (req) => {
+    if (req.url.startsWith("/v1/")) limit("ip", req.ip);
+  });
   const leagues = new LeagueService(deps.db, activity);
   const sync = new SyncService(deps.db);
   const shares = new ShareService(deps.db, baseUrl);
@@ -96,6 +116,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ZodError) return reply.code(400).send({ error: "invalid_request", issues: err.issues.slice(0, 10) });
+    if (err instanceof RateLimited) {
+      return reply.code(429).header("retry-after", String(err.retryAfterSec)).send({ error: "rate_limited", retry_after: err.retryAfterSec });
+    }
+    if (err instanceof NotAllowed) return reply.code(400).send({ error: "not_allowed", message: err.message });
     if (err instanceof AuthError) return reply.code(401).send({ error: "unauthorized", message: err.message });
     if (err instanceof QuotaExceeded) return reply.code(402).send({ error: "quota_exceeded", limit: err.limit });
     if (err instanceof TierNotEligible) return reply.code(403).send({ error: "tier_not_eligible", message: err.message });
@@ -183,7 +207,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.put("/v1/me/profile", async (req) => {
     const b = ProfileBodySchema.parse(req.body ?? {});
-    const u = await activity.setProfile((await caller(req)).userId, {
+    const c = await caller(req);
+    limit("profile", c.userId);
+    // What other readers see is checked: names, @username, pronouns, bio.
+    filter.check(b.display_name ?? "", "name");
+    filter.check((b.handle ?? "").trim().replace(/^@/, ""), "handle");
+    filter.check(b.pronouns ?? "", "name");
+    filter.check(b.bio ?? "", "bio");
+    const u = await activity.setProfile(c.userId, {
       displayName: b.display_name,
       dailyGoalCards: b.daily_goal_cards,
       freezesPerWeek: b.freezes_per_week,
@@ -237,7 +268,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   }));
 
   app.post<{ Body: { code?: string } }>("/v1/social/follow-code", async (req, reply) => {
-    const friend = await activity.followByCode((await caller(req)).userId, String(req.body?.code ?? ""));
+    const c = await caller(req);
+    limit("follow", c.userId);
+    const friend = await activity.followByCode(c.userId, String(req.body?.code ?? ""));
     if (!friend) return reply.code(404).send({ error: "unknown_code" });
     return { friend };
   });
@@ -249,13 +282,56 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   // Strava-style follows: one way, with public counts and lists.
   app.post<{ Params: { userId: string } }>("/v1/social/follow/:userId", async (req) => {
-    await activity.follow((await caller(req)).userId, req.params.userId);
+    const c = await caller(req);
+    limit("follow", c.userId);
+    await activity.follow(c.userId, req.params.userId);
     return { ok: true };
   });
 
-  app.post<{ Body: { handle?: string } }>("/v1/social/follow-handle", async (req) => ({
-    user: await activity.followByHandle((await caller(req)).userId, String(req.body?.handle ?? "")),
-  }));
+  app.post<{ Body: { handle?: string } }>("/v1/social/follow-handle", async (req) => {
+    const c = await caller(req);
+    limit("follow", c.userId);
+    return { user: await activity.followByHandle(c.userId, String(req.body?.handle ?? "")) };
+  });
+
+  // Blocking: neither reader can find, follow, see or comment on the other.
+  app.post<{ Params: { userId: string } }>("/v1/social/block/:userId", async (req, reply) => {
+    const c = await caller(req);
+    limit("block", c.userId);
+    if (!(await moderation.block(c.userId, req.params.userId))) return reply.code(404).send({ error: "not_found" });
+    return { ok: true };
+  });
+
+  app.delete<{ Params: { userId: string } }>("/v1/social/block/:userId", async (req) => {
+    await moderation.unblock((await caller(req)).userId, req.params.userId);
+    return { ok: true };
+  });
+
+  app.get("/v1/social/blocked", async (req) => ({ items: await moderation.blocked((await caller(req)).userId) }));
+
+  app.post("/v1/reports", async (req, reply) => {
+    const c = await caller(req);
+    limit("report", c.userId);
+    if (!(await moderation.report(c.userId, ReportSchema.parse(req.body)))) return reply.code(404).send({ error: "not_found" });
+    return { ok: true };
+  });
+
+  // Report review, with ADMIN_TOKEN (otherwise these routes don't exist).
+  const admin = (req: FastifyRequest) => {
+    const sent = Buffer.from(String(req.headers["x-admin-token"] ?? ""));
+    const want = Buffer.from(deps.adminToken ?? "");
+    if (!deps.adminToken || sent.length !== want.length || !timingSafeEqual(sent, want)) throw new NotVisible("Not found");
+  };
+  app.get("/v1/admin/reports", async (req) => {
+    admin(req);
+    return { items: await moderation.openReports() };
+  });
+  app.post<{ Params: { id: string }; Body: { action?: string } }>("/v1/admin/reports/:id", async (req, reply) => {
+    admin(req);
+    const action = z.enum(["dismiss", "remove", "hide_user", "restore_user"]).parse(req.body?.action);
+    if (!(await moderation.resolve(req.params.id, action))) return reply.code(404).send({ error: "not_found" });
+    return { ok: true };
+  });
 
   /** "me", a user id, or "@handle". */
   const reader = async (req: FastifyRequest<{ Params: { id: string } }>) => {
@@ -287,12 +363,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.post("/v1/activities/session", async (req) => {
-    const posted = await feeds.postSession((await caller(req)).userId, SessionSchema.parse(req.body));
+    const c = await caller(req);
+    limit("session", c.userId);
+    const posted = await feeds.postSession(c.userId, SessionSchema.parse(req.body));
     return { id: posted?.id ?? null };
   });
 
   app.post<{ Params: { id: string } }>("/v1/activities/:id/kudos", async (req, reply) => {
-    if (!(await feeds.kudos((await caller(req)).userId, req.params.id))) return reply.code(404).send({ error: "not_found" });
+    const c = await caller(req);
+    limit("kudos", c.userId);
+    if (!(await feeds.kudos(c.userId, req.params.id))) return reply.code(404).send({ error: "not_found" });
     return { ok: true };
   });
 
@@ -300,9 +380,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     items: await feeds.comments((await caller(req)).userId, req.params.id),
   }));
 
-  app.post<{ Params: { id: string } }>("/v1/activities/:id/comments", async (req) => ({
-    comment: await feeds.addComment((await caller(req)).userId, req.params.id, CommentSchema.parse(req.body).text),
-  }));
+  app.post<{ Params: { id: string } }>("/v1/activities/:id/comments", async (req) => {
+    const c = await caller(req);
+    limit("comment", c.userId);
+    const { text } = CommentSchema.parse(req.body);
+    filter.check(text, "comment");
+    return { comment: await feeds.addComment(c.userId, req.params.id, text) };
+  });
 
   app.delete<{ Params: { id: string } }>("/v1/comments/:id", async (req, reply) => {
     if (!(await feeds.deleteComment((await caller(req)).userId, req.params.id))) return reply.code(404).send({ error: "not_found" });
@@ -369,7 +453,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   // ------------------------------------------------------------ share links & web pages
-  app.post("/v1/share", async (req) => shares.create((await caller(req)).userId, ShareSchema.parse(req.body)));
+  app.post("/v1/share", async (req) => {
+    const c = await caller(req);
+    limit("share", c.userId);
+    return shares.create(c.userId, ShareSchema.parse(req.body));
+  });
 
   app.get<{ Params: { id: string } }>("/c/:id", async (req, reply) => {
     const html = await shares.page(req.params.id);

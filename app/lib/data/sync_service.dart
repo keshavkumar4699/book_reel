@@ -91,14 +91,20 @@ class SyncService {
   }
 
   Future<void> _sync() async {
-    try {
-      await syncProfile();
-      await flushActivity();
-      await flushSessions();
-      await syncNotebook();
-      await syncPositions();
-    } catch (e) {
-      debugPrint('Sync skipped: $e'); // offline or server error: retry on the next pass
+    // Each step on its own: one that fails (offline, or a profile the server
+    // refuses) is retried on the next pass without holding up the others.
+    for (final (name, step) in [
+      ('profile', syncProfile),
+      ('activity', flushActivity),
+      ('sessions', flushSessions),
+      ('notebook', syncNotebook),
+      ('positions', syncPositions),
+    ]) {
+      try {
+        await step();
+      } catch (e) {
+        debugPrint('Sync step $name skipped: $e');
+      }
     }
   }
 

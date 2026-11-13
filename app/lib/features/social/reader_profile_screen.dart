@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../data/api_client.dart';
 import '../../ui/kit.dart';
 import 'people_screen.dart';
+import '../today/feed.dart' show todayFeedProvider;
 import 'profile_header.dart';
+import 'safety.dart';
 
 /// Another reader's public profile ("me", a user id or "@handle").
 final readerProfileProvider = FutureProvider.autoDispose.family<Map<String, dynamic>?, String>((ref, id) => ref.read(apiProvider).profile(id));
@@ -52,6 +54,26 @@ class _ReaderProfileScreenState extends ConsumerState<ReaderProfileScreen> {
       backdrop: true,
       title: handle != null && handle.isNotEmpty ? '@$handle' : (p?['display_name'] as String? ?? 'Reader'),
       onRefresh: () => ref.refresh(readerProfileProvider(widget.id).future),
+      actions: [
+        if (p != null && p['me'] != true)
+          KitIconButton(
+            icon: Icons.more_horiz_rounded,
+            semanticLabel: 'More: report or block',
+            onPressed: () => showSafetyActions(
+              context,
+              ref,
+              type: 'user',
+              id: p['user_id'] as String,
+              userId: p['user_id'] as String,
+              name: (p['display_name'] as String?) ?? 'this reader',
+              onBlocked: () {
+                refreshSocial(ref);
+                ref.invalidate(todayFeedProvider);
+                if (context.mounted) Navigator.of(context).maybePop();
+              },
+            ),
+          ),
+      ],
       children: [DefaultTextStyle(style: kit.body, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children))],
     );
   }

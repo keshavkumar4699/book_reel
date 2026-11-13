@@ -209,6 +209,23 @@ void main() {
     expect(find.text('@taken.name is taken. Try another.'), findsOneWidget);
     expect(c.read(settingsProvider).username, '');
 
+    // A reserved name: the server's reason is shown.
+    await tester.enterText(fields.at(1), 'support');
+    await tester.ensureVisible(find.text('Save'));
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pumpAndSettle();
+    expect(find.text('That username is reserved. Try another.'), findsOneWidget);
+
+    // No links in a bio (spam), checked before anything is sent.
+    await tester.enterText(fields.at(2), 'Find me at mysite.com');
+    await tester.ensureVisible(find.text('Save'));
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Links aren’t allowed in your name or bio.'), findsOneWidget);
+    await tester.enterText(fields.at(2), 'Reading my way through the classics.');
+
     await tester.enterText(fields.at(1), '@Asha.Reads');
     await tester.ensureVisible(find.text('Save'));
     await tester.tap(find.text('Save'));
