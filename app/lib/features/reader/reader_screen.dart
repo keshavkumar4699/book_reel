@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -210,7 +211,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _feedKey = key;
     _partDwell.clear();
     var index = feedIndexForSid(_feed, anchor, offset: anchorOffset);
-    if (anchor == null) index = 0;
+    // A book opened for the first time starts at its own text (the
+    // introduction or first chapter), past the title page and copyright.
+    if (anchor == null) index = math.max(0, _feed.indexWhere((f) => f.chapterIndex >= book.bodyStart));
     _page = index;
     if (_pager == null) {
       _pager = PageController(initialPage: index);
@@ -594,7 +597,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         for (final c in book.chapters)
           KitRow(
             title: c.title,
-            subtitle: '~${(c.wordCount / wpm).ceil()} min',
+            subtitle: c.index < book.bodyStart ? 'Front matter' : '~${(c.wordCount / wpm).ceil()} min',
             selected: c.index == current,
             chevron: false,
             onTap: () => Navigator.of(context).pop(c.index),

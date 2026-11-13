@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/book.dart';
+import '../models/front_matter.dart';
 import 'block_builder.dart';
 import 'epub_parser.dart' show ParseException;
 
@@ -141,7 +142,8 @@ BookContent buildBookFromPdfPages(
     result.add(Chapter(index: index, title: c.title, blocks: blocks));
   }
   if (result.isEmpty) throw ParseException('No readable text was found in this PDF.');
-  return BookContent(title: title, author: author, chapters: result);
+  // Leading title, copyright and contents pages are skipped when the book opens.
+  return BookContent(title: title, author: author, chapters: result, bodyStart: findBodyStart(result));
 }
 
 class _Para {

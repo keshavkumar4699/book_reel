@@ -5,6 +5,8 @@
 /// point at sentence IDs, so re-segmenting a book never loses the user's place.
 library;
 
+import 'front_matter.dart';
+
 enum BlockType { heading, paragraph, quote, list, dialogue, preformatted }
 
 enum BookFormat { epub, pdf, text }
@@ -79,6 +81,7 @@ class BookContent {
     required this.author,
     required this.chapters,
     this.language = 'en',
+    this.bodyStart = 0,
   });
 
   final String title;
@@ -86,23 +89,31 @@ class BookContent {
   final String language;
   final List<Chapter> chapters;
 
+  /// The chapter where the book's own text begins (after the title page,
+  /// copyright and contents): a new book opens here. See front_matter.dart.
+  final int bodyStart;
+
   int get wordCount => chapters.fold(0, (sum, c) => sum + c.wordCount);
 
   Map<String, dynamic> toJson() => {
         'title': title,
         'author': author,
         'lang': language,
+        'start': bodyStart,
         'chapters': chapters.map((c) => c.toJson()).toList(),
       };
 
-  factory BookContent.fromJson(Map<String, dynamic> json) => BookContent(
-        title: json['title'] as String,
-        author: json['author'] as String,
-        language: (json['lang'] as String?) ?? 'en',
-        chapters: (json['chapters'] as List)
-            .map((e) => Chapter.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+  factory BookContent.fromJson(Map<String, dynamic> json) {
+    final chapters = (json['chapters'] as List).map((e) => Chapter.fromJson(e as Map<String, dynamic>)).toList();
+    return BookContent(
+      title: json['title'] as String,
+      author: json['author'] as String,
+      language: (json['lang'] as String?) ?? 'en',
+      chapters: chapters,
+      // Books saved before this existed: work it out now.
+      bodyStart: (json['start'] as num?)?.toInt() ?? findBodyStart(chapters),
+    );
+  }
 }
 
 /// Library entry. [id] is the SHA-256 content hash of the imported file.

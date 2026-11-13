@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
 import '../models/book.dart';
+import '../models/front_matter.dart';
 import 'block_builder.dart';
 import 'html_blocks.dart';
 
@@ -113,7 +114,9 @@ class EpubParser {
     final tocTitles = _tocTitles(zip, manifest, spineEl);
 
     final chapters = <Chapter>[];
-    for (final item in spine) {
+    // The spine position each chapter came from (some items are skipped).
+    final fromSpine = <int>[];
+    for (final (spineIndex, item) in spine.indexed) {
       final markup = _readText(zip, item.path);
       if (markup == null) continue;
       final raw = htmlToRawBlocks(markup);
@@ -131,12 +134,30 @@ class EpubParser {
       }
       if (blocks.isEmpty) continue;
       chapters.add(Chapter(index: index, title: chapterTitle, blocks: blocks));
+      fromSpine.add(spineIndex);
     }
     if (chapters.isEmpty) throw ParseException('No readable text was found in this EPUB.');
 
+    // Where the book's own text starts, as the publisher marked it.
+    int? marked;
+    final bodyPath = _bodyMatterPath(zip, manifest, opf, opfDir);
+    if (bodyPath != null) {
+      final at = spine.indexWhere((i) => i.path == bodyPath);
+      if (at >= 0) {
+        final c = fromSpine.indexWhere((s) => s >= at);
+        if (c >= 0) marked = c;
+      }
+    }
+
     final cover = _cover(zip, manifest, opf);
     return ParsedBook(
-      content: BookContent(title: title, author: author, language: language, chapters: chapters),
+      content: BookContent(
+        title: title,
+        author: author,
+        language: language,
+        chapters: chapters,
+        bodyStart: findBodyStart(chapters, marked: marked),
+      ),
       coverBytes: cover?.$1,
       coverExtension: cover?.$2,
       isPublicDomain: rights.contains('public domain'),
@@ -150,6 +171,39 @@ class EpubParser {
     // Font obfuscation (IDPF/Adobe) is not DRM; anything else encrypting content is.
     final algorithms = RegExp(r'Algorithm="([^"]+)"').allMatches(enc).map((m) => m.group(1)!).toList();
     return algorithms.any((a) => !a.contains('obfuscation') && !a.contains('fontobfuscation'));
+  }
+
+  /// The file where the book's own text begins: the EPUB 3 nav document's
+  /// `bodymatter` landmark, else the EPUB 2 guide's `text` (or `start`)
+  /// reference.
+  String? _bodyMatterPath(Archive zip, Map<String, _Item> manifest, XmlDocument opf, String opfDir) {
+    String? typeOf(XmlElement e) =>
+        e.attributes.where((a) => a.name.local == 'type' && a.name.prefix == 'epub').map((a) => a.value).firstOrNull;
+    final nav = manifest.values.where((i) => i.properties.contains('nav')).firstOrNull;
+    final navText = nav == null ? null : _readText(zip, nav.path);
+    if (nav != null && navText != null) {
+      try {
+        final doc = XmlDocument.parse(navText);
+        for (final n in doc.descendants.whereType<XmlElement>().where((e) => e.localName == 'nav')) {
+          if (!(typeOf(n) ?? '').contains('landmarks')) continue;
+          for (final a in n.descendants.whereType<XmlElement>().where((e) => e.localName == 'a')) {
+            final href = a.getAttribute('href');
+            if (href != null && (typeOf(a) ?? '').split(' ').contains('bodymatter')) {
+              return _resolve(p.posix.dirname(nav.path), href.split('#').first);
+            }
+          }
+        }
+      } catch (_) {/* fall through to the guide */}
+    }
+    for (final type in ['text', 'start']) {
+      final ref = opf.descendants
+          .whereType<XmlElement>()
+          .where((e) => e.localName == 'reference' && e.getAttribute('type')?.toLowerCase() == type)
+          .firstOrNull;
+      final href = ref?.getAttribute('href');
+      if (href != null) return _resolve(opfDir, href.split('#').first);
+    }
+    return null;
   }
 
   Map<String, String> _tocTitles(Archive zip, Map<String, _Item> manifest, XmlElement spineEl) {
