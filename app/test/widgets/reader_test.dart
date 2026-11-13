@@ -172,8 +172,17 @@ await tester.tap(find.bySemanticsLabel('Focus: hide the controls'));
     final card = tester.widget<PostCard>(post);
     expect(container.read(notebookProvider).liked, contains('$bookId|${card.card.startSid}'));
 
-    // Swipe left saves.
-    await tester.drag(post, const Offset(-200, 0));
+    // A short swipe springs back and does nothing.
+    await tester.drag(post, const Offset(-120, 0));
+    await tester.pump(); // the spring starts on this frame
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(container.read(notebookProvider).isSaved(bookId, card.card.startSid), isFalse);
+    expect(find.text('Save').evaluate().length, 1, reason: 'only the rail label: no swipe badge left over');
+
+    // Swipe left past 30% of the screen saves (after a short flick out).
+    await tester.drag(post, const Offset(-320, 0));
+    await tester.pump(); // the flick starts on this frame
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pump();
     expect(find.text('Saved to your Notebook 🔖'), findsOneWidget);
     expect(container.read(notebookProvider).isSaved(bookId, card.card.startSid), isTrue);

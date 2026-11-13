@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:book_reel/data/settings.dart';
+import 'package:book_reel/ui/theme.dart';
 import 'package:book_reel/ui/vibes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -77,6 +78,29 @@ void main() {
       expect(p.ink, isNot(const Color(0xFFFFFFFF)));
       expect(p.ink, isNot(const Color(0xFF000000)));
       expect(p.shade.length, 11);
+    }
+  });
+
+  test('highlights: tints of the surface with text in the opposite shade, always readable', () {
+    double ratio(Color a, Color b) {
+      final la = a.computeLuminance(), lb = b.computeLuminance();
+      return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+    }
+
+    final themes = <String, ReadingTheme>{
+      for (final v in Vibe.values)
+        if (v != Vibe.paper) v.name: readingThemeForVibe(v, ReadingTheme.of(ReadingThemeId.paper)),
+      for (final id in ReadingThemeId.values) 'paper/${id.name}': ReadingTheme.of(id),
+    };
+    for (final MapEntry(key: name, value: t) in themes.entries) {
+      expect(t.highlights, hasLength(4));
+      for (final fill in t.highlights) {
+        expect(fill.a, 1, reason: '$name: opaque fills');
+        expect(ratio(t.highlightInk, fill), greaterThanOrEqualTo(4.5), reason: '$name: text on $fill');
+      }
+      // Light fills on dark surfaces, deep fills on light ones.
+      final light = t.highlights.every((f) => f.computeLuminance() > 0.3);
+      expect(light, t.isDark, reason: name);
     }
   });
 }

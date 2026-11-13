@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
@@ -173,7 +174,12 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   Rect? _selRect;
 
   /// Horizontal drag; only the text and the swipe hint follow it.
-  final _dx = ValueNotifier<double>(0);
+  /// Horizontal swipe offset (save left, share right), animated back with a spring.
+  late final AnimationController _dx = AnimationController.unbounded(vsync: this);
+
+  /// The swipe has passed the point where letting go acts.
+  bool _armed = false;
+  double _width = 400;
   Offset? _doubleTapAt;
   bool _revealed = false;
   late List<LyricPiece> _pieces;
@@ -557,19 +563,61 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
     if (existing == null) _flash.forward(from: 0);
   }
 
-  static const _swipeTrigger = 72.0;
+  /// Letting go past 30% of the screen saves (left) or shares (right).
+  double get _swipeTrigger => _width * 0.3;
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    _dx.stop();
+    final limit = _width * 0.5;
+    var next = _dx.value + d.delta.dx;
+    // Past the trigger it gets heavier, like a rubber band.
+    if (next.abs() > _swipeTrigger) next = next.sign * (_swipeTrigger + (next.abs() - _swipeTrigger) * 0.6);
+    _dx.value = next.clamp(-limit, limit);
+    final armed = _dx.value.abs() >= _swipeTrigger;
+    if (armed != _armed) {
+      _armed = armed;
+      // A tick when the swipe will act (and when it no longer will).
+      HapticFeedback.selectionClick();
+    }
+  }
 
   void _onDragEnd(DragEndDetails d) {
     final v = d.primaryVelocity ?? 0;
     final dx = _dx.value;
-    _dx.value = 0;
-    if (dx <= -_swipeTrigger || v < -900) {
-      HapticFeedback.mediumImpact();
-      widget.onSave();
-    } else if (dx >= _swipeTrigger || v > 900) {
-      HapticFeedback.lightImpact();
-      widget.onShare();
+    _armed = false;
+    final save = dx <= -_swipeTrigger || (v < -900 && dx < 0);
+    final share = dx >= _swipeTrigger || (v > 900 && dx > 0);
+    if (!save && !share) {
+      _settle(v);
+      return;
     }
+    HapticFeedback.mediumImpact();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _dx.value = 0;
+      save ? widget.onSave() : widget.onShare();
+      return;
+    }
+    // A short flick further out, the action, then back to rest.
+    _dx.animateTo(dx.sign * _width * 0.42, duration: const Duration(milliseconds: 130), curve: Curves.easeOut).whenComplete(() {
+      if (!mounted) return;
+      save ? widget.onSave() : widget.onShare();
+      _settle(0);
+    });
+  }
+
+  /// Back to rest on a critically damped spring: quick (~250 ms), no bounce.
+  void _settle(double velocity) {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _dx.value = 0;
+      return;
+    }
+    const stiffness = 320.0;
+    _dx.animateWith(SpringSimulation(
+      SpringDescription(mass: 1, stiffness: stiffness, damping: 2 * math.sqrt(stiffness)),
+      _dx.value,
+      0,
+      velocity,
+    ));
   }
 
   // ------------------------------------------------------------- build
@@ -598,6 +646,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
     final t = widget.theme;
     final padding = MediaQuery.paddingOf(context);
     final screen = MediaQuery.sizeOf(context);
+    _width = screen.width;
     final leftHanded = widget.settings.leftHanded;
     const railWidth = 72.0;
     // The text never fills the screen: the scene shows above and below it.
@@ -634,13 +683,13 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       onDoubleTapDown: editing ? null : (d) => _doubleTapAt = d.globalPosition,
       onDoubleTap: editing ? null : _onDoubleTap,
       onLongPressStart: editing ? null : _onLongPress,
-      onHorizontalDragUpdate: editing ? null : (d) => _dx.value = (_dx.value + d.delta.dx).clamp(-120.0, 120.0),
+      onHorizontalDragUpdate: editing ? null : _onDragUpdate,
       onHorizontalDragEnd: editing ? null : _onDragEnd,
       child: Stack(children: [
         ValueListenableBuilder<double>(
           valueListenable: _dx,
           builder: (context, dx, _) {
-            if (dx == 0) return const SizedBox.shrink();
+            if (dx.abs() < 0.5) return const SizedBox.shrink();
             final reveal = (dx.abs() / _swipeTrigger).clamp(0.0, 1.0);
             return Positioned.fill(
               child: Align(
@@ -648,14 +697,14 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 22),
                   child: Opacity(
-                    opacity: reveal,
+                    opacity: Curves.easeOut.transform(reveal),
                     child: _SwipeHint(
-                      icon: dx < 0
-                          ? Icon(widget.saved ? Icons.bookmark_remove_rounded : Icons.bookmark_add_rounded, color: Colors.white)
-                          : const ShareArrowIcon(color: Colors.white),
-                      label: dx < 0 ? (widget.saved ? 'Unsave' : 'Save') : 'Share',
-                      color: const Color(0xCC111111),
-                      armed: reveal >= 1,
+                      saving: dx < 0,
+                      saved: widget.saved,
+                      reveal: reveal,
+                      ink: t.text,
+                      fill: t.highlightInk,
+                      shadows: t.textShadows,
                     ),
                   ),
                 ),
@@ -674,7 +723,11 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
               constraints: const BoxConstraints(maxWidth: reelMaxTextWidth),
               child: ValueListenableBuilder<double>(
                 valueListenable: _dx,
-                builder: (context, dx, child) => Transform.translate(offset: Offset(dx * 0.6, 0), child: child),
+                // The reel follows the finger, tilting slightly (up to ~6°).
+                builder: (context, dx, child) => Transform.translate(
+                  offset: Offset(dx, 0),
+                  child: Transform.rotate(angle: dx / (_width * 0.5) * 0.105, child: child),
+                ),
                 // Its own layer: the scene moving behind never repaints the text.
                 child: RepaintBoundary(child: text),
               ),
@@ -1444,28 +1497,58 @@ class _RailButton extends StatelessWidget {
   }
 }
 
+/// What a swipe will do, revealed beside the reel: the badge grows as the
+/// swipe goes on and fills in (in the scene's text colour) once letting go
+/// will act.
 class _SwipeHint extends StatelessWidget {
-  const _SwipeHint({required this.icon, required this.label, required this.color, required this.armed});
-  final Widget icon;
-  final String label;
-  final Color color;
-  final bool armed;
+  const _SwipeHint({
+    required this.saving,
+    required this.saved,
+    required this.reveal,
+    required this.ink,
+    required this.fill,
+    required this.shadows,
+  });
+
+  /// Left swipe (save) rather than right (share).
+  final bool saving;
+  final bool saved;
+
+  /// 0 → 1 as the swipe nears the point where it acts.
+  final double reveal;
+  final Color ink;
+
+  /// The icon's colour once the badge is filled (the opposite shade).
+  final Color fill;
+  final List<Shadow>? shadows;
 
   @override
   Widget build(BuildContext context) {
+    final armed = reveal >= 1;
+    final iconColor = armed ? fill : ink;
+    final label = saving ? (saved ? 'Unsave' : 'Save') : 'Share';
     return AnimatedScale(
-      scale: armed ? 1.15 : 1,
-      duration: const Duration(milliseconds: 150),
+      scale: armed ? 1.12 : 0.7 + 0.3 * reveal,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOutBack,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 52,
-          height: 52,
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          width: 56,
+          height: 56,
           alignment: Alignment.center,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: armed ? color : const Color(0x66000000)),
-          child: icon,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: armed ? ink : const Color(0x00000000),
+            border: Border.all(color: ink, width: 2),
+          ),
+          child: saving
+              ? Icon(saved ? Icons.bookmark_remove_rounded : (armed ? Icons.bookmark_rounded : Icons.bookmark_border_rounded),
+                  color: iconColor, shadows: armed ? null : shadows)
+              : ShareArrowIcon(color: iconColor, shadows: armed ? null : shadows),
         ),
         const SizedBox(height: 6),
-        Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)])),
+        Text(label, style: TextStyle(color: ink, fontWeight: FontWeight.w700, shadows: shadows)),
       ]),
     );
   }

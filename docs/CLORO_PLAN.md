@@ -213,7 +213,7 @@ A scrolling feed of reading activities, newest first:
 | 2 | Logo, icon, splash (§2) | S — ✅ done |
 | 3 | Open at the introduction (§7) | M — ✅ done |
 | 4 | Reading tab + reel overhaul (focus mode, gestures, buttons, note box, progress line) + tab dock (§6, §9) | L — ✅ done (Friends opens from Profile/Today until steps 7–8) |
-| 5 | Save/share swipe animation (§6) | M |
+| 5 | Save/share swipe animation (§6) | M — ✅ done |
 | 6 | Light/dark scenes (§5), mood learning + Gemma suggestion (§8) | L |
 | 7 | Profile redesign + followers/following (§11) | L |
 | 8 | Today feed + comments on the server (§10) | L |
