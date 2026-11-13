@@ -110,6 +110,8 @@ void main() {
       'pronouns': '',
       'bio': '',
       'avatar': '',
+      'genres': <String>[],
+      'reading': '',
     });
     await a.read(syncServiceProvider).syncNow();
     expect(server.activity, hasLength(2), reason: 'the outbox is emptied after upload');

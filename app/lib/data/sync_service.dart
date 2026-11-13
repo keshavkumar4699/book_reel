@@ -100,7 +100,9 @@ class SyncService {
     }
   }
 
-  /// Name, daily goal and freezes, so the server's goal/streak checks match the app.
+  /// Name, daily goal and freezes, so the server's goal/streak checks match the
+  /// app; and the public profile: pronouns, bio, avatar emoji, up to 3 genres
+  /// and the book being read now. (A photo stays on the phone.)
   Future<void> syncProfile() async {
     final s = ref.read(settingsProvider);
     final profile = {
@@ -111,6 +113,8 @@ class SyncService {
       'pronouns': s.pronouns,
       'bio': s.bio,
       'avatar': s.avatarEmoji,
+      'genres': s.interests.take(3).toList(),
+      'reading': ref.read(libraryProvider.notifier).current?.title ?? '',
     };
     final store = ref.read(storeProvider);
     final syncDoc = Map<String, dynamic>.from(store.doc('sync') ?? const {});
@@ -124,6 +128,8 @@ class SyncService {
           pronouns: profile['pronouns'] as String,
           bio: profile['bio'] as String,
           avatar: profile['avatar'] as String,
+          genres: (profile['genres'] as List).cast<String>(),
+          reading: profile['reading'] as String,
         );
     try {
       await send(withHandle: true);

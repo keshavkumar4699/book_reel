@@ -11,7 +11,7 @@ import {
 } from "./billing/play.js";
 import { isPaidTier, quotaFor } from "./config.js";
 import type { Db } from "./db/db.js";
-import { ActivityBatchSchema, ActivityService, HandleTaken, InvalidHandle } from "./habit/activity.js";
+import { ActivityBatchSchema, ActivityService, CannotFollowSelf, HandleTaken, InvalidHandle, NotFollowable } from "./habit/activity.js";
 import { localDateKey, weekKey } from "./habit/engine.js";
 import { LeagueService } from "./habit/leagues.js";
 import { MoodInvalid, MoodQuotaExceeded, MoodSuggestSchema, MoodUnavailable, type MoodService } from "./mood/suggest.js";
@@ -31,6 +31,8 @@ const ProfileBodySchema = z.object({
   pronouns: z.string().max(60).optional(),
   bio: z.string().max(400).optional(),
   avatar: z.string().max(32).optional(),
+  genres: z.array(z.string().max(60)).max(12).optional(),
+  reading: z.string().max(300).optional(),
 });
 
 export interface AppDeps {
@@ -97,6 +99,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (err instanceof BillingUnavailable) return reply.code(503).send({ error: "billing_unavailable", message: err.message });
     if (err instanceof SpeechUnavailable) return reply.code(503).send({ error: "tts_unavailable", message: err.message });
     if (err instanceof InvalidHandle) return reply.code(400).send({ error: "invalid_handle", message: err.message });
+    if (err instanceof NotFollowable) return reply.code(404).send({ error: "not_found", message: err.message });
+    if (err instanceof CannotFollowSelf) return reply.code(400).send({ error: "follow_self", message: err.message });
     if (err instanceof MoodQuotaExceeded) return reply.code(429).send({ error: "mood_quota", limit: err.limit });
     if (err instanceof MoodUnavailable) return reply.code(503).send({ error: "mood_unavailable", message: err.message });
     if (err instanceof MoodInvalid) return reply.code(502).send({ error: "mood_invalid", message: err.message });
@@ -147,6 +151,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       pronouns: u.pronouns,
       bio: u.bio,
       avatar: u.avatar,
+      genres: u.genres ? u.genres.split(",").filter(Boolean) : [],
+      reading: u.reading,
+      ...(await activity.counts(u.id)),
       invite_code: u.invite_code,
       invite_url: `${baseUrl}/i/${u.invite_code}`,
       daily_goal_cards: u.daily_goal_cards,
@@ -164,6 +171,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       pronouns: b.pronouns,
       bio: b.bio,
       avatar: b.avatar,
+      genres: b.genres,
+      reading: b.reading,
     });
     return {
       display_name: u.display_name,
@@ -171,6 +180,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       pronouns: u.pronouns,
       bio: u.bio,
       avatar: u.avatar,
+      genres: u.genres ? u.genres.split(",").filter(Boolean) : [],
+      reading: u.reading,
       daily_goal_cards: u.daily_goal_cards,
       freezes_per_week: u.freezes_per_week,
     };
@@ -212,6 +223,39 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.delete<{ Params: { userId: string } }>("/v1/social/follow/:userId", async (req) => {
     await activity.unfollow((await caller(req)).userId, req.params.userId);
     return { ok: true };
+  });
+
+  // Strava-style follows: one way, with public counts and lists.
+  app.post<{ Params: { userId: string } }>("/v1/social/follow/:userId", async (req) => {
+    await activity.follow((await caller(req)).userId, req.params.userId);
+    return { ok: true };
+  });
+
+  app.post<{ Body: { handle?: string } }>("/v1/social/follow-handle", async (req) => ({
+    user: await activity.followByHandle((await caller(req)).userId, String(req.body?.handle ?? "")),
+  }));
+
+  /** "me", a user id, or "@handle". */
+  const reader = async (req: FastifyRequest<{ Params: { id: string } }>) => {
+    const c = await caller(req);
+    const u = await activity.visible(req.params.id === "me" ? c.userId : req.params.id, c.userId);
+    if (!u) throw new NotFollowable("No reader found.");
+    return { viewer: c.userId, u };
+  };
+
+  app.get<{ Params: { id: string } }>("/v1/users/:id", async (req) => {
+    const { viewer, u } = await reader(req);
+    return activity.publicProfile(u.id, viewer, localDateKey(new Date(), tzOffset(req)));
+  });
+
+  app.get<{ Params: { id: string } }>("/v1/users/:id/followers", async (req) => {
+    const { viewer, u } = await reader(req);
+    return { items: await activity.people(u.id, viewer, "followers") };
+  });
+
+  app.get<{ Params: { id: string } }>("/v1/users/:id/following", async (req) => {
+    const { viewer, u } = await reader(req);
+    return { items: await activity.people(u.id, viewer, "following") };
   });
 
   app.get("/v1/feed", async (req) => ({ items: await activity.feedFor((await caller(req)).userId) }));
@@ -296,7 +340,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         title: "Read with me on Cloro",
         description: "Books as bite-sized cards. Let's keep each other going.",
         url: `${baseUrl}/i/${code}`,
-        body: `<h1>Read with me on Cloro</h1><p>Install the app, open <strong>Friends → Add a friend</strong> and enter this code:</p><p style="font-size:2rem;letter-spacing:.2em;color:inherit"><strong>${code}</strong></p>`,
+        body: `<h1>Read with me on Cloro</h1><p>Install the app, open <strong>Profile → Find people</strong> and enter this code:</p><p style="font-size:2rem;letter-spacing:.2em;color:inherit"><strong>${code}</strong></p>`,
       }),
     );
   });

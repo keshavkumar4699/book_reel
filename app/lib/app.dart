@@ -7,6 +7,8 @@ import 'data/settings_provider.dart';
 import 'data/sync_service.dart';
 import 'services/billing.dart';
 import 'features/friends/friends_screen.dart';
+import 'features/social/people_screen.dart';
+import 'features/social/reader_profile_screen.dart';
 import 'features/library/library_screen.dart';
 import 'features/notebook/notebook_screen.dart';
 import 'features/notebook/word_review_screen.dart';
@@ -61,6 +63,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/friends', parentNavigatorKey: _rootKey, builder: (c, s) => const FriendsScreen(asPage: true)),
+      // Followers and following ("me", a user id or "@handle"), and another reader's profile.
+      GoRoute(
+        path: '/people/:userId',
+        parentNavigatorKey: _rootKey,
+        builder: (c, s) => PeopleScreen(
+          userId: s.pathParameters['userId']!,
+          tab: s.uri.queryParameters['tab'] == 'following' ? PeopleTab.following : PeopleTab.followers,
+          name: s.uri.queryParameters['name'],
+        ),
+      ),
+      GoRoute(path: '/u/:id', parentNavigatorKey: _rootKey, builder: (c, s) => ReaderProfileScreen(id: s.pathParameters['id']!)),
       GoRoute(path: '/settings', parentNavigatorKey: _rootKey, builder: (c, s) => const SettingsScreen()),
       GoRoute(path: '/review', parentNavigatorKey: _rootKey, builder: (c, s) => const WordReviewScreen()),
       GoRoute(path: '/licenses', parentNavigatorKey: _rootKey, builder: (c, s) => const LicensesScreen()),

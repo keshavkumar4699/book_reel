@@ -37,6 +37,10 @@ export interface UserRow {
   bio: string;
   /** An emoji (photos stay on the phone). */
   avatar: string;
+  /** Up to 3 favourite genres, comma-joined. */
+  genres: string;
+  /** The title being read now (shown on the public profile). */
+  reading: string;
   invite_code: string;
   wpm: number;
   daily_goal_cards: number;
@@ -78,7 +82,24 @@ export interface ProfileUpdate {
   pronouns?: string;
   bio?: string;
   avatar?: string;
+  /** Up to 3; longer lists keep their first 3. */
+  genres?: string[];
+  reading?: string;
 }
+
+/** A reader in a followers or following list. */
+export interface PersonRow {
+  user_id: string;
+  display_name: string;
+  handle: string | null;
+  avatar: string;
+  /** The viewer follows this reader. */
+  you_follow: boolean;
+}
+
+/** No such reader (or a hidden one). */
+export class NotFollowable extends Error {}
+export class CannotFollowSelf extends Error {}
 
 export class ActivityService {
   constructor(private readonly db: Db) {}
@@ -121,7 +142,9 @@ export class ActivityService {
            handle = case when $5::boolean then $6 else handle end,
            pronouns = coalesce($7, pronouns),
            bio = coalesce($8, bio),
-           avatar = coalesce($9, avatar)
+           avatar = coalesce($9, avatar),
+           genres = coalesce($10, genres),
+           reading = coalesce($11, reading)
          where id = $1 returning *`,
         [
           userId,
@@ -133,6 +156,14 @@ export class ActivityService {
           clean(p.pronouns, 30),
           clean(p.bio, 150),
           p.avatar === undefined ? null : [...p.avatar.trim()].slice(0, 4).join(""),
+          p.genres === undefined
+            ? null
+            : p.genres
+                .map((g) => g.replace(/[,\s]+/g, " ").trim().slice(0, 30))
+                .filter(Boolean)
+                .slice(0, 3)
+                .join(","),
+          p.reading === undefined ? null : p.reading.replace(/\s+/g, " ").trim().slice(0, 120),
         ],
       );
       return rows[0]!;
@@ -243,7 +274,7 @@ export class ActivityService {
     return new Map(rows.map((r) => [r.id, r.display_name]));
   }
 
-  /** Friends are mutual follows created from an invite code. */
+  /** An invite is personal: the invitee and the inviter follow each other. */
   async followByCode(userId: string, code: string): Promise<{ userId: string; name: string } | undefined> {
     await this.user(userId);
     const rows = await this.db.query<{ id: string; display_name: string }>(
@@ -256,11 +287,88 @@ export class ActivityService {
     return { userId: other.id, name: other.display_name };
   }
 
+  /** One-way: [userId] follows [other] (an existing reader). */
   async follow(userId: string, other: string) {
-    if (userId === other) return;
+    if (userId === other) throw new CannotFollowSelf("You can't follow yourself.");
     await this.user(userId);
-    await this.user(other);
+    const found = await this.db.query<{ id: string; hidden: boolean }>("select id, hidden from users where id = $1", [other]);
+    if (!found[0] || found[0].hidden) throw new NotFollowable("No reader found.");
     await this.db.query("insert into follows (follower, followee) values ($1, $2) on conflict do nothing", [userId, other]);
+  }
+
+  /** The reader with this @username (any case, "@" optional), if any. */
+  async byHandle(handle: string): Promise<UserRow | undefined> {
+    const h = handle.trim().replace(/^@/, "").toLowerCase();
+    if (!HANDLE_PATTERN.test(h)) return undefined;
+    return (await this.db.query<UserRow>("select * from users where lower(handle) = $1", [h]))[0];
+  }
+
+  /** Follows the reader with this @username; returns who that is. */
+  async followByHandle(userId: string, handle: string): Promise<PersonRow> {
+    const other = await this.byHandle(handle);
+    if (!other) throw new NotFollowable("No reader found.");
+    await this.follow(userId, other.id);
+    return { user_id: other.id, display_name: other.display_name, handle: other.handle, avatar: other.avatar, you_follow: true };
+  }
+
+  async counts(userId: string): Promise<{ followers: number; following: number }> {
+    const rows = await this.db.query<{ followers: string | number; following: string | number }>(
+      `select (select count(*) from follows f join users u on u.id = f.follower where f.followee = $1 and not u.hidden) as followers,
+              (select count(*) from follows f join users u on u.id = f.followee where f.follower = $1 and not u.hidden) as following`,
+      [userId],
+    );
+    return { followers: Number(rows[0]?.followers ?? 0), following: Number(rows[0]?.following ?? 0) };
+  }
+
+  /** Who follows [userId], or whom they follow, newest first (hidden readers left out). */
+  async people(userId: string, viewer: string, which: "followers" | "following", limit = 200): Promise<PersonRow[]> {
+    const [match, other] = which === "followers" ? ["followee", "follower"] : ["follower", "followee"];
+    const rows = await this.db.query<{ id: string; display_name: string; handle: string | null; avatar: string; you_follow: boolean }>(
+      `select u.id, u.display_name, u.handle, u.avatar,
+              exists (select 1 from follows y where y.follower = $2 and y.followee = u.id) as you_follow
+       from follows f join users u on u.id = f.${other}
+       where f.${match} = $1 and not u.hidden
+       order by f.created_at desc limit $3`,
+      [userId, viewer, limit],
+    );
+    return rows.map((r) => ({ user_id: r.id, display_name: r.display_name, handle: r.handle, avatar: r.avatar, you_follow: r.you_follow }));
+  }
+
+  /** A reader by id or @username, unless hidden (hidden readers see themselves). */
+  async visible(idOrHandle: string, viewer: string): Promise<UserRow | undefined> {
+    const u = idOrHandle.startsWith("@")
+      ? await this.byHandle(idOrHandle)
+      : (await this.db.query<UserRow>("select * from users where id = $1", [idOrHandle]))[0];
+    return !u || (u.hidden && u.id !== viewer) ? undefined : u;
+  }
+
+  /** What anyone can see of a reader (by id or @username). */
+  async publicProfile(idOrHandle: string, viewer: string, today: string) {
+    const u = await this.visible(idOrHandle, viewer);
+    if (!u) return undefined;
+    const [counts, rel] = await Promise.all([
+      this.counts(u.id),
+      this.db.query<{ you_follow: boolean; follows_you: boolean }>(
+        `select exists (select 1 from follows where follower = $1 and followee = $2) as you_follow,
+                exists (select 1 from follows where follower = $2 and followee = $1) as follows_you`,
+        [viewer, u.id],
+      ),
+    ]);
+    return {
+      user_id: u.id,
+      display_name: u.display_name,
+      handle: u.handle,
+      pronouns: u.pronouns,
+      bio: u.bio,
+      avatar: u.avatar,
+      genres: u.genres ? u.genres.split(",").filter(Boolean) : [],
+      reading: u.reading,
+      ...counts,
+      streak: { current: displayStreak(u.streak, today, u.freezes_per_week), best: u.streak.best },
+      you_follow: rel[0]?.you_follow ?? false,
+      follows_you: rel[0]?.follows_you ?? false,
+      me: u.id === viewer,
+    };
   }
 
   async unfollow(userId: string, other: string) {

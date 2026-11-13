@@ -99,6 +99,8 @@ class BookReelApi {
     String? pronouns,
     String? bio,
     String? avatar,
+    List<String>? genres,
+    String? reading,
   }) =>
       _send('PUT', '/v1/me/profile', {
         'display_name': ?displayName,
@@ -108,6 +110,8 @@ class BookReelApi {
         'pronouns': ?pronouns,
         'bio': ?bio,
         'avatar': ?avatar,
+        'genres': ?genres,
+        'reading': ?reading,
       });
 
   Future<Map<String, dynamic>> uploadActivity(List<Map<String, dynamic>> events) async =>
@@ -133,7 +137,8 @@ class BookReelApi {
 
   Future<void> kudos(String activityId) => _send('POST', '/v1/activities/$activityId/kudos');
 
-  /// Adds a friend by invite code; returns their name, or null for an unknown code.
+  /// Follows by invite code (an invite is personal: you then follow each
+  /// other); returns their name, or null for an unknown code.
   Future<String?> addFriend(String code) async {
     try {
       final res = (await _send('POST', '/v1/social/follow-code', {'code': code})) as Map<String, dynamic>;
@@ -144,7 +149,41 @@ class BookReelApi {
     }
   }
 
-  Future<void> removeFriend(String userId) => _send('DELETE', '/v1/social/follow/${Uri.encodeComponent(userId)}');
+  /// Follows a reader (one way).
+  Future<void> follow(String userId) => _send('POST', '/v1/social/follow/${Uri.encodeComponent(userId)}');
+
+  Future<void> unfollow(String userId) => _send('DELETE', '/v1/social/follow/${Uri.encodeComponent(userId)}');
+
+  /// Follows the reader with this @username; returns them, or null when no one has it.
+  Future<Map<String, dynamic>?> followHandle(String handle) async {
+    try {
+      final res = (await _send('POST', '/v1/social/follow-handle', {'handle': handle})) as Map<String, dynamic>;
+      return res['user'] as Map<String, dynamic>;
+    } on ApiException catch (e) {
+      if (e.status == 404 || e.status == 400) return null;
+      rethrow;
+    }
+  }
+
+  /// A reader's public profile: "me", a user id, or "@handle". Null when not found.
+  Future<Map<String, dynamic>?> profile(String idOrHandle) async {
+    try {
+      return (await _send('GET', '/v1/users/${Uri.encodeComponent(idOrHandle)}')) as Map<String, dynamic>;
+    } on ApiException catch (e) {
+      if (e.status == 404) return null;
+      rethrow;
+    }
+  }
+
+  /// Who follows a reader ("me", a user id or "@handle").
+  Future<List<Map<String, dynamic>>> followers(String idOrHandle) => _people(idOrHandle, 'followers');
+
+  /// Whom a reader follows.
+  Future<List<Map<String, dynamic>>> following(String idOrHandle) => _people(idOrHandle, 'following');
+
+  Future<List<Map<String, dynamic>>> _people(String id, String which) async =>
+      (((await _send('GET', '/v1/users/${Uri.encodeComponent(id)}/$which')) as Map<String, dynamic>)['items'] as List)
+          .cast<Map<String, dynamic>>();
 
   Future<Map<String, dynamic>> pushSync(List<Map<String, dynamic>> items) async =>
       (await _send('PUT', '/v1/sync', {'items': items})) as Map<String, dynamic>;

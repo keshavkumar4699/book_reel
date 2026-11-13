@@ -30,11 +30,20 @@ class FakeServer {
   final List<Map<String, dynamic>> profileRequests = [];
   int requests = 0;
 
+  /// Other readers, by id. Ravi follows you; whom you follow is [following].
+  final Map<String, Map<String, dynamic>> readers = {
+    'device:ravi': {'user_id': 'device:ravi', 'display_name': 'Ravi', 'handle': 'ravi', 'avatar': '🦊', 'pronouns': 'he/him', 'bio': 'Slow reader, fast walker', 'genres': ['History'], 'reading': 'Walden', 'streak': {'current': 12, 'best': 30}},
+    'device:meera': {'user_id': 'device:meera', 'display_name': 'Meera', 'handle': 'meera.reads', 'avatar': '', 'pronouns': '', 'bio': '', 'genres': <String>[], 'reading': '', 'streak': {'current': 0, 'best': 4}},
+  };
+  final Set<String> followers = {'device:ravi'};
+  final Set<String> following = {};
+
   MockClient get client => MockClient((req) async {
         requests++;
         final user = req.headers['x-device-id']!;
         final path = req.url.path;
         Map<String, dynamic> body() => jsonDecode(req.body) as Map<String, dynamic>;
+        final seg = req.url.pathSegments;
         http.Response ok(Object o) =>
             http.Response.bytes(utf8.encode(jsonEncode(o)), 200, headers: {'content-type': 'application/json; charset=utf-8'});
         if (path == '/v1/sync' && req.method == 'PUT') {
@@ -87,7 +96,59 @@ class FakeServer {
           return ok(profiles[user]!);
         }
         if (path == '/v1/me') {
-          return ok({'user_id': 'device:$user', 'display_name': 'Asha', 'invite_code': '7PA756JQ', 'invite_url': 'https://bookreel.app/i/7PA756JQ', 'signed_in': false});
+          return ok({
+            'user_id': 'device:$user',
+            'display_name': 'Asha',
+            'invite_code': '7PA756JQ',
+            'invite_url': 'https://bookreel.app/i/7PA756JQ',
+            'signed_in': false,
+            'followers': followers.length,
+            'following': following.length,
+          });
+        }
+        Map<String, dynamic> person(String id) => {
+              for (final k in ['user_id', 'display_name', 'handle', 'avatar']) k: readers[id]![k],
+              'you_follow': following.contains(id),
+            };
+        String? byHandle(String h) {
+          final r = readers.values.where((r) => r['handle'] == h.replaceFirst('@', '').toLowerCase()).firstOrNull;
+          return r == null ? null : r['user_id'] as String;
+        }
+
+        if (seg.length >= 3 && seg[0] == 'v1' && seg[1] == 'users') {
+          final String? id;
+          if (seg[2] == 'me' || seg[2] == 'device:$user') {
+            id = 'me';
+          } else if (seg[2].startsWith('@')) {
+            id = byHandle(seg[2]);
+          } else {
+            id = readers.containsKey(seg[2]) ? seg[2] : null;
+          }
+          if (id == null) return http.Response('{"error":"not_found"}', 404);
+          if (seg.length == 4) {
+            final ids = id != 'me' ? <String>[] : (seg[3] == 'followers' ? followers : following).toList();
+            return ok({'items': [for (final i in ids) person(i)]});
+          }
+          if (id == 'me') return ok({'user_id': 'device:$user', 'display_name': 'Asha', 'me': true, 'followers': followers.length, 'following': following.length});
+          return ok({
+            ...readers[id]!,
+            'followers': following.contains(id) ? 1 : 0,
+            'following': followers.contains(id) ? 1 : 0,
+            'you_follow': following.contains(id),
+            'follows_you': followers.contains(id),
+            'me': false,
+          });
+        }
+        if (path == '/v1/social/follow-handle') {
+          final id = byHandle(body()['handle'] as String);
+          if (id == null) return http.Response('{"error":"not_found"}', 404);
+          following.add(id);
+          return ok({'user': person(id)});
+        }
+        if (seg.length == 4 && seg[1] == 'social' && seg[2] == 'follow') {
+          if (!readers.containsKey(seg[3])) return http.Response('{"error":"not_found"}', 404);
+          req.method == 'DELETE' ? following.remove(seg[3]) : following.add(seg[3]);
+          return ok({'ok': true});
         }
         if (path == '/v1/leagues/current') {
           return ok({

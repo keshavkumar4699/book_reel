@@ -58,7 +58,7 @@ class FriendsScreen extends ConsumerWidget {
                 ),
               ],
               data: (d) => [
-                _InviteCard(code: d.me['invite_code'] as String, url: d.me['invite_url'] as String),
+                InviteCard(code: d.me['invite_code'] as String, url: d.me['invite_url'] as String),
                 if (!settings.hideLeaderboards && d.league != null) ...[
                   const SizedBox(height: 14),
                   _LeagueCard(league: d.league!),
@@ -88,8 +88,8 @@ class FriendsScreen extends ConsumerWidget {
   Future<void> _addFriend(BuildContext context, WidgetRef ref) async {
     final code = await showKitPrompt(
       context,
-      title: 'Add a friend',
-      message: 'Enter their invite code',
+      title: 'Follow by invite code',
+      message: 'Enter their invite code: you’ll follow each other',
       hint: 'e.g. 7PA756JQ',
       confirm: 'Add',
       capitalization: TextCapitalization.characters,
@@ -98,7 +98,7 @@ class FriendsScreen extends ConsumerWidget {
     try {
       final name = await ref.read(apiProvider).addFriend(code);
       if (!context.mounted) return;
-      showKitToast(context, name == null ? 'No reader found with that code.' : 'You and $name are now friends 🎉');
+      showKitToast(context, name == null ? 'No reader found with that code.' : 'You and $name now follow each other 🎉');
       if (name != null) ref.invalidate(friendsDataProvider);
     } catch (_) {
       if (context.mounted) showKitToast(context, 'Couldn’t add friend. Check your connection.', icon: Icons.cloud_off_rounded);
@@ -106,8 +106,9 @@ class FriendsScreen extends ConsumerWidget {
   }
 }
 
-class _InviteCard extends StatelessWidget {
-  const _InviteCard({required this.code, required this.url});
+/// Your invite code and link: a personal invitation (you then follow each other).
+class InviteCard extends StatelessWidget {
+  const InviteCard({super.key, required this.code, required this.url});
   final String code;
   final String url;
 
@@ -118,7 +119,7 @@ class _InviteCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Read with friends', style: kit.heading),
         const SizedBox(height: 2),
-        Text('Share your code. Friends keep each other going.', style: kit.caption),
+        Text('Share your code: whoever uses it, you follow each other.', style: kit.caption),
         const SizedBox(height: 12),
         Row(children: [
           Expanded(

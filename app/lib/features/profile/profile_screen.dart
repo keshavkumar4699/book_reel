@@ -141,8 +141,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(width: 4),
           KitIconButton(
             icon: Icons.person_add_alt_1_rounded,
-            semanticLabel: 'Find friends',
-            onPressed: () => context.push('/friends'),
+            semanticLabel: 'Find people',
+            onPressed: () => context.push('/people/me?tab=following'),
             size: 40,
           ),
         ]),

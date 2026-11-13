@@ -146,4 +146,11 @@ export const MIGRATIONS: string[] = [
     primary key (user_id, day)
   );
   `,
+  // Strava-style follows: who follows whom (looked up both ways), and the
+  // public profile's genres (up to 3) and the book being read now.
+  `
+  create index follows_followee on follows (followee);
+  alter table users add column genres text not null default '';
+  alter table users add column reading text not null default '';
+  `,
 ];
