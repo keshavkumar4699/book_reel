@@ -14,7 +14,8 @@ Source: the product owner's change list of 13 Nov 2026. Each item below says wha
 
 - App name on the phone: `android:label="Cloro"` (`app/android/app/src/main/AndroidManifest.xml`), `MaterialApp.title`.
 - Every user-facing string: notifications (`lib/services/notifications.dart`), share text "Read it on Cloro" (`lib/features/share/share_sheet.dart`), profile share headline, onboarding, licences page, server-rendered share/invite pages (`server/src/…` HTML), Play listing copy in the docs.
-- Code names (`BookReelApp`, package `book_reel`, repository name) stay for now: renaming them changes nothing users see and churns every file.
+- **Android package ID: `app.sweatik2.cloro`** (`applicationId` and `namespace` in `app/android/app/build.gradle.kts`, the Kotlin package of `MainActivity`). Phones with the old build installed get Cloro as a separate app; uninstall the old one.
+- Code names (`BookReelApp`, Dart package `book_reel`, repository name) stay for now: renaming them changes nothing users see and churns every file.
 - **Done when:** no "BookReel" in any string a user can see (a test greps `lib/` string literals and the server's HTML templates).
 
 ## 2. Logo and app icon
@@ -66,23 +67,46 @@ Plan: **4 light + 4 dark** (Paper stays as a plain page that follows light/dark)
 - The scene picker groups them under "Day" and "Night".
 - **Done when:** 4 + 4 scenes, all pass the contrast test; picker shows two groups.
 
-## 6. Reading tab: the reel, with nothing on screen
+## 6. Reading tab: the reel screen, overhauled
 
 The reader becomes the **first tab** ("Reading") instead of a page opened over the app.
 
-- The tab shows the book you're reading (the last one opened); with none, it shows the starter book or a "Pick a book" prompt that opens Library.
-- **No close button**: you leave by switching tabs. Switching away keeps your place; coming back resumes at the same reel.
-- **Distraction-free by default**: no top bar, no side rail, no progress text, no tab bar. Just the scene and the text.
-  - **One tap** shows everything for 3 seconds (book/chapter, streak and goal, like/save/share/listen rail, the ⋯ menu, and the tab bar); a second tap or 3 s hides it again. Taps on words and highlights still work as now (the tap target is the empty space).
-  - Swipe up/down still turns reels; swipe left saves, swipe right shares (below).
-- **Better save/share swipes** (`lib/features/reader/cards/text_card.dart`):
-  - the reel follows your finger 1:1 with a slight tilt (max ~6°) and a soft shadow;
-  - the action reveals behind it: a bookmark (save) on one side and the share arrow on the other, growing and filling with the accent gradient as you near the threshold (~30% of the width);
-  - a light haptic tick when you cross the threshold;
-  - release past it: the reel flicks out and springs back with a small "Saved" / share sheet; release before it: it springs back (critically damped spring, ~250 ms, no bounce);
-  - the old toast is replaced by the in-place confirmation.
-- Opening a book from Library or Today switches to the Reading tab with that book.
-- **Done when:** widget tests: tab shows the current book; no chrome after load; tap shows/hides chrome and the tab bar; switching tabs and back keeps the reel; swipe past/short of the threshold saves/springs back.
+- The tab shows the book you're reading (the last one opened); with none, the starter book or a "Pick a book" prompt that opens Library.
+- **No close button**: you leave by switching tabs. Switching away keeps your place; coming back resumes at the same reel. Opening a book from Library or Today switches to this tab.
+
+**Controls and focus mode**
+
+- A book opens in **focus mode**: just the scene and the text. No top bar, no side rail, no tab bar.
+- **Tap empty space** (not a word): all controls appear, including the tab bar, and **stay** until you tap the **focus button (eye icon)**, which hides them again.
+
+**Gestures**
+
+| Gesture | On a word | On empty space |
+|---|---|---|
+| Tap | The word's meaning (word sheet: in this sentence, dictionary, add to word list) | Show all controls |
+| Long press | **Highlighter** starts on that word: drag the handles to extend it (as now, word by word) | **Options sheet** (below) |
+| Swipe up / down | Next / previous reel | same |
+| Swipe left / right | Save / share (with the new animation) | same |
+
+- **Highlighter colour matches the scene**: on dark scenes a light tint of the scene's own colour with dark text on it; on light scenes a deep tint with light text on it, so highlighted words always stay clearly readable (≥ 4.5:1, measured in a test for every scene). The 4 colour choices become 4 tints of the same family.
+
+**Options sheet** (long press on empty space, or the ⋯ button): theme (scene picker, Day / Night), scene sound on/off, contents, page mode, daily goal, gestures (the guide), settings, "This cut feels wrong".
+
+**Right-hand buttons**, top to bottom: **like, save, note, share, listen, streak count, goal count, options (⋯)**.
+
+- **Note** opens an empty box for your own thoughts on this reel (saved to the Notebook with the reel's text as context). It no longer manages highlights; highlights are edited by long-pressing them.
+- Streak and goal open their sheets (as now).
+
+**Progress line**: the chapter progress at the top becomes one thin continuous line that fills smoothly as you read (instead of one dash per card), in the accent gradient on a faint track.
+
+**Save / share swipes** (`lib/features/reader/cards/text_card.dart`):
+
+- the reel follows your finger 1:1 with a slight tilt (max ~6°) and a soft shadow;
+- a bookmark (save) and the share arrow reveal behind it, growing and filling with the accent gradient as you near the threshold (~30% of the width);
+- a light haptic tick at the threshold;
+- past it: the reel flicks out and springs back with an in-place "Saved" (or the share sheet); short of it: it springs back (critically damped, ~250 ms, no bounce).
+
+**Done when:** widget tests: the tab shows the current book; focus mode on open; tap on empty space shows controls and they stay until the eye is tapped; tap on a word opens the word sheet; long press on a word starts a highlight, on empty space opens the options sheet; button order; the note box saves a thought; the progress line fills; swipe past/short of the threshold saves/springs back.
 
 ## 7. Open at the introduction, not the copyright page
 
@@ -93,25 +117,35 @@ Today the reader starts at the first spine item, which is often a cover, copyrig
 - Store `startSid` on the book; a new book opens there. Front matter stays reachable from Contents (marked "Front matter").
 - **Done when:** parser tests on EPUBs with each signal (landmarks, guide, linear=no, heuristics only) and a PDF fixture; the starter book opens on its first real chapter.
 
-## 8. "How are you feeling?" picks the reading theme
+## 8. Mood: learn when you read how, then pick the scene for you
 
-- When a book is opened, a small sheet asks **"How are you feeling?"** with 6–8 one-tap moods; the book then opens in the matching scene. It preselects your last answer, and has *Skip* (keeps your current scene).
-- Mood → scene (first match; light/dark follows the time of day or Settings):
+**Learning phase.** For the first two weeks (or until about 15 answers), when you open a book a small sheet asks **"How are you feeling?"** — at most once every 3 hours, so it isn't asked on every open. Moods: calm, cozy, focused, energised, dreamy, reflective, restless. Each answer is stored with when it was given (hour, weekday) and how the session went (minutes read, cards).
+
+**Then the AI picks.** Once there's enough data, the app **predicts the mood that suits you right now** and opens the book in that mood's scene, with a small chip at the top, e.g. "😌 Calm · change", to correct it (a correction is also learnt from). Asking stops, except a check-in about once a week.
+
+**The model: Google's Gemma.**
+
+- On the phone when Gemma is downloaded: the on-device AI (§ Phase 8) gains **Gemma 4 E2B** as the model for this (already offered; 2 GB, phones with 8 GB of memory).
+- Otherwise on the server: `POST /v1/mood/suggest` calls a hosted **Gemma** model (Gemma 3 4B/12B instruct) through the same OpenAI-compatible provider as the voice (DeepInfra; `MOOD_MODEL`, `MOOD_BASE_URL`, key in the secret store). Only the mood log is sent (time, weekday, mood, minutes): no book text.
+- The prompt gives Gemma the log summarised as counts by time of day and weekday, plus recent sessions, and asks for one mood and a one-line reason; the reply must be one of the 7 moods or it's ignored.
+- Offline / no model: the most frequent mood for that time slot (morning, afternoon, evening, night) and weekday type.
+- Settings → Reading: "Pick my scene from my mood" (on), "Ask how I'm feeling" (only while learning / weekly / never).
+
+**Mood → scene** (light or dark from the time of day and Appearance):
 
 | Mood | Scene |
 |---|---|
 | Calm | Meadow (day) / Night |
 | Cozy | Café |
 | Focused | Paper |
-| Fresh / energised | Beach / Forest morning |
+| Energised | Beach / Forest morning |
 | Dreamy | Night |
-| Low / reflective | Rain |
+| Reflective | Rain |
 | Restless | Snow day / City |
 
-- Paid plans: an extra option "Let the story decide" keeps AI-picked scenes.
-- Settings → Reading: "Ask how I'm feeling when I open a book" (on by default).
-- The mood is saved with each reading session (for the Today feed and Profile, e.g. "Read 12 min · 😌 calm").
-- **Done when:** opening a book shows the sheet; each mood opens its scene; Skip keeps the scene; the setting turns it off.
+Paid plans keep "Let the story decide" (AI-picked scenes per chapter) as an option.
+
+**Done when:** tests for the ask-rate limit, the learning → predicting switch, the fallback predictor, server `/v1/mood/suggest` with a fake Gemma (valid/invalid replies), and the chip's correction being stored.
 
 ## 9. Tabs and navigation
 
@@ -141,7 +175,7 @@ A scrolling feed of reading activities, newest first:
 **Header** (as you described):
 
 ```
-[ photo ]  Name · she/her
+[ photo ]  Name · she/her            128 followers · 96 following
            Short bio on one line
            📖 Reading: Pride and Prejudice
            Fantasy · History · Poetry          (up to 3)
@@ -163,25 +197,25 @@ A scrolling feed of reading activities, newest first:
 - **Friends** — friends list, invite code, league (moved from the Friends tab; hidden when "Hide leaderboards" is on).
 - **Done when:** widget tests for the header layout, pronoun choice, 3-genre limit, and each section with sample data.
 
-## 12. Open decisions (recommended default in bold)
+## 12. Decisions (13 Nov 2026)
 
-1. **Follower counts.** Strava shows followers/following; our design avoided public counts (DESIGN.md §8). → **Show a friends count; kudos counts visible only to the person who posted.**
-2. **Mood question frequency.** → **Every time a book is opened, one tap, preselected, with Skip and a setting to turn it off.**
-3. **Light vs dark scenes.** Convert three dark scenes to daytime (4 + 4, as above) or keep all 8 and paint 6 new light ones (7 + 7, much more art work). → **Convert (4 + 4)**; add more scenes later.
-4. **Android package ID** (`app.bookreel.book_reel`): changing it later means a new Play listing. → **Change it now to `app.cloro.<something>`** (tell me your domain, e.g. `app.cloro.reader`), before the first Play upload.
-5. **Chrome in the Reading tab.** → **Tap to show for 3 s** (alternatives: always-visible tiny icons; or swipe up from the bottom edge for the tab bar).
+1. **Followers and following: public counts**, Strava-style one-way follows (§11). DESIGN.md §8's "no public counts" guardrail is retired for these two numbers; kudos counts stay visible only to the author.
+2. **Mood:** asked at intervals while learning, then **Gemma** predicts it (§8).
+3. **Scenes:** convert 3 night scenes to daytime (4 + 4, §5).
+4. **Android package ID: `app.sweatik2.cloro`** (§1).
+5. **Controls:** tap on empty space shows them; they stay until the **focus (eye)** button hides them (§6).
 
 ## 13. Order of work
 
 | Step | Items | Size |
 |---|---|---|
-| 1 | Name (§1), gear icon (§4), colour system (§3) | M |
+| 1 | Name and package ID (§1), gear icon (§4), colour system (§3) | M |
 | 2 | Logo, icon, splash (§2) — needs 0.1 | S |
 | 3 | Open at the introduction (§7) | M |
-| 4 | Reading tab + distraction-free reel + tab dock (§6, §9) | L |
+| 4 | Reading tab + reel overhaul (focus mode, gestures, buttons, note box, progress line) + tab dock (§6, §9) | L |
 | 5 | Save/share swipe animation (§6) | M |
-| 6 | Light/dark scenes (§5) and mood sheet (§8) | L |
-| 7 | Profile redesign (§11) | L |
+| 6 | Light/dark scenes (§5), mood learning + Gemma suggestion (§8) | L |
+| 7 | Profile redesign + followers/following (§11) | L |
 | 8 | Today feed + comments on the server (§10) | L |
 | 9 | Docs, tests, CI, APK | S |
 
