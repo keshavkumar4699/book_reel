@@ -194,7 +194,7 @@ A scrolling feed of reading activities, newest first:
 - **Trophies** — milestones earned (streaks, books, personal bests).
 - **Books** — currently reading (with progress rings) and finished.
 - **Saved quotes** — the grid (as now).
-- **Friends** — friends list, invite code, league (moved from the Friends tab; hidden when "Hide leaderboards" is on).
+- **Followers / following** — public counts in the header, tap for the lists; follow / unfollow on other readers' profiles, find people by @username, invite links. This replaces mutual-only friends: the server gets a `follows` table (follower, followee) and endpoints for follow, unfollow, lists and counts; existing friendships become two follows. The Today feed shows people you follow. League stays (hidden when "Hide leaderboards" is on).
 - **Done when:** widget tests for the header layout, pronoun choice, 3-genre limit, and each section with sample data.
 
 ## 12. Decisions (13 Nov 2026)
