@@ -18,20 +18,19 @@ class JsonStore {
   final Map<String, Object?> _docs;
   final Map<String, Future<void>> _pending = {};
 
-  static const _docNames = ['settings', 'library', 'notebook', 'habit', 'device', 'outbox', 'sync'];
-
   static Future<JsonStore> open(Directory root) async {
     await root.create(recursive: true);
     await Directory('${root.path}/books').create(recursive: true);
     final docs = <String, Object?>{};
-    for (final name in _docNames) {
-      final f = File('${root.path}/$name.json');
-      if (await f.exists()) {
-        try {
-          docs[name] = jsonDecode(await f.readAsString());
-        } catch (_) {
-          docs[name] = null; // corrupt file: start fresh rather than crash
-        }
+    // Every document saved with [saveDoc] (`<name>.json`; half-written
+    // `.json.tmp` files are ignored), so a new one can't be forgotten.
+    await for (final entry in root.list()) {
+      if (entry is! File || !entry.path.endsWith('.json')) continue;
+      final name = entry.uri.pathSegments.last.replaceFirst(RegExp(r'\.json$'), '');
+      try {
+        docs[name] = jsonDecode(await entry.readAsString());
+      } catch (_) {
+        docs[name] = null; // corrupt file: start fresh rather than crash
       }
     }
     return JsonStore._(root, docs);

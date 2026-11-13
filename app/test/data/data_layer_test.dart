@@ -163,4 +163,23 @@ void main() {
     expect(w.box, 0);
     expect(w.dueAt, now.add(const Duration(days: 1)));
   });
+
+  test('every saved document comes back after a restart (mood and sessions included)', () async {
+    final dir = Directory.systemTemp.createTempSync('store_reopen');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final store = await JsonStore.open(dir);
+    for (final name in ['settings', 'mood', 'sessions', 'some_future_doc']) {
+      await store.saveDoc(name, {'name': name});
+    }
+    await store.flush();
+    File('${dir.path}/half.json.tmp').writeAsStringSync('{"broken"');
+    File('${dir.path}/corrupt.json').writeAsStringSync('{"broken"');
+
+    final again = await JsonStore.open(dir);
+    for (final name in ['settings', 'mood', 'sessions', 'some_future_doc']) {
+      expect(again.doc(name), {'name': name}, reason: name);
+    }
+    expect(again.doc('half'), isNull, reason: 'a half-written file is ignored');
+    expect(again.doc('corrupt'), isNull, reason: 'a corrupt file starts fresh');
+  });
 }
