@@ -7,6 +7,7 @@ import 'data/settings_provider.dart';
 import 'data/sync_service.dart';
 import 'services/billing.dart';
 import 'features/friends/friends_screen.dart';
+import 'features/settings/legal_screen.dart';
 import 'features/social/people_screen.dart';
 import 'features/social/reader_profile_screen.dart';
 import 'features/library/library_screen.dart';
@@ -77,6 +78,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/settings', parentNavigatorKey: _rootKey, builder: (c, s) => const SettingsScreen()),
       GoRoute(path: '/review', parentNavigatorKey: _rootKey, builder: (c, s) => const WordReviewScreen()),
       GoRoute(path: '/licenses', parentNavigatorKey: _rootKey, builder: (c, s) => const LicensesScreen()),
+      GoRoute(
+        path: '/legal/:doc',
+        parentNavigatorKey: _rootKey,
+        builder: (c, s) => LegalScreen(doc: LegalDoc.byName(s.pathParameters['doc']!) ?? LegalDoc.privacy),
+      ),
     ],
   );
 });

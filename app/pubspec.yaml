@@ -86,6 +86,8 @@ flutter:
     - assets/images/logo_512.png
     - assets/images/logo_mark.png
     - assets/books/
+    # The privacy policy and terms (also served by the server at /privacy and /terms).
+    - assets/legal/
     # Scene sounds (licences in assets/sounds/CREDITS.md).
     - assets/sounds/
     - assets/lexicon/zipf.tsv.gz

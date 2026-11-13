@@ -199,6 +199,8 @@ class SettingsScreen extends ConsumerWidget {
             ),
         ]),
         KitGroup(label: 'About', divided: true, children: [
+          KitRow(icon: Icons.privacy_tip_outlined, title: 'Privacy policy', onTap: () => context.push('/legal/privacy')),
+          KitRow(icon: Icons.gavel_rounded, title: 'Terms of use', onTap: () => context.push('/legal/terms')),
           KitRow(
             icon: Icons.description_rounded,
             title: 'Licences',

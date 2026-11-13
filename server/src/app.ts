@@ -24,6 +24,7 @@ import { SegmentRequestSchema } from "./segmentation/schema.js";
 import { QuotaExceeded, SegmentService, TierNotEligible, type Caller } from "./segmentation/service.js";
 import { escapeHtml, landingPage, ShareSchema, ShareService } from "./social/shares.js";
 import { errorEvent } from "./logging.js";
+import { LEGAL_DOCS, markdownToHtml, readLegal } from "./legal.js";
 import { SyncPushSchema, SyncService } from "./social/sync.js";
 import type { QuotaStore } from "./stores/memory.js";
 import { SpeechQuotaExceeded, SpeechRequestSchema, SpeechUnavailable, type SpeechService } from "./speech/tts.js";
@@ -490,6 +491,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (!html) return reply.code(404).type("text/html").send(landingPage({ title: "Not found", description: "", url: baseUrl, body: "<h1>This link has expired.</h1>" }));
     return reply.type("text/html; charset=utf-8").send(html);
   });
+
+  // The privacy policy and terms (Production plan A5), from the app's own copy.
+  for (const doc of LEGAL_DOCS) {
+    app.get(`/${doc}`, async (_req, reply) => {
+      const md = readLegal(doc);
+      if (!md) return reply.code(404).send({ error: "not_found" });
+      const title = doc === "privacy" ? "Privacy policy" : "Terms of use";
+      return reply.type("text/html; charset=utf-8").send(
+        landingPage({ title, description: `Cloro's ${title.toLowerCase()}.`, url: `${baseUrl}/${doc}`, body: markdownToHtml(md) }),
+      );
+    });
+  }
 
   // For Google Play's account-deletion form: how to delete an account.
   app.get("/account/delete", async (_req, reply) => {

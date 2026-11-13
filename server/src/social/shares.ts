@@ -82,6 +82,7 @@ export function landingPage(o: { title: string; description: string; url: string
 @media (prefers-color-scheme:dark){:root{--bg:#141414;--fg:#E6E1D6;--muted:#9A948A}}
 body{margin:0;background:var(--bg);color:var(--fg);font:18px/1.55 Georgia,serif;display:flex;min-height:100vh;align-items:center;justify-content:center}
 main{max-width:560px;padding:32px 20px}
+table{border-collapse:collapse;font-size:.85rem;margin:12px 0}th,td{border-top:1px solid #8885;padding:6px 8px;text-align:left;vertical-align:top}h2{margin-top:1.6em}
 blockquote{margin:0;font-size:1.25rem}
 .by,p{color:var(--muted)}
 a.cta{display:inline-block;margin-top:24px;background:var(--accent);color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none;font-family:system-ui,sans-serif}

@@ -36,7 +36,7 @@ jobs:
           IMAGE="$REGION-docker.pkg.dev/$PROJECT/cloro/api:${GITHUB_SHA::12}"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
-          docker build -t "$IMAGE" server
+          docker build -t "$IMAGE" -f server/Dockerfile .
           docker push "$IMAGE"
 
       - name: Deploy

@@ -110,6 +110,7 @@ ANTHROPIC_API_KEY=... npm run dev     # http://localhost:8787
 | `POST`/`DELETE /v1/social/block/:userId`, `GET /v1/social/blocked`, `POST /v1/reports` | Blocking (both ways: no follows, profiles, feed or comments) and reports |
 | `GET /v1/admin/reports`, `POST /v1/admin/reports/:id` | Report review (only with `ADMIN_TOKEN`) |
 | `POST /v1/errors` | Crash reports from the app (Error Reporting events) |
+| `GET /privacy`, `GET /terms` | The privacy policy and terms (from `app/assets/legal/`) |
 | `GET /v1/sync?since=`, `PUT /v1/sync` | Notebook and reading-position sync |
 | `POST /v1/share`, `GET /c/:id`, `GET /i/:code`, `GET /.well-known/assetlinks.json` | Share links, preview pages, invites, App Links |
 | `POST /v1/book/profile` | The AI's choice of fonts for a book (paid plans) |

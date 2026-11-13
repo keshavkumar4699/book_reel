@@ -142,7 +142,19 @@ keyAlias=upload
 keyPassword=…
 ```
 
-## 3. Errors and alerts
+## 3. Privacy policy and terms
+
+**What's ready:** drafts in `app/assets/legal/privacy.md` and `terms.md`, written from what the app and server actually collect and send.
+- The app shows them in Settings → About.
+- The server serves the same files at `/privacy` and `/terms`; they are copied into the image, which is why it's built from the repository root.
+
+**Before launch:**
+- Fill in every [bracketed] part: who runs Cloro, the contact email, the effective date, and the governing law.
+- Have both reviewed.
+- Put `https://<your domain>/privacy` in Play Console (App content → Privacy policy).
+- Use the policy's lists to fill in the Data safety form.
+
+## 4. Errors and alerts
 
 **What's ready:**
 - **Server:** in production it logs JSON lines that Cloud Logging understands (`severity`, `message`). Every unhandled error is an **Error Reporting** event with its stack trace (service `cloro-api`, version = Cloud Run revision).

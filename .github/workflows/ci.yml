@@ -109,7 +109,11 @@ jobs:
       # The production image (Dockerfile) builds and serves /healthz.
       - name: Build and smoke-test the server image
         run: |
-          docker build -t cloro-api .
-          docker run -d --name api -p 8080:8080 -e NODE_ENV=development cloro-api
-          curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://localhost:8080/healthz
+          docker build -t cloro-api -f Dockerfile ..
+          # An in-memory database: the image's /app is read-only for its user
+          # (production uses Postgres).
+          docker run -d --name api -p 8080:8080 -e NODE_ENV=development -e DATABASE_URL=memory:// cloro-api
+          for i in $(seq 1 30); do curl -fsS http://localhost:8080/healthz && break; sleep 1; done
+          curl -fsS http://localhost:8080/healthz || { docker logs api; exit 1; }
+          curl -fsS http://localhost:8080/privacy | grep -q "Privacy policy" || { docker logs api; exit 1; }
           docker rm -f api
