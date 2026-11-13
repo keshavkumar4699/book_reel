@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { Db } from "../src/db/db.js";
 import { ActivityService } from "../src/habit/activity.js";
+import { FeedService } from "../src/habit/feed.js";
 import { displayStreak, emptyStreak, evaluateDwell, localDateKey, recordGoalMet, weekKey } from "../src/habit/engine.js";
 import { LeagueService } from "../src/habit/leagues.js";
 import { testDb } from "./helpers.js";
@@ -56,12 +57,19 @@ describe("activity, friends and leagues (Postgres)", () => {
     expect((await readDay(svc, "a", "2026-11-10", 3)).streak).toBe(2);
     expect(await svc.streakOf("a", "2026-11-10")).toMatchObject({ current: 2, best: 2 });
 
+    // The goal and streak live on the profile; the feed shows the reading itself.
+    const feeds = new FeedService(db);
+    await feeds.postSession("a", { client_id: "session-0001", started_at: "2026-11-10T20:00:00Z", minutes: 12, cards: 3, book: { title: "Walden", author: "Thoreau" }, progress: 0.1 });
+    await svc.user("b");
+    expect(await feeds.feedFor("b"), "b doesn't follow a yet").toEqual([]);
     await svc.follow("b", "a");
-    const feed = await svc.feedFor("b");
+    const feed = await feeds.feedFor("b");
+    expect(feed.map((f) => f.type)).toEqual(["session"]); // goal-met lines stay out of the feed
     expect(feed[0]!.text).toContain("Asha");
-    expect(await svc.kudos("b", feed[0]!.id)).toBe(true);
-    expect(await svc.kudos("a", feed[0]!.id)).toBe(false); // no self-kudos
-    expect((await svc.feedFor("b"))[0]).toMatchObject({ kudos: 1, gaveKudos: true });
+    expect(await feeds.kudos("b", feed[0]!.id)).toBe(true);
+    expect(await feeds.kudos("a", feed[0]!.id)).toBe(false); // no self-kudos
+    expect(await feeds.kudos("c", feed[0]!.id)).toBe(false); // c doesn't follow a
+    expect((await feeds.feedFor("b"))[0]).toMatchObject({ kudos: 1, gaveKudos: true });
   });
 
   it("invite codes create mutual friendships and a friends board", async () => {

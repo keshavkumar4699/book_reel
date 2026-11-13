@@ -153,4 +153,20 @@ export const MIGRATIONS: string[] = [
   alter table users add column genres text not null default '';
   alter table users add column reading text not null default '';
   `,
+  // Today feed (Cloro plan §10): reading sessions and milestones carry their
+  // stats as data; the app's own session id makes re-uploads update one card.
+  // Comments on activities.
+  `
+  alter table feed_items add column data jsonb not null default '{}'::jsonb;
+  alter table feed_items add column client_id text;
+  create unique index feed_items_client on feed_items (user_id, client_id) where client_id is not null;
+  create table comments (
+    id text primary key,
+    activity_id text not null references feed_items(id) on delete cascade,
+    user_id text not null references users(id),
+    text text not null,
+    at timestamptz not null default now()
+  );
+  create index comments_activity on comments (activity_id, at);
+  `,
 ];

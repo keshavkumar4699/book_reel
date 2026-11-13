@@ -118,6 +118,8 @@ describe("HTTP API", () => {
 
     const board = (await a.inject({ url: "/v1/leaderboards/friends", headers: friend })).json();
     expect(board.rows[0]).toMatchObject({ name: "Asha", activeDays: 1 });
+    const session = { client_id: "session-0001", started_at: now, minutes: 4, cards: 2, book: { title: "Walden", author: "Thoreau" }, progress: 0.05 };
+    expect((await a.inject({ method: "POST", url: "/v1/activities/session", headers: device, payload: session })).statusCode).toBe(200);
     const feed = (await a.inject({ url: "/v1/feed", headers: friend })).json().items;
     expect(feed[0].text).toContain("Asha");
     expect((await a.inject({ method: "POST", url: `/v1/activities/${feed[0].id}/kudos`, headers: friend })).statusCode).toBe(200);

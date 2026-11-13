@@ -13,6 +13,7 @@ import { isPaidTier, quotaFor } from "./config.js";
 import type { Db } from "./db/db.js";
 import { ActivityBatchSchema, ActivityService, CannotFollowSelf, HandleTaken, InvalidHandle, NotFollowable } from "./habit/activity.js";
 import { localDateKey, weekKey } from "./habit/engine.js";
+import { CommentSchema, FeedService, NotVisible, SessionSchema } from "./habit/feed.js";
 import { LeagueService } from "./habit/leagues.js";
 import { MoodInvalid, MoodQuotaExceeded, MoodSuggestSchema, MoodUnavailable, type MoodService } from "./mood/suggest.js";
 import { SegmentRequestSchema } from "./segmentation/schema.js";
@@ -63,6 +64,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: deps.logger ?? false, bodyLimit: 8 * 1024 * 1024 });
   const baseUrl = (deps.publicBaseUrl ?? "http://localhost:8787").replace(/\/$/, "");
   const activity = new ActivityService(deps.db);
+  const feeds = new FeedService(deps.db);
   const leagues = new LeagueService(deps.db, activity);
   const sync = new SyncService(deps.db);
   const shares = new ShareService(deps.db, baseUrl);
@@ -99,6 +101,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (err instanceof BillingUnavailable) return reply.code(503).send({ error: "billing_unavailable", message: err.message });
     if (err instanceof SpeechUnavailable) return reply.code(503).send({ error: "tts_unavailable", message: err.message });
     if (err instanceof InvalidHandle) return reply.code(400).send({ error: "invalid_handle", message: err.message });
+    if (err instanceof NotVisible) return reply.code(404).send({ error: "not_found" });
     if (err instanceof NotFollowable) return reply.code(404).send({ error: "not_found", message: err.message });
     if (err instanceof CannotFollowSelf) return reply.code(400).send({ error: "follow_self", message: err.message });
     if (err instanceof MoodQuotaExceeded) return reply.code(429).send({ error: "mood_quota", limit: err.limit });
@@ -192,6 +195,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const body = ActivityBatchSchema.parse(req.body);
     const result = await activity.ingest(c.userId, body);
     await leagues.join(c.userId, week(req));
+    const u = await activity.user(c.userId);
+    await feeds.checkBestWeek(c.userId, u.display_name, localDateKey(new Date(), tzOffset(req)));
     return result;
   });
 
@@ -258,10 +263,32 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return { items: await activity.people(u.id, viewer, "following") };
   });
 
-  app.get("/v1/feed", async (req) => ({ items: await activity.feedFor((await caller(req)).userId) }));
+  // The Today feed: your sessions and milestones and those of readers you follow.
+  app.get<{ Querystring: { before?: string; limit?: string } }>("/v1/feed", async (req) => {
+    const before = req.query.before && !Number.isNaN(Date.parse(req.query.before)) ? req.query.before : undefined;
+    return { items: await feeds.feedFor((await caller(req)).userId, { before, limit: Number(req.query.limit) || 20 }) };
+  });
+
+  app.post("/v1/activities/session", async (req) => {
+    const posted = await feeds.postSession((await caller(req)).userId, SessionSchema.parse(req.body));
+    return { id: posted?.id ?? null };
+  });
 
   app.post<{ Params: { id: string } }>("/v1/activities/:id/kudos", async (req, reply) => {
-    if (!(await activity.kudos((await caller(req)).userId, req.params.id))) return reply.code(404).send({ error: "not_found" });
+    if (!(await feeds.kudos((await caller(req)).userId, req.params.id))) return reply.code(404).send({ error: "not_found" });
+    return { ok: true };
+  });
+
+  app.get<{ Params: { id: string } }>("/v1/activities/:id/comments", async (req) => ({
+    items: await feeds.comments((await caller(req)).userId, req.params.id),
+  }));
+
+  app.post<{ Params: { id: string } }>("/v1/activities/:id/comments", async (req) => ({
+    comment: await feeds.addComment((await caller(req)).userId, req.params.id, CommentSchema.parse(req.body).text),
+  }));
+
+  app.delete<{ Params: { id: string } }>("/v1/comments/:id", async (req, reply) => {
+    if (!(await feeds.deleteComment((await caller(req)).userId, req.params.id))) return reply.code(404).send({ error: "not_found" });
     return { ok: true };
   });
 

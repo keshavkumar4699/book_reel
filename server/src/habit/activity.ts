@@ -388,36 +388,6 @@ export class ActivityService {
       .sort((a, b) => b.score - a.score);
   }
 
-  async feedFor(userId: string, limit = 50) {
-    const rows = await this.db.query<{ id: string; user_id: string; type: string; text: string; at: string | Date; kudos: string | number; gave: boolean }>(
-      `select f.id, f.user_id, f.type, f.text, f.at,
-              (select count(*) from kudos k where k.activity_id = f.id) as kudos,
-              exists (select 1 from kudos k where k.activity_id = f.id and k.user_id = $1) as gave
-       from feed_items f
-       where f.user_id = $1 or f.user_id in (select followee from follows where follower = $1)
-       order by f.at desc limit $2`,
-      [userId, limit],
-    );
-    return rows.map((r) => ({
-      id: r.id,
-      userId: r.user_id,
-      type: r.type,
-      text: r.text,
-      at: new Date(r.at).toISOString(),
-      kudos: Number(r.kudos),
-      gaveKudos: r.gave,
-      mine: r.user_id === userId,
-    }));
-  }
-
-  /** Kudos only (no dislikes); false for unknown or own activities. */
-  async kudos(userId: string, activityId: string): Promise<boolean> {
-    const rows = await this.db.query<{ user_id: string }>("select user_id from feed_items where id = $1", [activityId]);
-    if (!rows[0] || rows[0].user_id === userId) return false;
-    await this.db.query("insert into kudos (activity_id, user_id) values ($1, $2) on conflict do nothing", [activityId, userId]);
-    return true;
-  }
-
   private async post(userId: string, type: string, text: string) {
     await this.db.query("insert into feed_items (id, user_id, type, text) values ($1, $2, $3, $4)", [randomUUID(), userId, type, text]);
   }
