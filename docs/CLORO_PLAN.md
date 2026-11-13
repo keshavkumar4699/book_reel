@@ -66,6 +66,14 @@ Plan: **4 light + 4 dark** (Paper stays as a plain page that follows light/dark)
 - The scene picker groups them under "Day" and "Night".
 - **Done when:** 4 + 4 scenes, all pass the contrast test; picker shows two groups.
 
+✅ **Done (step 6a).**
+- **Forest morning:** misty pines fading with distance, sunbeams, motes drifting in the light. Sound: birdsong and wind (no crickets).
+- **Beach:** a blue sky over a turquoise sea; surf washes up the sand and slides back; glints on the water; two gulls high up.
+- **Snow day:** a pale sky, white hills, frosted pines, a cabin with a snowy roof, soft snowfall.
+- **Contrast:** dark text on a light veil. Each veil was measured band by band, so the scene stays bright where the text allows.
+- **Picker:** DAY, then NIGHT, then Paper.
+- **Server:** the scene descriptions in the server's scene-picking prompt now describe the daytime versions.
+
 ## 6. Reading tab: the reel screen, overhauled
 
 The reader becomes the **first tab** ("Reading") instead of a page opened over the app.

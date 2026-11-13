@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:book_reel/data/settings.dart';
+import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/theme.dart';
 import 'package:book_reel/ui/vibes.dart';
 import 'package:flutter/material.dart';
@@ -72,6 +73,31 @@ void main() {
       }
     });
   }
+
+  test('four day scenes with dark text, four night scenes with light text', () {
+    expect(dayScenes, hasLength(4));
+    expect(nightScenes, hasLength(4));
+    expect({...dayScenes, ...nightScenes}, {for (final v in Vibe.values) if (v != Vibe.paper) v});
+    for (final v in dayScenes) {
+      expect(scenePalettes[v]!.lightInk, isFalse, reason: '${v.name} is a day scene');
+    }
+    for (final v in nightScenes) {
+      expect(scenePalettes[v]!.lightInk, isTrue, reason: '${v.name} is a night scene');
+    }
+  });
+
+  testWidgets('the scene picker shows day scenes, then night ones', (tester) async {
+    Vibe? picked;
+    await tester.pumpWidget(MaterialApp(
+      theme: buildAppTheme(Kit.appLight),
+      home: Scaffold(body: VibePickerRow(selected: Vibe.night, onSelected: (v) => picked = v)),
+    ));
+    expect(find.text('DAY'), findsOneWidget);
+    expect(find.text('NIGHT'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Beach')).dx, lessThan(tester.getTopLeft(find.text('NIGHT')).dx));
+    await tester.tap(find.text('Beach'));
+    expect(picked, Vibe.ocean);
+  });
 
   test('ink is never pure white or pure black', () {
     for (final p in scenePalettes.values) {

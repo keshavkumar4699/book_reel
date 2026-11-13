@@ -10,7 +10,7 @@ import '../data/settings.dart';
 // Scenes are painted in two parts so they stay smooth on modest phones:
 // * a still base (sky, hills, buildings, lamps), rendered once per scene and
 //   screen size into an image ([SceneBases]) and blitted each frame;
-// * a light motion layer (fireflies, rain, snow, stars, waves) drawn with
+// * a light motion layer (motes, rain, snow, stars, surf) drawn with
 //   pre-blurred sprites in single atlas calls, ~30 times a second.
 // Nothing blurs per frame, and the scene does not repaint while reels scroll.
 
@@ -428,40 +428,60 @@ Path _mountains(Size size, int seed, double baseY, double amp, int peaks) {
 }
 
 // --------------------------------------------------------------------------
-// Forest: dusk in the pines, fireflies drifting up.
+// Forest morning: sun through the pines, mist, motes drifting in the light.
 
 void _forestBase(Canvas c, Size size) {
   final w = size.width, h = size.height;
-  // A deep teal sky with the last warm light behind the far ridge, so light
-  // text sits on calm, dark greens everywhere.
-  _gradient(c, size, const [Color(0xFF22363F), Color(0xFF2C4A48), Color(0xFF34503F), Color(0xFF233A2E), Color(0xFF132119)],
-      const [0, 0.14, 0.3, 0.55, 1]);
-  _glow(c, Offset(w * 0.7, h * 0.2), w * 0.55, const Color(0x38FFD9A0));
+  // A pale morning sky, warm low down where the sun comes through.
+  _gradient(c, size, const [Color(0xFFC2DCE2), Color(0xFFDDEBE2), Color(0xFFF3EFD8), Color(0xFFE6EBD6), Color(0xFFD3DFC8)],
+      const [0, 0.18, 0.36, 0.62, 1]);
+  final sun = _forestSun(size);
+  _glow(c, sun, w * 0.8, const Color(0xB3FFF4D2));
+  // Sunbeams slanting down through the trees.
+  for (var i = 0; i < 4; i++) {
+    final angle = 1.98 + i * 0.15, spread = 0.03 + (i.isEven ? 0.014 : 0), len = h * 1.1;
+    final beam = Path()
+      ..moveTo(sun.dx, sun.dy)
+      ..lineTo(sun.dx + math.cos(angle - spread) * len, sun.dy + math.sin(angle - spread) * len)
+      ..lineTo(sun.dx + math.cos(angle + spread) * len, sun.dy + math.sin(angle + spread) * len)
+      ..close();
+    c.drawPath(
+        beam,
+        Paint()
+          ..shader = RadialGradient(colors: const [Color(0x40FFF8DE), Color(0x00FFF8DE)])
+              .createShader(Rect.fromCircle(center: sun, radius: len)));
+  }
+  c.drawCircle(sun, 22, Paint()..color = const Color(0xFFFFFAE8));
+  // Pines fade into the mist with distance, so the middle of the screen
+  // stays light behind dark text.
   const layers = [
-    (Color(0xFF52695A), 0.34, 0.10, 0.20),
-    (Color(0xFF3B5446), 0.48, 0.14, 0.26),
-    (Color(0xFF2A4234), 0.64, 0.18, 0.32),
-    (Color(0xFF17281E), 0.84, 0.22, 0.40),
+    (Color(0xFFBDD1C1), 0.40, 0.10, 0.20),
+    (Color(0xFFA5C0AA), 0.54, 0.12, 0.24),
+    (Color(0xFF92B198), 0.70, 0.12, 0.20),
+    (Color(0xFF6A9073), 0.93, 0.08, 0.14),
   ];
   for (var i = 0; i < layers.length; i++) {
     final (color, base, minH, maxH) = layers[i];
     final path = _cached('forest$i-${w.round()}x${h.round()}',
         () => _pineRidge(size, 11 + i, h * base, h * minH, h * maxH, w * (0.16 - i * 0.02)));
     c.drawPath(path, Paint()..color = color);
-    // Soft mist between the far ridges.
-    if (i < 2) _band(c, Rect.fromLTWH(0, h * (base + 0.02) - h * 0.06, w, h * 0.12), const Color(0x24FFFFFF));
+    // Morning mist lying in front of each ridge.
+    if (i < 3) _band(c, Rect.fromLTWH(0, h * (base + 0.02) - h * 0.07, w, h * 0.14), const Color(0x70F6F8EE));
   }
 }
 
+Offset _forestSun(Size size) => Offset(size.width * 0.76, size.height * 0.14);
+
 void _forestMotion(Canvas c, Size size, double t) {
   final w = size.width, h = size.height;
-  for (var i = 0; i < 26; i++) {
+  // Motes of pollen and dust drifting down through the sunlight.
+  for (var i = 0; i < 30; i++) {
     final sd = _seeds[i];
-    final rise = (t * (6 + sd[2] * 8) + sd[1] * h * 0.5) % (h * 0.5);
-    final x = sd[0] * w + math.sin(t * 0.4 + sd[3] * 6) * 18;
-    final y = h * 0.98 - rise;
-    final a = 0.25 + 0.75 * (0.5 + 0.5 * math.sin(t * 1.6 + sd[3] * 10));
-    _glowDot(x, y, 2.2 + sd[2] * 1.8 + 6, Color.fromRGBO(255, 233, 168, a * 0.5));
+    final fall = (t * (4 + sd[2] * 6) + sd[1] * h * 0.8) % (h * 0.8);
+    final x = sd[0] * w + math.sin(t * 0.3 + sd[3] * 6) * 22;
+    final y = h * 0.1 + fall;
+    final a = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(t * 1.1 + sd[3] * 10));
+    _glowDot(x, y, 5 + sd[2] * 2.5, Color.fromRGBO(255, 251, 230, a * 0.85));
   }
   _stamps.draw(c, _dot);
 }
@@ -624,80 +644,121 @@ void _rainMotion(Canvas c, Size size, double t) {
 }
 
 // --------------------------------------------------------------------------
-// Ocean: slow waves after sunset.
+// Beach: a bright shore, slow surf washing up the sand.
+
+double _beachHorizon(Size s) => s.height * 0.5;
+double _beachShore(Size s) => s.height * 0.76;
 
 void _oceanBase(Canvas c, Size size) {
   final w = size.width, h = size.height;
-  final horizon = h * 0.62;
-  _gradient(c, Size(w, horizon), const [Color(0xFF1C1B40), Color(0xFF3D2E5B), Color(0xFF6E3C63), Color(0xFF9C5166)], const [0, 0.45, 0.82, 1]);
-  final sun = Offset(w * 0.5, horizon);
-  _glow(c, sun, w * 0.42, const Color(0x40FFB07A));
-  c.save();
-  c.clipRect(Rect.fromLTWH(0, 0, w, horizon));
-  c.drawCircle(sun.translate(0, w * 0.06), w * 0.1, Paint()..color = const Color(0xFFF2B285));
-  c.restore();
-  final sea = Rect.fromLTWH(0, horizon, w, h - horizon);
+  final horizon = _beachHorizon(size), shore = _beachShore(size);
+  _gradient(c, Size(w, horizon), const [Color(0xFF8DC9EE), Color(0xFFBFE2F5), Color(0xFFE5F3F8)], const [0, 0.55, 1]);
+  final sun = Offset(w * 0.78, h * 0.1);
+  _glow(c, sun, w * 0.6, const Color(0xB3FFF6D8));
+  c.drawCircle(sun, 24, Paint()..color = const Color(0xFFFFFBEA));
+  // The sea: deeper blue at the horizon, turquoise towards the shore.
+  final sea = Rect.fromLTWH(0, horizon, w, shore - horizon + h * 0.02);
   c.drawRect(
     sea,
     Paint()
       ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xFF5E4A78), Color(0xFF2B3461), Color(0xFF121A35)],
+        colors: [Color(0xFF79B9D9), Color(0xFF8FD2DB), Color(0xFFB2E3DC)],
       ).createShader(sea),
   );
-  // Haze over the horizon, so no hard line runs behind the text.
-  final haze = Rect.fromLTWH(0, horizon - h * 0.03, w, h * 0.06);
-  c.drawRect(
-    haze,
+  // A soft haze on the horizon, so no hard line runs behind the text.
+  _band(c, Rect.fromLTWH(0, horizon - h * 0.025, w, h * 0.05), const Color(0x99EEF8FA));
+  // Sand, with a gently curving water line.
+  final sand = _cached('beach-${w.round()}x${h.round()}', () {
+    final p = Path()..moveTo(0, h);
+    for (var x = 0.0; x <= w + 8; x += 8) {
+      p.lineTo(x, shore + math.sin(x / w * math.pi * 2 + 0.6) * h * 0.008);
+    }
+    return p
+      ..lineTo(w + 8, h)
+      ..close();
+  });
+  c.drawPath(
+    sand,
     Paint()
       ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0x008A4A68), Color(0x998A4A68), Color(0x007A4668)],
-      ).createShader(haze),
+        colors: [Color(0xFFE4D6B4), Color(0xFFF2E6C8), Color(0xFFEEDDB6)],
+        stops: [0, 0.3, 1],
+      ).createShader(Rect.fromLTWH(0, shore, w, h - shore)),
   );
 }
 
-final _cloudPaint = Paint()
-  ..filterQuality = FilterQuality.low
-  ..colorFilter = const ColorFilter.mode(Color(0x2EFFD3C2), BlendMode.modulate);
 const _cloudSrc = Rect.fromLTWH(0, 0, 256, 64);
+final _beachCloud = Paint()
+  ..filterQuality = FilterQuality.low
+  ..colorFilter = const ColorFilter.mode(Color(0xE6FFFFFF), BlendMode.modulate);
+final _wash = Paint()..color = const Color(0x99D3F1EC);
+final _foam = Paint()
+  ..style = PaintingStyle.stroke
+  ..strokeWidth = 2.5
+  ..strokeCap = StrokeCap.round
+  ..strokeJoin = StrokeJoin.round
+  ..color = const Color(0xF2FFFFFF);
+final _gull = Paint()
+  ..style = PaintingStyle.stroke
+  ..strokeWidth = 1.6
+  ..strokeCap = StrokeCap.round
+  ..color = const Color(0x8C5A6B78);
 
 void _oceanMotion(Canvas c, Size size, double t) {
   final w = size.width, h = size.height;
-  final horizon = h * 0.62;
-  // Soft clouds drifting along.
-  for (var i = 0; i < 6; i++) {
+  final horizon = _beachHorizon(size), shore = _beachShore(size);
+  // Clouds drifting across the sky.
+  for (var i = 0; i < 5; i++) {
     final sd = _seeds[i + 120];
-    final x = (sd[0] * w + t * (2 + sd[2] * 3)) % (w + 200) - 100;
-    final cw = 160 + sd[3] * 120, ch = 26 + sd[2] * 18;
+    final x = (sd[0] * w + t * (3 + sd[2] * 4)) % (w + 240) - 120;
+    final cw = 150 + sd[3] * 130, ch = 22 + sd[2] * 16;
     // The sprite's oval fills 176 x 32 of its 256 x 64 tile.
-    final dst = Rect.fromCenter(center: Offset(x, horizon * (0.25 + sd[1] * 0.5)), width: cw * 256 / 176, height: ch * 64 / 32);
-    c.drawImageRect(_cloud, _cloudSrc, dst, _cloudPaint);
+    final dst = Rect.fromCenter(center: Offset(x, horizon * (0.14 + sd[1] * 0.62)), width: cw * 256 / 176, height: ch * 64 / 32);
+    c.drawImageRect(_cloud, _cloudSrc, dst, _beachCloud);
   }
-  // Glints on the sun's path.
-  final sun = Offset(w * 0.5, horizon);
-  for (var i = 0; i < 40; i++) {
+  // Two gulls gliding high above the shore (above the text).
+  for (var i = 0; i < 2; i++) {
+    final sd = _seeds[i + 150];
+    final x = (sd[0] * w + t * (9 + sd[2] * 6)) % (w + 80) - 40;
+    final y = h * (0.07 + sd[1] * 0.07) + math.sin(t * 0.5 + i) * 5;
+    final flap = math.sin(t * 2.6 + i * 2) * 2.5, s = 7 + sd[3] * 3;
+    c.drawPath(
+        Path()
+          ..moveTo(x - s, y - 2 + flap)
+          ..quadraticBezierTo(x - s * 0.4, y - 4 + flap, x, y)
+          ..quadraticBezierTo(x + s * 0.4, y - 4 + flap, x + s, y - 2 + flap),
+        _gull);
+  }
+  // Sunlight glinting on the water.
+  for (var i = 0; i < 36; i++) {
     final sd = _seeds[i];
-    final y = horizon + 6 + sd[1] * (h - horizon) * 0.55;
-    final spread = 18 + (y - horizon) * 0.5;
-    final x = sun.dx + (sd[0] - 0.5) * spread * 2 + math.sin(t * 0.8 + sd[3] * 6) * 6;
-    final a = 0.08 + 0.24 * (0.5 + 0.5 * math.sin(t * 2 + sd[2] * 9));
+    final y = horizon + 6 + sd[1] * (shore - horizon - 12);
+    final x = sd[0] * w + math.sin(t * 0.7 + sd[3] * 6) * 8;
+    final a = 0.12 + 0.6 * math.max(0.0, math.sin(t * 1.4 + sd[2] * 9));
     // The glint is 40 px long in its tile.
-    _stamps.add(x, y, (16 + sd[2] * 20) / 40, Color.fromRGBO(255, 220, 170, a), _glintSrc);
+    _stamps.add(x, y, (10 + sd[2] * 16) / 40, Color.fromRGBO(255, 255, 255, a), _glintSrc);
   }
   _stamps.draw(c, _glint);
-  // Gentle waves in the foreground.
-  for (var layer = 0; layer < 3; layer++) {
-    final baseY = h * (0.83 + layer * 0.06);
-    final path = Path()..moveTo(0, h);
-    for (var x = 0.0; x <= w + 10; x += 10) {
-      path.lineTo(x, baseY + math.sin(x / (60 + layer * 20) + t * (0.5 + layer * 0.2)) * (5 + layer * 3));
+  // Waves washing up the sand and sliding back, one after the other.
+  for (var k = 0; k < 2; k++) {
+    final swell = 0.5 + 0.5 * math.sin(t * 0.42 + k * math.pi);
+    final reach = shore + h * (0.004 + 0.034 * swell);
+    final wave = Path()..moveTo(0, shore - h * 0.01);
+    final front = Path();
+    for (var x = 0.0; x <= w + 8; x += 8) {
+      final y = reach + math.sin(x / w * math.pi * 3 + k * 2 + t * 0.2) * h * 0.006;
+      wave.lineTo(x, y);
+      x == 0 ? front.moveTo(x, y) : front.lineTo(x, y);
     }
-    path.lineTo(w, h);
-    path.close();
-    c.drawPath(path, Paint()..color = Color.fromRGBO(16, 24, 48, 0.35 + layer * 0.2));
+    wave
+      ..lineTo(w + 8, shore - h * 0.01)
+      ..close();
+    c.drawPath(wave, _wash);
+    c.drawPath(front, _foam);
   }
 }
 
@@ -803,66 +864,77 @@ void _meadowMotion(Canvas c, Size size, double t) {
 }
 
 // --------------------------------------------------------------------------
-// Snow: a quiet cabin, falling snow.
+// Snow day: white hills under a pale sky, a cabin, soft snowfall.
 
 void _snowBase(Canvas c, Size size) {
   final w = size.width, h = size.height;
-  _gradient(c, size, const [Color(0xFF1B2640), Color(0xFF2B3759), Color(0xFF3F4670), Color(0xFF575C87)], const [0, 0.4, 0.66, 0.86]);
-  _glow(c, Offset(w * 0.5, h * 0.7), w * 0.8, const Color(0x26F6B9C9));
-  c.drawPath(_cached('snowridge-${w.round()}x${h.round()}', () => _mountains(size, 51, h * 0.72, h * 0.14, 6)),
-      Paint()..color = const Color(0xFF465077));
-  c.drawPath(_cached('snowpines-${w.round()}x${h.round()}', () => _pineRidge(size, 61, h * 0.82, h * 0.12, h * 0.22, w * 0.12)),
-      Paint()..color = const Color(0xFF1A2438));
-  // Moonlit snowy ground.
+  _gradient(c, size, const [Color(0xFFAACCEB), Color(0xFFD0E4F3), Color(0xFFEAF2F9), Color(0xFFF3F7FB)], const [0, 0.3, 0.55, 0.8]);
+  final sun = Offset(w * 0.24, h * 0.12);
+  _glow(c, sun, w * 0.6, const Color(0x99FFFBEA));
+  c.drawCircle(sun, 20, Paint()..color = const Color(0xFFFFFCF0));
+  // Far snowy mountains, nearer white foothills, then frosted pines.
+  c.drawPath(_cached('snowridge-${w.round()}x${h.round()}', () => _mountains(size, 51, h * 0.64, h * 0.16, 6)),
+      Paint()..color = const Color(0xFFC9D8E9));
+  c.drawPath(_cached('snowhills-${w.round()}x${h.round()}', () => _mountains(size, 52, h * 0.72, h * 0.07, 4)),
+      Paint()..color = const Color(0xFFE2EAF4));
+  c.drawPath(_cached('snowpines-${w.round()}x${h.round()}', () => _pineRidge(size, 61, h * 0.85, h * 0.06, h * 0.12, w * 0.12)),
+      Paint()..color = const Color(0xFF93AEB2));
+  // The snowfield, with soft blue drifts.
   final ground = Path()..moveTo(0, h);
   for (var x = 0.0; x <= w + 1; x += 10) {
     ground.lineTo(x, h * 0.86 + math.sin(x / w * math.pi * 2) * 8);
   }
-  ground.lineTo(w, h);
-  ground.close();
-  c.drawPath(ground, Paint()..color = const Color(0xFF8E9CB6));
-  // Cabin with a warm window.
-  final base = Offset(w * 0.68, h * 0.86);
-  c.drawRect(Rect.fromLTWH(base.dx - 40, base.dy - 46, 80, 46), Paint()..color = const Color(0xFF3B2F2B));
+  ground
+    ..lineTo(w, h)
+    ..close();
+  c.drawPath(ground, Paint()..color = const Color(0xFFF6F9FC));
+  final drift = Path()..moveTo(0, h);
+  for (var x = 0.0; x <= w + 1; x += 10) {
+    drift.lineTo(x, h * 0.93 + math.sin(x / w * math.pi * 3 + 1) * 10);
+  }
+  drift
+    ..lineTo(w, h)
+    ..close();
+  c.drawPath(drift, Paint()..color = const Color(0xFFE6EEF7));
+  // A wooden cabin, its roof deep in snow.
+  final base = _snowCabin(size);
+  c.drawRect(Rect.fromLTWH(base.dx - 40, base.dy - 46, 80, 46), Paint()..color = const Color(0xFFAD7B57));
+  c.drawRect(Rect.fromLTWH(base.dx + 18, base.dy - 78, 10, 26), Paint()..color = const Color(0xFFB3ABA4));
+  // The roof, deep in snow, with a thin eave of wood showing.
   final roof = Path()
-    ..moveTo(base.dx - 52, base.dy - 44)
-    ..lineTo(base.dx, base.dy - 82)
-    ..lineTo(base.dx + 52, base.dy - 44)
+    ..moveTo(base.dx - 56, base.dy - 43)
+    ..lineTo(base.dx, base.dy - 86)
+    ..lineTo(base.dx + 56, base.dy - 43)
     ..close();
-  c.drawPath(roof, Paint()..color = const Color(0xFF2A2220));
-  final snowRoof = Path()
-    ..moveTo(base.dx - 54, base.dy - 44)
-    ..lineTo(base.dx, base.dy - 84)
-    ..lineTo(base.dx + 54, base.dy - 44)
-    ..lineTo(base.dx + 46, base.dy - 48)
-    ..lineTo(base.dx, base.dy - 76)
-    ..lineTo(base.dx - 46, base.dy - 48)
-    ..close();
-  c.drawPath(snowRoof, Paint()..color = const Color(0xFFA9B6CB));
-  c.drawRect(Rect.fromLTWH(base.dx - 22, base.dy - 34, 20, 18), Paint()..color = const Color(0xFFFFCE7A));
-  c.drawRect(Rect.fromLTWH(base.dx + 18, base.dy - 78, 10, 24), Paint()..color = const Color(0xFF2A2220));
+  c.drawPath(roof, Paint()..color = const Color(0xFFFBFDFF));
+  c.drawLine(Offset(base.dx - 54, base.dy - 43), Offset(base.dx + 54, base.dy - 43), Paint()
+    ..color = const Color(0xFF8A5E43)
+    ..strokeWidth = 3);
+  c.drawRect(Rect.fromLTWH(base.dx - 22, base.dy - 34, 20, 18), Paint()..color = const Color(0xFFF5CF84));
 }
+
+Offset _snowCabin(Size size) => Offset(size.width * 0.68, size.height * 0.86);
 
 void _snowMotion(Canvas c, Size size, double t) {
   final w = size.width, h = size.height;
-  final base = Offset(w * 0.68, h * 0.86);
-  // The window's warm, flickering light.
-  final flicker = 0.85 + 0.15 * math.sin(t * 2.1);
-  _glow(c, Offset(base.dx - 12, base.dy - 24), 70, Color.fromRGBO(255, 200, 115, 0.45 * flicker));
-  // Chimney smoke: soft puffs that rise and fade.
+  final base = _snowCabin(size);
+  // Chimney smoke: soft grey puffs that rise and fade.
   for (var i = 0; i < 4; i++) {
     final phase = (t * 0.12 + i / 4) % 1.0;
     final y = base.dy - 82 - phase * 90;
     final x = base.dx + 23 + math.sin(phase * 6 + t * 0.6) * 10 + phase * 18;
-    c.drawCircle(Offset(x, y), 6 + phase * 10, Paint()..color = Color.fromRGBO(230, 235, 245, 0.25 * (1 - phase)));
+    c.drawCircle(Offset(x, y), 6 + phase * 10, Paint()..color = Color.fromRGBO(168, 180, 196, 0.32 * (1 - phase)));
   }
-  // Falling snow.
-  for (var i = 0; i < 130; i++) {
+  // Snow falling softly: white flakes show against the hills and pines,
+  // pale blue-grey ones against the bright sky.
+  for (var i = 0; i < 110; i++) {
     final sd = _seeds[i % 160];
-    final speed = 18 + sd[2] * 30;
+    final speed = 14 + sd[2] * 22;
     final y = ((sd[1] * h + t * speed + i * 23) % (h + 20)) - 10;
-    final x = ((sd[0] * w + i * 17) % w) + math.sin(t * 0.8 + sd[3] * 10) * 12;
-    _glowDot(x, y, (0.9 + sd[3] * 2.0) * 1.6, Color.fromRGBO(255, 255, 255, 0.3 + sd[2] * 0.35));
+    final x = ((sd[0] * w + i * 17) % w) + math.sin(t * 0.7 + sd[3] * 10) * 14;
+    final onSky = y < h * 0.6;
+    final colour = onSky ? Color.fromRGBO(176, 194, 218, 0.4 + sd[2] * 0.25) : Color.fromRGBO(255, 255, 255, 0.6 + sd[2] * 0.35);
+    _glowDot(x, y, (0.9 + sd[3] * 2.0) * 1.7, colour);
   }
   _stamps.draw(c, _dot);
 }

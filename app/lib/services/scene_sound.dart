@@ -24,7 +24,7 @@ class SoundLayer {
 /// (assets/sounds/CREDITS.md). Layers loop independently, so their different
 /// lengths keep the mix from audibly repeating.
 const sceneSounds = <Vibe, List<SoundLayer>>{
-  Vibe.forest: [SoundLayer('wind', 0.5), SoundLayer('birds', 0.3), SoundLayer('crickets', 0.22)],
+  Vibe.forest: [SoundLayer('birds', 0.55), SoundLayer('wind', 0.4)],
   Vibe.cafe: [SoundLayer('cafe', 0.75), SoundLayer('rain', 0.28)],
   Vibe.rain: [SoundLayer('rain', 0.85), SoundLayer('city', 0.14)],
   Vibe.ocean: [SoundLayer('waves', 0.85), SoundLayer('wind', 0.18)],
@@ -37,13 +37,13 @@ const sceneSounds = <Vibe, List<SoundLayer>>{
 
 /// What the reader hears, in a few words.
 const sceneSoundLabels = <Vibe, String>{
-  Vibe.forest: 'Wind in the pines, birds and crickets',
+  Vibe.forest: 'Morning birdsong, wind in the pines',
   Vibe.cafe: 'Café murmur, rain outside',
   Vibe.rain: 'Rain on the window',
-  Vibe.ocean: 'Waves and sea wind',
+  Vibe.ocean: 'Surf and sea wind',
   Vibe.night: 'Crickets and night wind',
   Vibe.meadow: 'Birdsong and a breeze',
-  Vibe.snow: 'Crackling fire, wind outside',
+  Vibe.snow: 'Winter wind, a fire in the cabin',
   Vibe.city: 'Distant city traffic',
   Vibe.paper: 'Soft focus noise',
 };

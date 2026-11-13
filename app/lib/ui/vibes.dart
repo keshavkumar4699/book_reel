@@ -69,14 +69,15 @@ class ScenePalette {
 }
 
 const scenePalettes = <Vibe, ScenePalette>{
-  // Parchment on deep pine; honey for emphasis.
+  // Morning in the pines: deep pine ink on a morning-mist veil, amber emphasis.
   Vibe.forest: ScenePalette(
-    ink: Color(0xFFF4EEDD),
-    emphasis: Color(0xFFF3D38C),
-    spot: Color(0xFFFFF5DC),
-    accent: Color(0xFFF4EEDD),
-    tint: Color(0xFF0C1A12),
-    shade: [0.14, 0.23, 0.35, 0.47, 0.47, 0.35, 0.23, 0.14, 0.14, 0.24, 0.30],
+    ink: Color(0xFF1B2A20),
+    emphasis: Color(0xFF6B3A0B),
+    spot: Color(0xFF142019),
+    accent: Color(0xFF1B2A20),
+    tint: Color(0xFFF8FAF0),
+    shade: [0.08, 0.08, 0.08, 0.08, 0.10, 0.20, 0.22, 0.22, 0.20, 0.14, 0.12],
+    lightInk: false,
   ),
   // Latte foam on espresso; caramel emphasis.
   Vibe.cafe: ScenePalette(
@@ -96,14 +97,15 @@ const scenePalettes = <Vibe, ScenePalette>{
     tint: Color(0xFF060D19),
     shade: [0.14, 0.14, 0.14, 0.16, 0.28, 0.28, 0.16, 0.14, 0.14, 0.24, 0.30],
   ),
-  // Seashell on dusk indigo; sunset peach emphasis.
+  // A bright shore: deep sea-navy ink on a sunlit veil, coral-brown emphasis.
   Vibe.ocean: ScenePalette(
-    ink: Color(0xFFFBF0E9),
-    emphasis: Color(0xFFFFC9A8),
-    spot: Color(0xFFFFF2E8),
-    accent: Color(0xFFFBF0E9),
-    tint: Color(0xFF120D24),
-    shade: [0.14, 0.14, 0.14, 0.17, 0.29, 0.41, 0.52, 0.52, 0.40, 0.28, 0.30],
+    ink: Color(0xFF12283A),
+    emphasis: Color(0xFF7A2E10),
+    spot: Color(0xFF0C1F2E),
+    accent: Color(0xFF12283A),
+    tint: Color(0xFFFBFCF8),
+    shade: [0.08, 0.08, 0.08, 0.08, 0.08, 0.10, 0.10, 0.10, 0.10, 0.08, 0.08],
+    lightInk: false,
   ),
   // Moonlight on midnight blue; lavender emphasis.
   Vibe.night: ScenePalette(
@@ -124,14 +126,15 @@ const scenePalettes = <Vibe, ScenePalette>{
     shade: [0.08, 0.08, 0.08, 0.08, 0.09, 0.21, 0.33, 0.45, 0.45, 0.33, 0.21],
     lightInk: false,
   ),
-  // Frost on winter navy; ice-blue emphasis.
+  // A snow day: slate ink on a frosty veil, deep winter-blue emphasis.
   Vibe.snow: ScenePalette(
-    ink: Color(0xFFEEF3FA),
-    emphasis: Color(0xFFBCDDFF),
-    spot: Color(0xFFF7FAFF),
-    accent: Color(0xFFEEF3FA),
-    tint: Color(0xFF0D1526),
-    shade: [0.14, 0.14, 0.14, 0.14, 0.14, 0.26, 0.38, 0.50, 0.50, 0.44, 0.40],
+    ink: Color(0xFF18233A),
+    emphasis: Color(0xFF1C4785),
+    spot: Color(0xFF111A2D),
+    accent: Color(0xFF18233A),
+    tint: Color(0xFFF6F9FD),
+    shade: [0.08, 0.08, 0.08, 0.08, 0.08, 0.10, 0.14, 0.26, 0.32, 0.30, 0.16],
+    lightInk: false,
   ),
   // Pale neon on night violet; soft neon-rose emphasis.
   Vibe.city: ScenePalette(
@@ -143,6 +146,12 @@ const scenePalettes = <Vibe, ScenePalette>{
     shade: [0.14, 0.14, 0.14, 0.14, 0.14, 0.14, 0.25, 0.37, 0.37, 0.25, 0.30],
   ),
 };
+
+/// Daytime scenes (dark text on a bright scene), then evening and night ones
+/// (light text on a dark scene), in the order the picker shows them. Paper
+/// follows the app's light or dark.
+const dayScenes = [Vibe.meadow, Vibe.forest, Vibe.ocean, Vibe.snow];
+const nightScenes = [Vibe.night, Vibe.rain, Vibe.city, Vibe.cafe];
 
 /// Visual style for each calm "study vibe".
 class VibeStyle {
@@ -169,13 +178,13 @@ class VibeStyle {
 }
 
 const vibeStyles = <Vibe, VibeStyle>{
-  Vibe.forest: VibeStyle(label: 'Forest', emoji: '🌲', tagline: 'Pines at dusk, fireflies', accent: Color(0xFFF2C46D)),
+  Vibe.forest: VibeStyle(label: 'Forest morning', emoji: '🌲', tagline: 'Sun through the pines', accent: Color(0xFF1B2A20), dark: false),
   Vibe.cafe: VibeStyle(label: 'Café', emoji: '☕', tagline: 'Rainy evening, warm cup', accent: Color(0xFFFFB86B)),
   Vibe.rain: VibeStyle(label: 'Rain', emoji: '🌧️', tagline: 'City lights through rain', accent: Color(0xFF8FC1FF)),
-  Vibe.ocean: VibeStyle(label: 'Ocean', emoji: '🌅', tagline: 'Slow waves after sunset', accent: Color(0xFFFFB38A)),
+  Vibe.ocean: VibeStyle(label: 'Beach', emoji: '🏖️', tagline: 'Bright surf on the sand', accent: Color(0xFF12283A), dark: false),
   Vibe.night: VibeStyle(label: 'Night', emoji: '🌙', tagline: 'Stars over the mountains', accent: Color(0xFFC9B8FF)),
   Vibe.meadow: VibeStyle(label: 'Meadow', emoji: '🌼', tagline: 'Sunny meadow, drifting clouds', accent: Color(0xFF224D1F), dark: false),
-  Vibe.snow: VibeStyle(label: 'Snow', emoji: '❄️', tagline: 'Quiet cabin, falling snow', accent: Color(0xFFA8D8FF)),
+  Vibe.snow: VibeStyle(label: 'Snow day', emoji: '❄️', tagline: 'White hills, soft snowfall', accent: Color(0xFF18233A), dark: false),
   Vibe.city: VibeStyle(label: 'City', emoji: '🌃', tagline: 'Skyline lights at night', accent: Color(0xFFFF8FC7)),
   Vibe.paper: VibeStyle(label: 'Paper', emoji: '📄', tagline: 'Plain and focused', accent: Color(0xFF111111), dark: false),
 };
@@ -225,53 +234,24 @@ class VibePickerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = Kit.of(context).ink;
+    final kit = Kit.of(context);
+    // Day scenes, then night ones, each under a small label; Paper last.
+    final entries = <Object>[
+      if (onAuto != null) #auto,
+      'Day', ...dayScenes,
+      'Night', ...nightScenes,
+      Vibe.paper,
+    ];
     return SizedBox(
       height: height + 28,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: Vibe.values.length + (onAuto == null ? 0 : 1),
+        itemCount: entries.length,
         separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          if (onAuto != null && index == 0) return _autoTile(context);
-          final v = Vibe.values[index - (onAuto == null ? 0 : 1)];
-          final style = vibeStyles[v]!;
-          final isSelected = !autoSelected && v == selected;
-          return Semantics(
-            button: true,
-            selected: isSelected,
-            label: '${style.label} vibe: ${style.tagline}',
-            child: GestureDetector(
-              onTap: () => onSelected(v),
-              child: Column(children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: height * 0.62,
-                  height: height,
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: isSelected ? Kit.of(context).ink : Colors.transparent, width: 3),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Stack(fit: StackFit.expand, children: [
-                      VibeBackground(vibe: v, animate: false),
-                      Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(style.emoji, style: const TextStyle(fontSize: 22)),
-                        ),
-                      ),
-                    ]),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(style.label, style: TextStyle(fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600, color: ink)),
-              ]),
-            ),
-          );
+        itemBuilder: (context, index) => switch (entries[index]) {
+          final Vibe v => _sceneTile(context, v),
+          final String label => _groupLabel(kit, label),
+          _ => _autoTile(context),
         },
       ),
     );
@@ -279,6 +259,65 @@ class VibePickerRow extends StatelessWidget {
 }
 
 extension on VibePickerRow {
+  /// A group name written up the side of the row, like a spine.
+  Widget _groupLabel(Kit kit, String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 28),
+        child: RotatedBox(
+          quarterTurns: 3,
+          child: Center(
+            child: Text(label.toUpperCase(),
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 1.6, color: kit.inkSoft)),
+          ),
+        ),
+      );
+
+  Widget _sceneTile(BuildContext context, Vibe v) {
+    final ink = Kit.of(context).ink;
+    final style = vibeStyles[v]!;
+    final isSelected = !autoSelected && v == selected;
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: '${style.label} vibe: ${style.tagline}',
+      child: GestureDetector(
+        onTap: () => onSelected(v),
+        child: Column(children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: height * 0.62,
+            height: height,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: isSelected ? ink : Colors.transparent, width: 3),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(fit: StackFit.expand, children: [
+                VibeBackground(vibe: v, animate: false),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(style.emoji, style: const TextStyle(fontSize: 22)),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            width: height * 0.62 + 16,
+            child: Text(style.label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600, color: ink)),
+          ),
+        ]),
+      ),
+    );
+  }
   Widget _autoTile(BuildContext context) {
     final ink = Kit.of(context).ink;
     return Semantics(
@@ -295,7 +334,7 @@ extension on VibePickerRow {
             padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: autoSelected ? const Color(0xFFFFC66B) : Colors.transparent, width: 3),
+              border: Border.all(color: autoSelected ? ink : Colors.transparent, width: 3),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
@@ -303,12 +342,12 @@ extension on VibePickerRow {
                 // A quartered preview of four scenes.
                 Column(children: [
                   Expanded(child: Row(children: const [
-                    Expanded(child: VibeBackground(vibe: Vibe.forest, animate: false)),
+                    Expanded(child: VibeBackground(vibe: Vibe.meadow, animate: false)),
                     Expanded(child: VibeBackground(vibe: Vibe.city, animate: false)),
                   ])),
                   Expanded(child: Row(children: const [
+                    Expanded(child: VibeBackground(vibe: Vibe.night, animate: false)),
                     Expanded(child: VibeBackground(vibe: Vibe.ocean, animate: false)),
-                    Expanded(child: VibeBackground(vibe: Vibe.snow, animate: false)),
                   ])),
                 ]),
                 const ColoredBox(color: Color(0x33000000)),

@@ -24,13 +24,13 @@ What makes a good cut:
 
 ## 3. Scene (background picture and sound)
 Pick the scene that best fits the chapter's setting and emotional world. The reader sees it and hears its sound:
-- forest: pines at dusk with fireflies; wind, birds and crickets (nature, journeys, quiet growth)
+- forest: a pine forest on a sunny morning; birdsong and wind (nature, journeys, quiet growth, fresh starts)
 - cafe: a warm café on a rainy evening; café murmur and rain (conversation, everyday life, ideas, cozy study)
 - rain: city lights through rain at night; steady rain (melancholy, introspection, noir)
-- ocean: slow waves after sunset; waves and sea wind (longing, freedom, reflection, endings)
+- ocean: a bright beach with slow surf; waves and sea wind (freedom, longing, reflection, holidays)
 - night: stars over mountains; crickets and night wind (wonder, mystery, dreams, the unknown)
 - meadow: a sunny meadow under clouds; birdsong and a breeze (joy, childhood, hope, lightness)
-- snow: a quiet snowy cabin at dusk; a crackling fire and wind (solitude, loss, stillness, winter)
+- snow: white hills and a cabin on a snowy day; wind and a crackling fire (solitude, stillness, winter, loss)
 - city: a city skyline at night; distant traffic (modern life, ambition, tension, crowds)
 scene_cues: up to 3 changes inside the chapter, only when the setting or emotional world clearly changes for a stretch of cards. at_card is the first card in the new scene. Most chapters need none.
 

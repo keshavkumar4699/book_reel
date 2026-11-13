@@ -72,8 +72,8 @@ void main() {
     expect(find.text('Down the Rabbit-Hole'), findsOneWidget);
     expect(find.text('Swipe up to begin'), findsOneWidget);
 
-    // The scene's own sound plays (forest: wind, birds, crickets), for free users too.
-    expect(sounds, ['assets/sounds/wind.ogg', 'assets/sounds/birds.ogg', 'assets/sounds/crickets.ogg']);
+    // The scene's own sound plays (forest morning: birdsong and wind), for free users too.
+    expect(sounds, ['assets/sounds/birds.ogg', 'assets/sounds/wind.ogg']);
 
     // First run shows the gesture guide once.
     expect(find.text('Read like you scroll'), findsOneWidget);
@@ -97,12 +97,12 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(container.read(settingsProvider).sceneSound, isFalse);
-    expect(sounds.where((x) => x == 'released'), hasLength(3));
+    expect(sounds.where((x) => x == 'released'), hasLength(2));
     await tester.tap(find.text('Scene sound'));
     await tester.pump();
     await tester.pump();
     expect(container.read(settingsProvider).sceneSound, isTrue);
-    expect(sounds.where((x) => x.endsWith('.ogg')), hasLength(6));
+    expect(sounds.where((x) => x.endsWith('.ogg')), hasLength(4));
     await tester.tapAt(const Offset(20, 20)); // outside the sheet
     await tester.pump(const Duration(seconds: 4)); // the toasts time out
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));

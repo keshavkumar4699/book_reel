@@ -67,7 +67,8 @@ void main() {
       }
     }
     // The reader's sheets and menus use the same neutrals, whatever the scene.
-    expect(Kit.forScene(Vibe.forest, ReadingTheme.of(ReadingThemeId.paper)).sheet, Kit.appDark.sheet);
+    expect(Kit.forScene(Vibe.night, ReadingTheme.of(ReadingThemeId.paper)).sheet, Kit.appDark.sheet);
+    expect(Kit.forScene(Vibe.forest, ReadingTheme.of(ReadingThemeId.paper)).sheet, Kit.appLight.sheet, reason: 'a day scene');
     expect(Kit.forScene(Vibe.meadow, ReadingTheme.of(ReadingThemeId.paper)).sheet, Kit.appLight.sheet);
   });
 
