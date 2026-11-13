@@ -221,7 +221,9 @@ Future<T?> showKitActions<T>(BuildContext context, {String? title, String? subti
     subtitle: subtitle,
     padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
     builder: (ctx) => Column(mainAxisSize: MainAxisSize.min, children: [
-      for (final a in actions)
+      for (final (i, a) in actions.indexed) ...[
+        // Destructive choices are set apart from the rest by one line.
+        if (a.destructive && i > 0 && !actions[i - 1].destructive) const KitDivider(),
         KitRow(
           title: a.label,
           subtitle: a.subtitle,
@@ -235,6 +237,7 @@ Future<T?> showKitActions<T>(BuildContext context, {String? title, String? subti
           chevron: false,
           onTap: () => Navigator.of(ctx).pop(a.value),
         ),
+      ],
     ]),
   );
 }
@@ -601,7 +604,7 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       if (widget.emoji != null) ...[Text(widget.emoji!, style: const TextStyle(fontSize: 18)), const SizedBox(width: 10)],
-                      if (widget.icon != null) ...[Icon(widget.icon, size: 20, color: kit.accent), const SizedBox(width: 10)],
+                      if (widget.icon != null) ...[Icon(widget.icon, size: 20, color: kit.ink), const SizedBox(width: 10)],
                       Flexible(child: Text(widget.message, style: kit.strong.copyWith(fontSize: 14.5))),
                       if (widget.actionLabel != null) ...[
                         const SizedBox(width: 6),
@@ -612,7 +615,7 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            child: Text(widget.actionLabel!, style: kit.strong.copyWith(fontSize: 14.5, color: kit.accent)),
+                            child: Text(widget.actionLabel!, style: kit.strong.copyWith(fontSize: 14.5, color: kit.ink, decoration: TextDecoration.underline)),
                           ),
                         ),
                       ],

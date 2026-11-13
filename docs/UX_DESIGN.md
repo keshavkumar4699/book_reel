@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Companion to** | [`DESIGN.md`](./DESIGN.md) |
-| **Status** | Draft v1.0 (Revision 8) |
+| **Status** | Draft v1.0 (Revision 9) |
 | **Date** | 2026-11-12 |
 | **Lenses** | Behavioural psychology · Interaction & visual design · Flutter engineering |
 
@@ -64,6 +64,8 @@
 > | **Appearance** | Today, Library, Notebook, Friends, Settings, Profile and onboarding use a plain theme: warm paper-white with an ember accent, or warm near-black with an amber one. **Settings → Appearance** offers *System default* (follows the phone), *Light* or *Dark*. |
 > | **Scenes belong to reading** | The forest, café or rain appears only in the reader (and its session-end screen), so opening a book feels like stepping into it. Sheets opened while reading still wear the scene. Onboarding shows the scene you pick in a small window. |
 > | **On-device AI (Free)** | Settings → On-device AI downloads a small model once (345 MB; a 2 GB one on phones with 8 GB of memory). It then adds recaps and quick checks every few minutes of reading, a teaser for the next chapter and "in this sentence" word meanings, all on the phone, free and offline. It can be paused or removed; phones that can't run it say why. |
+
+> **Revision 9 (Cloro: black and white, no boxes).** The app is named Cloro. Every screen is built from black, white and greys: black (light) or white (dark) buttons, switches, chips, sliders and the selected tab. The logo red appears only on the logo, the streak flame, the liked heart and badges. Lists of options have no boxes and no lines between similar options, just one line between groups, as in Instagram and YouTube; row icons are plain. The reader keeps its scene, with menus in the same neutral black or white. Details: `docs/CLORO_PLAN.md` §3.
 
 ## 0. The answer in one paragraph
 

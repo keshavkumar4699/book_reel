@@ -82,7 +82,7 @@ class _WordSheetState extends ConsumerState<_WordSheet> {
 
   Widget _inContext(Kit kit, String text, {String label = 'IN THIS SENTENCE'}) => KitPanel(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: kit.label.copyWith(color: kit.accent)),
+          Text(label, style: kit.label),
           const SizedBox(height: 6),
           Text(text, style: kit.heading),
         ]),
@@ -104,7 +104,7 @@ class _WordSheetState extends ConsumerState<_WordSheet> {
       else if (_asking)
         KitPanel(
           child: Row(children: [
-            KitSpinner(size: 18, color: kit.accent),
+            KitSpinner(size: 18, color: kit.ink),
             const SizedBox(width: 12),
             Expanded(child: Text('Working out what it means here, on your phone…', style: kit.caption)),
           ]),
@@ -121,7 +121,7 @@ class _WordSheetState extends ConsumerState<_WordSheet> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text.rich(
                 TextSpan(children: [
-                  TextSpan(text: '${s.partOfSpeech}  ', style: kit.caption.copyWith(fontStyle: FontStyle.italic, color: kit.accent)),
+                  TextSpan(text: '${s.partOfSpeech}  ', style: kit.caption.copyWith(fontStyle: FontStyle.italic, color: kit.inkSoft)),
                   TextSpan(text: s.definition),
                 ]),
                 style: kit.body,

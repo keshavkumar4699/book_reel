@@ -138,7 +138,7 @@ class _GoalEditor extends ConsumerWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Row(children: [
         Expanded(child: Text(today.meets(goal) ? 'Done for today ✓' : '$done of ${goal.dailyTarget} ${cards ? 'cards' : 'min'} today', style: kit.strong)),
-        Text('${(today.progress(goal) * 100).round()}%', style: kit.strong.copyWith(color: kit.accent)),
+        Text('${(today.progress(goal) * 100).round()}%', style: kit.strong),
       ]),
       const SizedBox(height: 8),
       KitProgress(value: today.progress(goal), height: 8),
@@ -178,7 +178,7 @@ class _GoalEditor extends ConsumerWidget {
         ),
       ],
       const SizedBox(height: 18),
-      KitGroup(children: [
+      KitGroup(divided: true, children: [
         MergeSemantics(
           child: KitRow(
             icon: Icons.notifications_rounded,
@@ -276,12 +276,12 @@ class _StreakDetails extends ConsumerWidget {
                   height: 36,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: met ? kit.accent : kit.field,
-                    border: Border.all(color: isToday ? kit.accent : kit.stroke, width: isToday ? 2 : 1),
+                    color: met ? kit.ink : kit.field,
+                    border: Border.all(color: isToday ? kit.ink : kit.stroke, width: isToday ? 2 : 1),
                   ),
                   alignment: Alignment.center,
                   child: met
-                      ? Icon(Icons.check_rounded, size: 20, color: kit.onAccent)
+                      ? Icon(Icons.check_rounded, size: 20, color: kit.inverse)
                       : Text('${day.day}', style: kit.caption.copyWith(color: future ? kit.inkSoft.withValues(alpha: 0.5) : kit.ink)),
                 ),
                 const SizedBox(height: 4),
@@ -291,7 +291,7 @@ class _StreakDetails extends ConsumerWidget {
           }),
       ]),
       const SizedBox(height: 18),
-      KitGroup(children: [
+      KitGroup(divided: true, children: [
         KitRow(
           icon: Icons.ac_unit_rounded,
           title: '$freezes streak freeze${freezes == 1 ? '' : 's'} left',

@@ -26,7 +26,7 @@ class GoalRing extends StatelessWidget {
         width: size,
         height: size,
         child: CustomPaint(
-          painter: _RingPainter(progress: progress, track: kit.ink.withValues(alpha: 0.16), color: kit.accent),
+          painter: _RingPainter(progress: progress, track: kit.ink.withValues(alpha: 0.16), color: kit.ink),
           child: Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Text(label, style: kit.title.copyWith(fontSize: size * 0.17)),
@@ -177,7 +177,7 @@ class _CelebrationState extends State<Celebration> with SingleTickerProviderStat
     final size = widget.big ? 96.0 : 72.0;
     return ScaleTransition(
       scale: CurvedAnimation(parent: _c, curve: Curves.elasticOut),
-      child: Icon(widget.big ? Icons.local_fire_department : Icons.check_circle, size: size, color: ember),
+      child: Icon(widget.big ? Icons.local_fire_department : Icons.check_circle, size: size, color: widget.big ? ember : Kit.of(context).ink),
     );
   }
 }

@@ -50,7 +50,7 @@ class SettingsScreen extends ConsumerWidget {
                 title: 'Appearance', subtitle: 'For every screen except the reader, which wears its scene', builder: (_) => const AppearanceSettings()),
           ),
         ]),
-        KitGroup(label: 'Reading', children: [
+        KitGroup(label: 'Reading', divided: true, children: [
           KitRow(
             emoji: auto ? '✨' : style.emoji,
             title: 'Scene',
@@ -102,7 +102,7 @@ class SettingsScreen extends ConsumerWidget {
                   builder: (_) => const OnDeviceAiSettings()),
             ),
         ]),
-        KitGroup(label: 'Habit', children: [
+        KitGroup(label: 'Habit', divided: true, children: [
           KitRow(
             icon: Icons.flag_rounded,
             title: 'Daily goal',
@@ -110,7 +110,7 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => showGoalSheet(context),
           ),
         ]),
-        KitGroup(label: 'Comfort & privacy', children: [
+        KitGroup(label: 'Comfort & privacy', divided: true, children: [
           KitSwitchRow(
             icon: Icons.back_hand_rounded,
             title: 'Left-handed layout',
@@ -125,7 +125,7 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (v) => n.update((x) => x.copyWith(hideLeaderboards: v)),
           ),
         ]),
-        KitGroup(label: 'You', children: [
+        KitGroup(label: 'You', divided: true, children: [
           KitRow(
             icon: Icons.badge_rounded,
             title: 'Display name',
@@ -143,7 +143,7 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => showKitSheet<void>(context, title: 'Plan', subtitle: 'Each plan reads your books with a stronger model', builder: (_) => const PlanPicker()),
           ),
         ]),
-        KitGroup(label: 'About', children: [
+        KitGroup(label: 'About', divided: true, children: [
           KitRow(
             icon: Icons.description_rounded,
             title: 'Licences',
@@ -256,7 +256,6 @@ class _OnDeviceAiSettingsState extends ConsumerState<OnDeviceAiSettings> {
                       : '${o.sizeLabel} · Needs a phone with ${_gb(o.minRamBytes)} GB of memory or more.',
                   selected: choice.id == o.id,
                   chevron: false,
-                  trailing: choice.id == o.id ? null : Icon(Icons.radio_button_unchecked_rounded, color: kit.inkSoft),
                   onTap: ai.fits(o) ? () => setState(() => _choice = o) : null,
                 ),
             ]),
@@ -281,7 +280,6 @@ class AppearanceSettings extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final kit = Kit.of(context);
     final s = ref.watch(settingsProvider);
     return KitGroup(children: [
       for (final a in AppAppearance.values)
@@ -295,7 +293,6 @@ class AppearanceSettings extends ConsumerWidget {
           subtitle: a == AppAppearance.system ? 'Follow the phone’s light or dark mode' : null,
           selected: s.appearance == a,
           chevron: false,
-          trailing: s.appearance == a ? null : Icon(Icons.radio_button_unchecked_rounded, color: kit.inkSoft),
           onTap: () {
             ref.read(settingsProvider.notifier).update((x) => x.copyWith(appearance: a));
             // The sheet keeps the colours it opened with; close it so the
@@ -359,7 +356,7 @@ class _SliderField extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(child: Text(label, style: kit.strong)),
-          Text(display(value), style: kit.strong.copyWith(color: kit.accent)),
+          Text(display(value), style: kit.strong),
         ]),
         KitSlider(value: value, min: min, max: max, divisions: divisions, semanticLabel: label, format: display, onChanged: onChanged),
         if (help != null) Text(help!, style: kit.caption),
@@ -389,7 +386,7 @@ class SceneSettings extends ConsumerWidget {
       Text(paid ? 'Auto lets the AI pick the scene that fits each chapter.' : 'Auto (AI-picked scenes) comes with every paid plan.',
           style: kit.caption),
       const SizedBox(height: 14),
-      KitGroup(children: [
+      KitGroup(divided: true, children: [
         KitSwitchRow(
           icon: Icons.animation_rounded,
           title: 'Moving scenes',
@@ -418,7 +415,7 @@ class SoundSettings extends ConsumerWidget {
         style: kit.caption,
       ),
       const SizedBox(height: 12),
-      KitGroup(children: [
+      KitGroup(divided: true, children: [
         KitSwitchRow(
           icon: Icons.graphic_eq_rounded,
           title: 'Play the scene’s sound',
@@ -477,14 +474,13 @@ class VoiceSettings extends ConsumerWidget {
       ),
       if (s.naturalVoice) ...[
         const SizedBox(height: 12),
-        KitGroup(children: [
+        KitGroup(divided: true, children: [
           for (final v in speechVoices)
             KitRow(
               title: v.label,
               subtitle: v.description,
               selected: s.voiceName == v.id,
               chevron: false,
-              trailing: s.voiceName == v.id ? null : Icon(Icons.radio_button_unchecked_rounded, color: kit.inkSoft),
               onTap: () {
                 n.update((x) => x.copyWith(voiceName: v.id));
                 play();
@@ -590,7 +586,7 @@ class TextSettings extends ConsumerWidget {
           KitChip(label: _capital(t.name), selected: s.theme == t, onTap: () => n.update((x) => x.copyWith(theme: t))),
       ]),
       const SizedBox(height: 12),
-      KitGroup(children: [
+      KitGroup(divided: true, children: [
         KitSwitchRow(
           icon: Icons.dark_mode_rounded,
           title: 'Dark with the phone',
@@ -640,7 +636,7 @@ class CardSettings extends ConsumerWidget {
         onChanged: (v) => n.update((x) => x.copyWith(readingLevel: v)),
       ),
       const SizedBox(height: 16),
-      KitGroup(children: [
+      KitGroup(divided: true, children: [
         KitSwitchRow(
           icon: Icons.format_underlined_rounded,
           title: 'Underline hard words',
@@ -709,7 +705,6 @@ class _PlanPickerState extends ConsumerState<PlanPicker> {
               subtitle: PlanPicker.blurb(t),
               selected: s.tier == t,
               chevron: false,
-              trailing: s.tier == t ? null : Icon(Icons.radio_button_unchecked_rounded, color: kit.inkSoft),
               onTap: () => ref.read(settingsProvider.notifier).update((x) => x.copyWith(tier: t)),
             ),
         ]),
@@ -732,7 +727,7 @@ class _PlanPickerState extends ConsumerState<PlanPicker> {
         onChanged: (y) => setState(() => _yearly = y),
       ),
       const SizedBox(height: 12),
-      KitGroup(children: [
+      KitGroup(divided: true, children: [
         KitRow(title: 'Free', subtitle: PlanPicker.blurb(Tier.free), selected: s.tier == Tier.free, chevron: false),
         for (final t in Tier.values.where((t) => t.paid))
           Builder(builder: (context) {
@@ -743,14 +738,14 @@ class _PlanPickerState extends ConsumerState<PlanPicker> {
               subtitle: [PlanPicker.blurb(t), if (offer?.trial != null && !current) 'Try it free for ${offer!.trial}.'].join(' '),
               selected: current,
               chevron: false,
-              trailing: current || offer == null ? null : Text(s.tier.paid ? 'Switch' : 'Subscribe', style: kit.strong.copyWith(color: kit.accent)),
+              trailing: current || offer == null ? null : Text(s.tier.paid ? 'Switch' : 'Subscribe', style: kit.strong.copyWith(decoration: TextDecoration.underline)),
               onTap: current || offer == null || billing.busy ? null : () => store.buy(offer),
             );
           }),
       ]),
       if (billing.message != null) ...[
         const SizedBox(height: 10),
-        Text(billing.message!, style: kit.caption.copyWith(color: kit.accent)),
+        Text(billing.message!, style: kit.caption.copyWith(color: kit.ink)),
       ],
       const SizedBox(height: 10),
       Text(

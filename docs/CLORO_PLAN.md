@@ -1,6 +1,6 @@
 # Cloro redesign — implementation plan
 
-Status: **in progress** (Nov 2026): steps 1–2 done. Phase 10 of `IMPLEMENTATION_PLAN.md`.
+Status: **in progress** (Nov 2026): steps 1, 1b and 2 done. Phase 10 of `IMPLEMENTATION_PLAN.md`.
 Source: the product owner's change list of 13 Nov 2026. Each item below says what changes, where in the code, and how we know it's done.
 
 ## 0. Before we start (needs you)
@@ -25,25 +25,24 @@ Source: the product owner's change list of 13 Nov 2026. Each item below says wha
 - In-app: logo + "Cloro" wordmark at the top of Today and on the onboarding welcome; small logo on share images and the session-end screen.
 - **Done when:** the installed APK shows the Cloro icon and splash; screenshots of Today and onboarding show the logo.
 
-## 3. Colour system: white and black, accent from the logo
+## 3. Colour and layout: black, white and greys; no boxes
 
-What's wrong now: outside the reader the accent is a brownish amber (`#A4511A` / `#E9A85A` in `Kit.appLight` / `Kit.appDark`), and inside the reader every sheet, menu and toast is tinted with the scene's colour.
+Revised 13 Nov 2026 after step 1 (the logo gradient had spread to every control and the app felt generic). Built in step 1b.
 
-New rules (`lib/ui/kit.dart`, `lib/ui/theme.dart`):
+**Colour.** Light mode is white and pale greys, dark mode is black and dark greys. Text and icons are near-black or near-white (`ink`), secondary text grey (`inkSoft`), lines and field tints black or white at low opacity.
 
-| Token | Light | Dark |
+| Control | Light | Dark |
 |---|---|---|
-| Background | `#FFFFFF` | `#000000` |
-| Raised surface (cards, sheets, tab bar) | `#F5F5F5` | `#121212` |
-| Hairlines | black 8% | white 12% |
-| Text / secondary text | `#111111` / `#5C5C5C` | `#F2F2F2` / `#A3A3A3` |
-| **Accent** | gradient `#FF3131 → #FF914D` (the logo) | same |
+| Primary button, switch (on), selected chip/segment | black fill, white text/knob | white fill, black text/knob |
+| Secondary button, unselected chip | faint grey tint | faint grey tint |
+| Progress bars, goal ring, sliders | black on a pale track | white on a dark track |
+| Selected tab | filled icon in black | filled icon in white |
 
-- The accent appears **only** on: the primary button, the selected tab icon, the streak flame, progress rings/bars, the "saved" state, and the logo. Everything else is black, white or grey.
-- Text and icons **on** the gradient are near-black (`#111111`): 5.2:1 on `#FF3131` and 8.5:1 on `#FF914D` (WCAG AA). White would fail on the orange end (2.2:1). The gradient is never used as a text colour on white (`#FF3131` on white is only 3.7:1); for accent text on white (e.g. a link) use `#D91F1F`, a deeper red from the same family (5.0:1).
-- **Reader chrome stops taking the scene's colour**: sheets, menus, toasts and the word sheet in the reader use the same neutral surfaces (black glass over dark scenes, white glass over light scenes). The scene is only the picture behind the text, plus the text colours calibrated for it (kept: they guarantee 7:1 contrast).
-- Remove `ember` and the per-scene accent from chrome; keep per-scene *text* palettes.
-- **Done when:** a test asserts no chrome colour outside {neutrals, the two accent stops}; screenshots of Today, Library, Settings, a reader sheet in light and dark.
+The logo red (`#FF3131`) appears **only** on the logo, the streak flame, the filled "liked" heart and notification badges (white count). Destructive actions keep a plain red. A test fails if the logo colour is used anywhere else (`test/ui/kit_test.dart`). The logo gradient is kept for the logo and the "Ember" share-card artwork.
+
+In the reader, labels, the goal bar and highlight handles use the scene's own text colour; the scene's picture and calibrated shade stay.
+
+**Layout (like Instagram and YouTube).** No boxes or cards around lists of options, no divider between similar options; one full-width line only between groups. Rows have a plain icon (no tinted square), title, value and chevron. Selected options show a tick. Panels are flat sections; the reader's recap, quiz and reflect cards put their text straight on the scene's shade; quiz answers are plain rows. Sheets and dialogs keep their own white/black surface.
 
 ## 4. Settings icon → gear
 
@@ -210,6 +209,7 @@ A scrolling feed of reading activities, newest first:
 | Step | Items | Size |
 |---|---|---|
 | 1 | Name and package ID (§1), gear icon (§4), colour system (§3), icon-only tabs (§9) | M — ✅ done |
+| 1b | Black/white tints and flat lists (§3, revised) | M — ✅ done |
 | 2 | Logo, icon, splash (§2) | S — ✅ done |
 | 3 | Open at the introduction (§7) | M |
 | 4 | Reading tab + reel overhaul (focus mode, gestures, buttons, note box, progress line) + tab dock (§6, §9) | L |

@@ -57,8 +57,7 @@ class Kit extends ThemeExtension<Kit> {
       motion: motion,
       ink: k.ink,
       inkSoft: k.inkSoft,
-      // On plain pages the page's own red (deep enough for sepia).
-      accent: p == null ? paper.accent : k.accent,
+      accent: k.accent,
       onAccent: k.onAccent,
       // Panels that sit on the scene stay see-through.
       glass: dark ? const Color(0x99000000) : const Color(0xC2FFFFFF),
@@ -75,15 +74,16 @@ class Kit extends ThemeExtension<Kit> {
   factory Kit.fromSettings(AppSettings s, Brightness platform) =>
       Kit.forScene(s.vibe, ReadingTheme.of(effectiveReadingTheme(s, platform)), motion: s.animatedBackground);
 
-  /// Light chrome: white and greys; the logo's red–orange only as an accent.
+  /// Light chrome: white, black and greys. The logo red ([accent]) is only
+  /// for the streak flame, the liked heart and badges.
   static const appLight = Kit(
     vibe: Vibe.paper,
     dark: false,
     motion: false,
     ink: Color(0xFF111111),
     inkSoft: Color(0xFF5C5C5C), // 6.7:1 on white
-    accent: Color(0xFFD91F1F), // accent text and icons: 5.0:1 on white
-    onAccent: Color(0xFF111111), // on the logo gradient: 5.2–8.5:1
+    accent: Color(0xFFFF3131), // the logo red: flame, liked heart, badges (3.7:1 on white)
+    onAccent: Color(0xFFFFFFFF), // badge counts
     glass: Color(0xFFF4F4F4),
     sheet: Color(0xFFFFFFFF),
     stroke: Color(0x14000000),
@@ -93,15 +93,16 @@ class Kit extends ThemeExtension<Kit> {
     danger: Color(0xFFB3261E),
   );
 
-  /// Dark chrome: black and greys; the logo's red–orange only as an accent.
+  /// Dark chrome: black, white and greys; the logo red only for the flame,
+  /// the liked heart and badges.
   static const appDark = Kit(
     vibe: Vibe.paper,
     dark: true,
     motion: false,
     ink: Color(0xFFF2F2F2),
     inkSoft: Color(0xFFA3A3A3), // 7.8:1 on black
-    accent: Color(0xFFFF7A4A), // 8.1:1 on black
-    onAccent: Color(0xFF111111),
+    accent: Color(0xFFFF3131), // the logo red: 5.7:1 on black
+    onAccent: Color(0xFFFFFFFF),
     glass: Color(0xFF121212),
     sheet: Color(0xFF161616),
     stroke: Color(0x1FFFFFFF),
@@ -111,8 +112,7 @@ class Kit extends ThemeExtension<Kit> {
     danger: Color(0xFFFF8A80),
   );
 
-  /// The logo's gradient, for filled accent surfaces (primary buttons, the
-  /// selected tab, switches, chips, badges, progress). Text on it: [onAccent].
+  /// The logo's gradient: the logo and share-card artwork only.
   static const gradient = LinearGradient(colors: [Color(0xFFFF3131), Color(0xFFFF914D)]);
 
   /// The app kit for [brightness].
@@ -160,6 +160,9 @@ class Kit extends ThemeExtension<Kit> {
   final Color base;
   final Color danger;
 
+  /// Text and icons on an [ink] fill (primary buttons, selected chips).
+  Color get inverse => dark ? const Color(0xFF000000) : const Color(0xFFFFFFFF);
+
   SystemUiOverlayStyle get statusBar => dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark;
 
   TextStyle get display => TextStyle(
@@ -194,9 +197,9 @@ ThemeData cachedAppTheme(Object key, Kit Function() kit) => _themes[key] ??= bui
 /// the kit attached, and calm fade transitions between pages.
 ThemeData buildAppTheme(Kit kit) {
   final brightness = kit.dark ? Brightness.dark : Brightness.light;
-  final scheme = ColorScheme.fromSeed(seedColor: kit.accent, brightness: brightness).copyWith(
-    primary: kit.accent,
-    onPrimary: kit.onAccent,
+  final scheme = ColorScheme.fromSeed(seedColor: kit.ink, brightness: brightness).copyWith(
+    primary: kit.ink,
+    onPrimary: kit.inverse,
     surface: kit.base,
     onSurface: kit.ink,
     onSurfaceVariant: kit.inkSoft,
@@ -215,9 +218,9 @@ ThemeData buildAppTheme(Kit kit) {
     highlightColor: const Color(0x00000000),
     hoverColor: const Color(0x00000000),
     textSelectionTheme: TextSelectionThemeData(
-      cursorColor: kit.accent,
-      selectionColor: kit.accent.withValues(alpha: 0.35),
-      selectionHandleColor: kit.accent,
+      cursorColor: kit.ink,
+      selectionColor: kit.ink.withValues(alpha: 0.22),
+      selectionHandleColor: kit.ink,
     ),
     iconTheme: IconThemeData(color: kit.ink),
     pageTransitionsTheme: const PageTransitionsTheme(builders: {
@@ -345,7 +348,7 @@ class KitPage extends StatelessWidget {
         SliverPadding(padding: pad, sliver: SliverList(delegate: SliverChildListDelegate(children))),
     ]);
     if (onRefresh != null) {
-      content = RefreshIndicator(onRefresh: onRefresh!, color: kit.accent, backgroundColor: kit.sheet, child: content);
+      content = RefreshIndicator(onRefresh: onRefresh!, color: kit.ink, backgroundColor: kit.sheet, child: content);
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: kit.statusBar,
@@ -519,7 +522,8 @@ class KitIconButton extends StatelessWidget {
           child: Container(
             width: size,
             height: size,
-            decoration: glass
+            // A glass circle only over a scene (for legibility); plain icons elsewhere.
+            decoration: glass && kit.palette != null
                 ? BoxDecoration(shape: BoxShape.circle, color: kit.glass, border: Border.all(color: kit.stroke))
                 : null,
             alignment: Alignment.center,
@@ -568,9 +572,9 @@ class KitButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
     final (Color bg, Color fg, Color? border) = switch (kind) {
-      KitButtonKind.primary => (const Color(0x00000000), kit.onAccent, null),
+      KitButtonKind.primary => (kit.ink, kit.inverse, null),
       KitButtonKind.secondary => (kit.field, kit.ink, kit.stroke),
-      KitButtonKind.ghost => (const Color(0x00000000), kit.accent, null),
+      KitButtonKind.ghost => (const Color(0x00000000), kit.ink, null),
       KitButtonKind.danger => (kit.danger.withValues(alpha: 0.14), kit.danger, kit.danger.withValues(alpha: 0.4)),
     };
     final h = compact ? 40.0 : 52.0;
@@ -601,7 +605,6 @@ class KitButton extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 22),
           decoration: BoxDecoration(
             color: bg,
-            gradient: kind == KitButtonKind.primary ? Kit.gradient : null,
             borderRadius: BorderRadius.circular(h / 2),
             border: border == null ? null : Border.all(color: border),
           ),
@@ -614,12 +617,12 @@ class KitButton extends StatelessWidget {
 
 // ---------------------------------------------------------------- surfaces
 
-/// A glass panel on the scene (replaces cards).
+/// A section of content. Flat (no box or border) unless [color] is given.
 class KitPanel extends StatelessWidget {
   const KitPanel({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.fromLTRB(4, 12, 4, 12),
     this.onTap,
     this.radius = 22,
     this.color,
@@ -635,14 +638,11 @@ class KitPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final kit = Kit.of(context);
+    // Flat: no box, no border (Cloro, like Instagram and YouTube). A surface
+    // is drawn only when a [color] is asked for.
     final box = Container(
       padding: padding,
-      decoration: BoxDecoration(
-        color: color ?? kit.glass,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: kit.stroke),
-      ),
+      decoration: color == null ? null : BoxDecoration(color: color, borderRadius: BorderRadius.circular(radius)),
       child: child,
     );
     if (onTap == null) return box;
@@ -650,38 +650,43 @@ class KitPanel extends StatelessWidget {
   }
 }
 
-/// A labelled group of rows in one panel, separated by hairlines.
+/// A set of rows straight on the page: no box and no lines between them.
+/// [divided] draws one full-width hairline above the set, to separate it
+/// from the set before (only between sets, never inside one).
 class KitGroup extends StatelessWidget {
-  const KitGroup({super.key, this.label, required this.children, this.footer});
+  const KitGroup({super.key, this.label, required this.children, this.footer, this.divided = false});
 
   final String? label;
   final List<Widget> children;
   final String? footer;
+  final bool divided;
 
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (divided) const KitDivider(),
       if (label != null)
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 18, 8, 8),
-          child: Semantics(header: true, child: Text(label!.toUpperCase(), style: kit.label)),
+          padding: EdgeInsets.fromLTRB(4, divided ? 4 : 14, 4, 4),
+          child: Semantics(header: true, child: Text(label!, style: kit.heading.copyWith(fontSize: 15.5))),
         ),
-      KitPanel(
-        padding: EdgeInsets.zero,
-        child: Column(children: [
-          for (var i = 0; i < children.length; i++) ...[
-            if (i > 0) Container(height: 1, margin: const EdgeInsets.only(left: 16), color: kit.stroke),
-            children[i],
-          ],
-        ]),
-      ),
-      if (footer != null) Padding(padding: const EdgeInsets.fromLTRB(8, 8, 8, 0), child: Text(footer!, style: kit.caption)),
+      ...children,
+      if (footer != null) Padding(padding: const EdgeInsets.fromLTRB(4, 4, 4, 0), child: Text(footer!, style: kit.caption)),
     ]);
   }
 }
 
-/// Small rounded square holding an icon or emoji.
+/// The hairline between two sets of options (full width, with breathing room).
+class KitDivider extends StatelessWidget {
+  const KitDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      Container(height: 1, margin: const EdgeInsets.symmetric(vertical: 10), color: Kit.of(context).stroke);
+}
+
+/// An icon or emoji at a fixed size (no background: Cloro draws no boxes).
 class KitBubble extends StatelessWidget {
   const KitBubble({super.key, this.icon, this.emoji, this.color, this.size = 36});
 
@@ -693,11 +698,10 @@ class KitBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
-    final c = color ?? kit.accent;
+    final c = color ?? kit.ink;
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(color: c.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(size * 0.32)),
       alignment: Alignment.center,
       child: emoji != null
           ? Text(emoji!, style: TextStyle(fontSize: size * 0.5))
@@ -747,12 +751,16 @@ class KitRow extends StatelessWidget {
     final kit = Kit.of(context);
     final color = destructive ? kit.danger : kit.ink;
     final lead = leading ??
-        (icon != null || emoji != null ? KitBubble(icon: icon, emoji: emoji, color: destructive ? kit.danger : iconColor) : null);
+        (emoji != null
+            ? SizedBox(width: 26, child: Text(emoji!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 21)))
+            : icon != null
+                ? Icon(icon, size: 24, color: destructive ? kit.danger : (iconColor ?? kit.ink))
+                : null);
     final showChevron = chevron ?? (onTap != null && trailing == null && !selected);
     final row = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 13),
       child: Row(children: [
-        if (lead != null) ...[lead, const SizedBox(width: 12)],
+        if (lead != null) ...[lead, const SizedBox(width: 16)],
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text(title, style: kit.strong.copyWith(color: color)),
@@ -772,7 +780,7 @@ class KitRow extends StatelessWidget {
             ),
           ),
         if (trailing != null) Padding(padding: const EdgeInsets.only(left: 10), child: trailing),
-        if (selected) Padding(padding: const EdgeInsets.only(left: 10), child: Icon(Icons.check_circle_rounded, color: kit.accent)),
+        if (selected) Padding(padding: const EdgeInsets.only(left: 10), child: Icon(Icons.check_rounded, color: kit.ink)),
         if (showChevron) Padding(padding: const EdgeInsets.only(left: 4), child: Icon(Icons.chevron_right_rounded, color: kit.inkSoft)),
       ]),
     );
@@ -815,8 +823,7 @@ class KitSwitch extends StatelessWidget {
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(15),
-            color: value ? null : kit.ink.withValues(alpha: 0.18),
-            gradient: value ? Kit.gradient : null,
+            color: value ? kit.ink : kit.ink.withValues(alpha: 0.18),
           ),
           child: AnimatedAlign(
             duration: d,
@@ -826,7 +833,12 @@ class KitSwitch extends StatelessWidget {
               duration: d,
               width: 24,
               height: 24,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: value ? kit.onAccent : kit.ink.withValues(alpha: 0.86)),
+              // Off: a light knob on a grey track; on: an inverse knob on ink.
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: value ? kit.inverse : (kit.dark ? const Color(0xFF8E8E8E) : const Color(0xFFFFFFFF)),
+                boxShadow: value || kit.dark ? null : const [BoxShadow(color: Color(0x33000000), blurRadius: 3, offset: Offset(0, 1))],
+              ),
             ),
           ),
         ),
@@ -898,14 +910,13 @@ class KitSegmented<T> extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: v == selected ? null : const Color(0x00000000),
-                  gradient: v == selected ? Kit.gradient : null,
+                  color: v == selected ? kit.ink : const Color(0x00000000),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(label(v),
-                      maxLines: 1, style: kit.strong.copyWith(fontSize: 14, color: v == selected ? kit.onAccent : kit.ink)),
+                      maxLines: 1, style: kit.strong.copyWith(fontSize: 14, color: v == selected ? kit.inverse : kit.ink)),
                 ),
               ),
             ),
@@ -928,7 +939,7 @@ class KitChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
-    final fg = selected ? kit.onAccent : kit.ink;
+    final fg = selected ? kit.inverse : kit.ink;
     return KitPressable(
       onTap: onTap == null
           ? null
@@ -941,8 +952,7 @@ class KitChip extends StatelessWidget {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
-          color: selected ? null : kit.field,
-          gradient: selected ? Kit.gradient : null,
+          color: selected ? kit.ink : kit.field,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: selected ? const Color(0x00000000) : kit.stroke),
         ),
@@ -1022,7 +1032,7 @@ class KitSlider extends StatelessWidget {
             child: CustomPaint(
               painter: _SliderPainter(
                 t: t,
-                fill: kit.accent,
+                fill: kit.ink,
                 track: kit.ink.withValues(alpha: 0.16),
                 knob: kit.dark ? kit.ink : const Color(0xFFFFFFFF),
               ),
@@ -1082,7 +1092,7 @@ class KitProgress extends StatelessWidget {
             FractionallySizedBox(
               alignment: AlignmentDirectional.centerStart,
               widthFactor: value.clamp(0.0, 1.0),
-              child: color != null ? ColoredBox(color: color!) : const DecoratedBox(decoration: BoxDecoration(gradient: Kit.gradient)),
+              child: ColoredBox(color: color ?? kit.ink),
             ),
           ]),
         ),
@@ -1120,7 +1130,7 @@ class _KitSpinnerState extends State<KitSpinner> with SingleTickerProviderStateM
         turns: _c,
         child: CustomPaint(
           size: Size.square(widget.size),
-          painter: _ArcPainter(widget.color ?? kit.accent, kit.ink.withValues(alpha: 0.12)),
+          painter: _ArcPainter(widget.color ?? kit.ink, kit.ink.withValues(alpha: 0.12)),
         ),
       ),
     );
@@ -1203,7 +1213,7 @@ class KitTextField extends StatelessWidget {
           onSubmitted: onSubmitted,
           textInputAction: textInputAction,
           textCapitalization: capitalization,
-          cursorColor: kit.accent,
+          cursorColor: kit.ink,
           style: kit.body,
           decoration: InputDecoration.collapsed(hintText: hint, hintStyle: kit.body.copyWith(color: kit.inkSoft.withValues(alpha: 0.7)))
               .copyWith(counterText: ''),
@@ -1234,7 +1244,7 @@ class KitBadge extends StatelessWidget {
           height: 18,
           padding: const EdgeInsets.symmetric(horizontal: 5),
           alignment: Alignment.center,
-          decoration: BoxDecoration(gradient: Kit.gradient, borderRadius: BorderRadius.circular(9)),
+          decoration: BoxDecoration(color: kit.accent, borderRadius: BorderRadius.circular(9)),
           child: Text(count > 99 ? '99+' : '$count', style: kit.label.copyWith(color: kit.onAccent, fontSize: 10.5, letterSpacing: 0)),
         ),
       ),
@@ -1317,18 +1327,13 @@ class KitNavBar extends StatelessWidget {
                 semanticLabel: '${items[i].label} tab',
                 excludeSemantics: true,
                 pressedScale: 0.9,
-                // Icons only (the label is for screen readers); the selected
-                // one wears the logo gradient.
+                // Icons only (the label is for screen readers): the selected
+                // one filled in ink, the others outlined in grey.
                 child: Center(
                   child: KitBadge(
                     count: items[i].badge,
-                    child: i == index
-                        ? ShaderMask(
-                            blendMode: BlendMode.srcIn,
-                            shaderCallback: (r) => Kit.gradient.createShader(r),
-                            child: Icon(items[i].activeIcon, size: 30, color: const Color(0xFFFFFFFF)),
-                          )
-                        : Icon(items[i].icon, size: 30, color: kit.inkSoft),
+                    child: Icon(i == index ? items[i].activeIcon : items[i].icon,
+                        size: 30, color: i == index ? kit.ink : kit.inkSoft),
                   ),
                 ),
               ),

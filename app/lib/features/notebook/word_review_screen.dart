@@ -58,7 +58,7 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
                 child: _revealed
                     ? Padding(
                         padding: const EdgeInsets.only(top: 22),
-                        child: Text(_queue[_index].meaning, textAlign: TextAlign.center, style: kit.heading.copyWith(color: kit.accent)),
+                        child: Text(_queue[_index].meaning, textAlign: TextAlign.center, style: kit.heading),
                       )
                     : const SizedBox(width: double.infinity),
               ),

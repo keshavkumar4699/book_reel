@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:book_reel/data/settings.dart';
@@ -36,25 +37,52 @@ void main() {
       expect(kit.sheet.a, 1, reason: '$name: sheets are opaque, so nothing ghosts through');
       expect(_contrast(kit.ink, kit.sheet), greaterThanOrEqualTo(7), reason: '$name ink (AAA)');
       expect(_contrast(Color.alphaBlend(kit.inkSoft, kit.sheet), kit.sheet), greaterThanOrEqualTo(4.5), reason: '$name secondary text');
-      // Buttons, chips and the selected tab are filled with the logo gradient.
-      for (final stop in Kit.gradient.colors) {
-        expect(_contrast(kit.onAccent, stop), greaterThanOrEqualTo(4.5), reason: '$name text on the gradient');
-      }
-      expect(_contrast(kit.accent, kit.sheet), greaterThanOrEqualTo(4.5), reason: '$name accent text');
-      expect(_contrast(kit.accent, kit.base.a == 1 ? kit.base : kit.sheet), greaterThanOrEqualTo(4.5), reason: '$name accent on the page');
+      // Primary buttons, selected chips and segments are filled with ink.
+      expect(_contrast(kit.inverse, kit.ink), greaterThanOrEqualTo(7), reason: '$name text on an ink fill');
+      // The logo red is only for icons (flame, liked heart) and badges: 3:1.
+      expect(_contrast(kit.accent, kit.sheet), greaterThanOrEqualTo(3), reason: '$name logo red icon');
+      expect(_contrast(kit.onAccent, kit.accent), greaterThanOrEqualTo(3), reason: '$name badge count');
     }
   });
 
-  test('outside the reader the app is only white, black and greys; colour comes from the logo', () {
+  test('the app is white, black and greys; the logo red only for flame, liked heart and badges', () {
     for (final kit in [Kit.appLight, Kit.appDark]) {
       for (final c in [kit.base, kit.sheet, kit.glass, kit.ink, kit.inkSoft]) {
         expect((c.r - c.g).abs() < 0.01 && (c.g - c.b).abs() < 0.01, isTrue, reason: '$c is a neutral');
       }
     }
     expect(Kit.gradient.colors, [const Color(0xFFFF3131), const Color(0xFFFF914D)]);
+    expect(Kit.appLight.accent, const Color(0xFFFF3131));
+    // Only these places may use the logo red (or its gradient).
+    const allowed = ['local_fire_department', 'favorite', 'Heart', 'liked', 'ShareTemplate', 'KitBadge', 'badge'];
+    for (final f in Directory('lib').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
+      if (f.path.endsWith('ui/theme.dart')) continue;
+      final lines = f.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        final l = lines[i];
+        if (!RegExp(r'kit\.accent|\bember\b|Kit\.gradient').hasMatch(l)) continue;
+        if (l.trimLeft().startsWith('//') || l.trimLeft().startsWith('///')) continue;
+        if (f.path.endsWith('ui/kit.dart') && (l.contains('static const') || l.contains('accent:') || l.contains('decoration: BoxDecoration(color: kit.accent'))) continue;
+        expect(allowed.any(l.contains), isTrue, reason: '${f.path}:${i + 1} uses the logo colour: $l');
+      }
+    }
     // The reader's sheets and menus use the same neutrals, whatever the scene.
     expect(Kit.forScene(Vibe.forest, ReadingTheme.of(ReadingThemeId.paper)).sheet, Kit.appDark.sheet);
     expect(Kit.forScene(Vibe.meadow, ReadingTheme.of(ReadingThemeId.paper)).sheet, Kit.appLight.sheet);
+  });
+
+  testWidgets('option groups are flat: no box, no line between options, one line between groups', (tester) async {
+    await tester.pumpWidget(_app(ListView(children: const [
+      KitGroup(label: 'One', children: [KitRow(title: 'a', icon: Icons.star), KitRow(title: 'b', icon: Icons.star)]),
+      KitGroup(label: 'Two', divided: true, children: [KitRow(title: 'c'), KitRow(title: 'd')]),
+    ]), kit: Kit.appLight));
+    expect(find.byType(KitDivider), findsOneWidget, reason: 'only between the two groups');
+    expect(find.byType(KitPanel), findsNothing);
+    final decorated = tester.widgetList<Container>(find.descendant(of: find.byType(KitGroup), matching: find.byType(Container)))
+        .where((c) => c.decoration is BoxDecoration && (c.decoration! as BoxDecoration).border != null);
+    expect(decorated, isEmpty, reason: 'no bordered boxes');
+    // Row icons are plain ink icons, not tinted squares.
+    expect(tester.widget<Icon>(find.byIcon(Icons.star).first).color, Kit.appLight.ink);
   });
 
   testWidgets('a toast drops in, lets taps through to what is under it, and leaves', (tester) async {

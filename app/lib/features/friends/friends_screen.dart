@@ -9,7 +9,6 @@ import '../../data/habit.dart';
 import '../../data/settings_provider.dart';
 import '../../data/sync_service.dart';
 import '../../ui/kit.dart';
-import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 
 class FriendsData {
@@ -162,7 +161,7 @@ class _LeagueCard extends StatelessWidget {
     return KitPanel(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.emoji_events_rounded, color: ember),
+          Icon(Icons.emoji_events_rounded, color: kit.ink),
           const SizedBox(width: 8),
           Text('${league['division']} league', style: kit.heading),
           const Spacer(),
@@ -207,10 +206,6 @@ class _RankRow extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-      decoration: BoxDecoration(
-        color: me ? kit.accent.withValues(alpha: 0.16) : null,
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: Row(children: [
         SizedBox(width: 28, child: Text('$rank', style: kit.strong)),
         Expanded(child: Text(me ? '$name (you)' : name, overflow: TextOverflow.ellipsis, style: kit.body)),
@@ -220,7 +215,7 @@ class _RankRow extends StatelessWidget {
         Icon(
           switch (zone) { _Zone.up => Icons.arrow_upward_rounded, _Zone.down => Icons.arrow_downward_rounded, _Zone.none => Icons.remove_rounded },
           size: 16,
-          color: zone == _Zone.up ? ember : kit.inkSoft.withValues(alpha: zone == _Zone.none ? 0.3 : 1),
+          color: zone == _Zone.up ? kit.ink : kit.inkSoft.withValues(alpha: zone == _Zone.none ? 0.3 : 1),
         ),
       ]),
     );
@@ -352,7 +347,7 @@ class _OfflineFriends extends ConsumerWidget {
                 Container(
                   width: 30,
                   height: 30,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: week[d].meets(settings.goal) ? kit.accent : kit.field),
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: week[d].meets(settings.goal) ? kit.ink : kit.field),
                 ),
                 const SizedBox(height: 4),
                 Text('MTWTFSS'[d], style: kit.label.copyWith(letterSpacing: 0)),

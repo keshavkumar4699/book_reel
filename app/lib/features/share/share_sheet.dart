@@ -206,11 +206,12 @@ class ShareCardArt extends StatelessWidget {
       ShareTemplate.paper => (const Color(0xFFFBF8F1), const Color(0xFF1F1D1A), const Color(0xFF7A746A), null),
       ShareTemplate.dark => (const Color(0xFF141414), const Color(0xFFE6E1D6), const Color(0xFF9A948A), null),
       ShareTemplate.minimal => (Colors.white, Colors.black, const Color(0xFF777777), null),
+      // The logo's gradient, as artwork on a shared card.
       ShareTemplate.ember => (
-          const Color(0xFFD9822B),
+          const Color(0xFFFF3131),
           Colors.white,
           Colors.white70,
-          const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFE6A04A), Color(0xFFB4532A)]),
+          const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFFF3131), Color(0xFFFF914D)]),
         ),
       ShareTemplate.ocean => (
           const Color(0xFF2F5D62),

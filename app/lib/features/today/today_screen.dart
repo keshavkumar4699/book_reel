@@ -102,7 +102,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(today.meets(goal) ? 'Goal done ✓' : 'Tap to see your week',
-                      style: kit.strong.copyWith(fontSize: 14, color: today.meets(goal) ? kit.accent : kit.ink)),
+                      style: kit.strong.copyWith(fontSize: 14, color: today.meets(goal) ? kit.ink : kit.ink)),
                 ]),
               ),
             ),

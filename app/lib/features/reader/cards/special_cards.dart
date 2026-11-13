@@ -21,7 +21,6 @@ class _CardFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onScene = theme.onScene;
     if (bare) {
       // The reader draws the scene's calibrated shade behind every reel.
       final padding = MediaQuery.paddingOf(context);
@@ -30,28 +29,14 @@ class _CardFrame extends StatelessWidget {
         child: Center(child: SingleChildScrollView(child: child)),
       );
     }
+    // No panel: the text sits straight on the page or on the scene's
+    // calibrated shade (which the reader draws behind every reel).
     return Padding(
-      padding: EdgeInsets.fromLTRB(14, MediaQuery.paddingOf(context).top + 96, 14, 24),
+      padding: EdgeInsets.fromLTRB(32, MediaQuery.paddingOf(context).top + 96, 32, 24),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 600),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: onScene ? theme.glass : theme.background,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: !onScene
-                    ? theme.muted.withValues(alpha: 0.18)
-                    : theme.isDark
-                        ? const Color(0x24FFFFFF)
-                        : const Color(0x1A000000),
-              ),
-              boxShadow: onScene ? const [BoxShadow(color: Color(0x33000000), blurRadius: 30, offset: Offset(0, 12))] : null,
-            ),
-            child: SingleChildScrollView(child: child),
-          ),
+          child: SizedBox(width: double.infinity, child: SingleChildScrollView(child: child)),
         ),
       ),
     );
@@ -127,11 +112,8 @@ class _AiChip extends StatelessWidget {
   final ReadingTheme theme;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(border: Border.all(color: theme.muted), borderRadius: BorderRadius.circular(20)),
-        child: Text(label, style: TextStyle(color: theme.muted, fontSize: 12, fontWeight: FontWeight.w600)),
-      );
+  Widget build(BuildContext context) =>
+      Text(label, style: TextStyle(color: theme.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8));
 }
 
 /// AI recap, clearly marked so it is never confused with the author's text.
@@ -266,27 +248,31 @@ class _OptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (state) {
-      _OptionState.correct => const Color(0x5567C587),
-      _OptionState.wrong => theme.muted.withValues(alpha: 0.18),
-      _OptionState.idle => Colors.transparent,
+    // A plain row (no box): an empty circle, then a tick or a cross once answered.
+    final icon = switch (state) {
+      _OptionState.correct => Icons.check_circle_rounded,
+      _OptionState.wrong => Icons.cancel_outlined,
+      _OptionState.idle => Icons.radio_button_unchecked_rounded,
     };
     return KitPressable(
       onTap: onTap,
       pressedScale: 0.98,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+      child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.muted.withValues(alpha: 0.5)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(children: [
+            Icon(icon, color: state == _OptionState.wrong ? theme.muted : theme.text),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(text,
+                  style: TextStyle(
+                      color: state == _OptionState.wrong ? theme.muted : theme.text,
+                      fontSize: 16,
+                      fontWeight: state == _OptionState.correct ? FontWeight.w700 : FontWeight.w400)),
+            ),
+          ]),
         ),
-        child: Row(children: [
-          Expanded(child: Text(text, style: TextStyle(color: theme.text, fontSize: 16))),
-          if (state == _OptionState.correct) Icon(Icons.check_circle_rounded, color: theme.text),
-        ]),
       ),
     );
   }

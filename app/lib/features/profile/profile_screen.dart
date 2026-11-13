@@ -95,7 +95,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         else
           KitPressable(
             onTap: () => showEditProfile(context),
-            child: Text('Add a bio: what you love to read, and why', style: kit.body.copyWith(color: kit.accent)),
+            child: Text('Add a bio: what you love to read, and why', style: kit.body.copyWith(color: kit.inkSoft)),
           ),
         if (reading != null) ...[
           const SizedBox(height: 6),
@@ -103,20 +103,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             onTap: () => context.push('/read/${reading.id}'),
             child: Text.rich(TextSpan(children: [
               TextSpan(text: '📖 Reading ', style: kit.caption),
-              TextSpan(text: reading.title, style: kit.caption.copyWith(color: kit.accent, fontWeight: FontWeight.w800)),
+              TextSpan(text: reading.title, style: kit.caption.copyWith(color: kit.ink, fontWeight: FontWeight.w800)),
             ])),
           ),
         ],
         if (s.interests.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final g in s.interests)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: kit.field, borderRadius: BorderRadius.circular(12), border: Border.all(color: kit.stroke)),
-                child: Text(g, style: kit.caption.copyWith(fontSize: 12.5, color: kit.ink)),
-              ),
-          ]),
+          // Up to three genres, as plain text (no boxes).
+          Text(s.interests.take(3).join(' · '), style: kit.caption.copyWith(color: kit.ink)),
         ],
         const SizedBox(height: 14),
         Row(children: [
@@ -219,10 +213,10 @@ class ReaderAvatar extends StatelessWidget {
       inner = ColoredBox(color: kit.field, child: Center(child: Text(settings.avatarEmoji, style: TextStyle(fontSize: size * 0.5))));
     } else {
       inner = DecoratedBox(
-        decoration: BoxDecoration(gradient: LinearGradient(colors: [kit.accent, Color.lerp(kit.accent, kit.base, 0.55)!])),
+        decoration: BoxDecoration(color: kit.field),
         child: Center(
           child: Text(name.isEmpty || name == 'Reader' ? '📖' : name.characters.first.toUpperCase(),
-              style: kit.title.copyWith(color: kit.onAccent, fontSize: size * 0.42)),
+              style: kit.title.copyWith(color: kit.ink, fontSize: size * 0.42)),
         ),
       );
     }
@@ -230,7 +224,7 @@ class ReaderAvatar extends StatelessWidget {
     if (!ring) return avatar;
     return Container(
       padding: EdgeInsets.all(size * 0.04),
-      decoration: const BoxDecoration(shape: BoxShape.circle, gradient: SweepGradient(colors: [ember, Color(0xFFFFD27A), ember])),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: kit.ink),
       child: Container(
         padding: EdgeInsets.all(size * 0.035),
         decoration: BoxDecoration(shape: BoxShape.circle, color: kit.base),
@@ -253,7 +247,7 @@ class _ShelfCircle extends StatelessWidget {
       width: size,
       height: size,
       child: CustomPaint(
-        painter: _ProgressRing(progress: b.progress.clamp(0.0, 1.0), color: kit.accent, track: kit.ink.withValues(alpha: 0.16)),
+        painter: _ProgressRing(progress: b.progress.clamp(0.0, 1.0), color: kit.ink, track: kit.ink.withValues(alpha: 0.16)),
         child: Padding(
           padding: const EdgeInsets.all(5),
           child: ClipOval(child: FittedBox(fit: BoxFit.cover, child: BookCover(book: b, width: 64))),
@@ -294,7 +288,7 @@ class _QuotesGrid extends StatelessWidget {
     final kit = Kit.of(context);
     final colors = ReadingTheme.of(ReadingThemeId.paper).highlights;
     final items = [
-      for (final s in notebook.saved) (at: s.createdAt, text: s.text, link: '/read/${s.bookId}?sid=${s.startSid}', tint: kit.accent, saved: true),
+      for (final s in notebook.saved) (at: s.createdAt, text: s.text, link: '/read/${s.bookId}?sid=${s.startSid}', tint: kit.ink, saved: true),
       for (final h in notebook.highlights)
         (at: h.createdAt, text: h.text, link: '/read/${h.bookId}?sid=${h.sid}', tint: colors[h.color % colors.length].withValues(alpha: 1), saved: false),
     ]..sort((a, b) => b.at.compareTo(a.at));
@@ -440,7 +434,7 @@ class _Heatmap extends StatelessWidget {
                     width: 18,
                     height: 18,
                     decoration: BoxDecoration(
-                      color: p == 0 ? empty : Color.lerp(ember.withValues(alpha: 0.25), ember, p),
+                      color: p == 0 ? empty : Color.lerp(Kit.of(context).ink.withValues(alpha: 0.2), Kit.of(context).ink, p),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   );

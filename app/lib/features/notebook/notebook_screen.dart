@@ -177,7 +177,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
         onPressed: due == 0 ? null : () => context.push('/review'),
       ),
       const SizedBox(height: 12),
-      KitGroup(children: [
+      KitGroup(divided: true, children: [
         for (final w in words)
           KitRow(
             title: w.word,

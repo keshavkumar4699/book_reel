@@ -29,7 +29,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
     this.textShadows,
   })  : emphasis = emphasis ?? text,
         spot = spot ?? text,
-        accent = accent ?? const Color(0xFFC01818);
+        accent = accent ?? text;
 
   final Color background;
   final Color text;
@@ -70,7 +70,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             highlights: _lightHighlights,
             isDark: false,
             emphasis: Color(0xFF8A4B12),
-            accent: Color(0xFFC01818),
+            accent: Color(0xFF1F1D1A),
           ),
         ReadingThemeId.white => const ReadingTheme(
             background: Color(0xFFFFFFFF),
@@ -81,7 +81,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             highlights: _lightHighlights,
             isDark: false,
             emphasis: Color(0xFF8A4B12),
-            accent: Color(0xFFC01818),
+            accent: Color(0xFF1A1A1A),
           ),
         ReadingThemeId.sepia => const ReadingTheme(
             background: Color(0xFFF1E7D0),
@@ -92,7 +92,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             highlights: _lightHighlights,
             isDark: false,
             emphasis: Color(0xFF773D0B),
-            accent: Color(0xFFC01818),
+            accent: Color(0xFF3B2F22),
           ),
         ReadingThemeId.dark => const ReadingTheme(
             background: Color(0xFF141414),
@@ -103,7 +103,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             highlights: _darkHighlights,
             isDark: true,
             emphasis: Color(0xFFE9BC72),
-            accent: Color(0xFFFF7A4A),
+            accent: Color(0xFFE6E1D6),
           ),
         ReadingThemeId.black => const ReadingTheme(
             background: Color(0xFF000000),
@@ -114,7 +114,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             highlights: _darkHighlights,
             isDark: true,
             emphasis: Color(0xFFE2B66C),
-            accent: Color(0xFFFF7A4A),
+            accent: Color(0xFFDCD7CC),
           ),
       };
 
@@ -146,6 +146,6 @@ String? fontFamilyFor(ReadingFont f) => switch (f) {
       ReadingFont.system => null,
     };
 
-/// The streak flame and goal progress: the logo's red, deep enough for 3:1 on
-/// white (3.9:1) and black (5.4:1).
-const ember = Color(0xFFF23A2E);
+/// The logo red: only the streak flame, the liked heart and badges use it
+/// (3.7:1 on white, 5.7:1 on black: enough for icons).
+const ember = Color(0xFFFF3131);

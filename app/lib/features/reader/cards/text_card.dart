@@ -596,7 +596,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
                           ? Icon(widget.saved ? Icons.bookmark_remove_rounded : Icons.bookmark_add_rounded, color: Colors.white)
                           : const ShareArrowIcon(color: Colors.white),
                       label: dx < 0 ? (widget.saved ? 'Unsave' : 'Save') : 'Share',
-                      color: t.accent,
+                      color: const Color(0xCC111111),
                       armed: reveal >= 1,
                     ),
                   ),
@@ -663,7 +663,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
             onListen: widget.onListen,
           ),
         ),
-        for (final b in _bursts) _HeartBurstView(burst: b, color: const Color(0xFFFF5A79)),
+        for (final b in _bursts) _HeartBurstView(burst: b, color: ember),
         if (editing && toolbarTop != null)
           Positioned(left: 8, right: 8, top: toolbarTop, child: Center(child: _toolbar())),
       ]),
@@ -1255,7 +1255,7 @@ class _ActionRail extends StatelessWidget {
         );
     return Column(mainAxisSize: MainAxisSize.min, children: [
       b(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, liked ? 'Liked' : 'Like', liked ? 'Unlike' : 'Like', onLike,
-          color: liked ? const Color(0xFFFF5A79) : null, active: liked),
+          color: liked ? ember : null, active: liked),
       b(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, saved ? 'Saved' : 'Save', saved ? 'Saved' : 'Save', onSave,
           color: saved ? accent : null, active: saved),
       b(Icons.edit_note_rounded, 'Note', 'Highlight & note', onNote),
