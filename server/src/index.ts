@@ -8,6 +8,7 @@ import { AnthropicBatchClient } from "./segmentation/batch.js";
 import { ClaudeSegmenter } from "./segmentation/claudeSegmenter.js";
 import { SegmentService } from "./segmentation/service.js";
 import { BillingService, verifierFromEnv } from "./billing/play.js";
+import { MoodService, moodModelFromEnv } from "./mood/suggest.js";
 import { SpeechService, speechProviderFromEnv } from "./speech/tts.js";
 import { SqlJobStore, SqlQuotaStore, SqlSegmentCache, SqlUsageLog } from "./stores/sql.js";
 
@@ -21,6 +22,9 @@ import { SqlJobStore, SqlQuotaStore, SqlSegmentCache, SqlUsageLog } from "./stor
  * - TTS_API_KEY          enables the natural read-aloud voice (secret: set it in the host's secret store)
  * - TTS_BASE_URL         OpenAI-compatible speech API (default https://api.deepinfra.com/v1/openai)
  * - TTS_MODEL            speech model (default hexgrad/Kokoro-82M)
+ * - MOOD_API_KEY         enables Gemma mood suggestions (secret; falls back to TTS_API_KEY, the same provider)
+ * - MOOD_BASE_URL        OpenAI-compatible chat API (default https://api.deepinfra.com/v1/openai)
+ * - MOOD_MODEL           mood model (default google/gemma-3-12b-it)
  * - PLAY_PACKAGE_NAME    Android package name, for Play Billing
  * - PLAY_SERVICE_ACCOUNT_JSON  service-account key with Play Console access (secret)
  * - PLAY_RTDN_SECRET     secret in the Pub/Sub push URL for Play notifications (secret)
@@ -40,6 +44,7 @@ const segments = new SegmentService({
 });
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const speechProvider = speechProviderFromEnv();
+const moodModel = moodModelFromEnv();
 const app = buildApp({
   db,
   segments,
@@ -49,6 +54,7 @@ const app = buildApp({
   androidCertFingerprints: process.env.ANDROID_CERT_SHA256?.split(",").map((s) => s.trim()).filter(Boolean),
   voiceChooser: new ClaudeVoiceChooser(client),
   speech: speechProvider ? new SpeechService(db, speechProvider) : undefined,
+  mood: moodModel ? new MoodService(db, moodModel) : undefined,
   billing: new BillingService(db, verifierFromEnv(), { enforced: process.env.BILLING_ENFORCED === "1" }),
   rtdnSecret: process.env.PLAY_RTDN_SECRET,
   logger: true,

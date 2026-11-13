@@ -67,6 +67,28 @@ class BookReelApi {
     return res.bodyBytes;
   }
 
+  /// Gemma's guess at the mood that suits you now, from your mood log only
+  /// (weekday, hour, mood, minutes). Null when the server has no mood model,
+  /// over the daily allowance, or on any error: the app then predicts on its own.
+  Future<({String mood, String reason})?> moodSuggest({
+    required List<Map<String, dynamic>> log,
+    required int weekday,
+    required int hour,
+    required String tier,
+  }) async {
+    try {
+      final r = await _send('POST', '/v1/mood/suggest', {
+        'now': {'weekday': weekday, 'hour': hour},
+        'log': log,
+        'tier': tier,
+      });
+      if (r is! Map || r['mood'] is! String) return null;
+      return (mood: r['mood'] as String, reason: '${r['reason'] ?? ''}');
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Updates the server's copy of the profile. Throws [ApiException] 409
   /// when [handle] belongs to someone else.
   Future<void> updateProfile({

@@ -138,21 +138,41 @@ Today the reader starts at the first spine item, which is often a cover, copyrig
 - Offline / no model: the most frequent mood for that time slot (morning, afternoon, evening, night) and weekday type.
 - Settings → Reading: "Pick my scene from my mood" (on), "Ask how I'm feeling" (only while learning / weekly / never).
 
-**Mood → scene** (light or dark from the time of day and Appearance):
+**Mood → scene** (day is 7:00–19:00, unless Appearance is set to Light or Dark):
 
-| Mood | Scene |
-|---|---|
-| Calm | Meadow (day) / Night |
-| Cozy | Café |
-| Focused | Paper |
-| Energised | Beach / Forest morning |
-| Dreamy | Night |
-| Reflective | Rain |
-| Restless | Snow day / City |
+| Mood | Day | Night |
+|---|---|---|
+| 😌 Calm | Meadow | Night |
+| ☕ Cozy | Snow day (cabin, fire) | Café |
+| 🎯 Focused | Paper | Paper |
+| ⚡ Energised | Beach | City |
+| 💭 Dreamy | Forest morning | Night |
+| 🌧️ Reflective | Forest morning | Rain |
+| 🌀 Restless | Snow day | City |
 
 Paid plans keep "Let the story decide" (AI-picked scenes per chapter) as an option.
 
 **Done when:** tests for the ask-rate limit, the learning → predicting switch, the fallback predictor, server `/v1/mood/suggest` with a fake Gemma (valid/invalid replies), and the chip's correction being stored.
+
+✅ **Done (step 6b).**
+
+*App*
+- `lib/services/mood.dart`: the mood log, the asking rule, predictions and the mood → scene table. When a mood is set, it becomes the reader's scene.
+- The **mood sheet** and the **"· change" chip** live in `lib/features/reader/mood_sheet.dart`. The Reading tab asks after the gesture guide, and again on returning to the app.
+- The options sheet has a **Mood** row.
+- **Settings → Mood**: "Pick my scene from my mood", plus "Ask how I'm feeling", either *While learning, then weekly* or *Never*. It also shows learning progress.
+
+*Prediction*
+- Predictions are made once per part of the day and used once.
+- The order is: Gemma 4 E2B on the phone (Free plan, model downloaded), then `POST /v1/mood/suggest`, then the reader's own habit.
+
+*Server*
+- `server/src/mood/suggest.ts` calls Gemma (`google/gemma-3-12b-it` on DeepInfra by default) through an OpenAI-compatible chat API.
+- Configuration: `MOOD_API_KEY`, which falls back to `TTS_API_KEY`; `MOOD_BASE_URL`; `MOOD_MODEL`.
+- Each reader gets 30 calls a day.
+- The request schema is strict: only the mood log is accepted.
+
+*Paid plans:* with "Let the story decide" on, the story picks the scene and the mood isn't asked.
 
 ## 9. Tabs and navigation
 
@@ -222,7 +242,7 @@ A scrolling feed of reading activities, newest first:
 | 3 | Open at the introduction (§7) | M — ✅ done |
 | 4 | Reading tab + reel overhaul (focus mode, gestures, buttons, note box, progress line) + tab dock (§6, §9) | L — ✅ done (Friends opens from Profile/Today until steps 7–8) |
 | 5 | Save/share swipe animation (§6) | M — ✅ done |
-| 6 | Light/dark scenes (§5), mood learning + Gemma suggestion (§8) | L |
+| 6 | Light/dark scenes (§5), mood learning + Gemma suggestion (§8) | L — ✅ done |
 | 7 | Profile redesign + followers/following (§11) | L |
 | 8 | Today feed + comments on the server (§10) | L |
 | 9 | Docs, tests, CI, APK | S |

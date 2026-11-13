@@ -10,6 +10,7 @@ import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../data/api_client.dart';
 import '../../services/billing.dart';
+import '../../services/mood.dart';
 import '../../services/on_device_ai.dart';
 import '../../services/read_aloud.dart';
 import '../../services/scene_sound.dart';
@@ -56,6 +57,19 @@ class SettingsScreen extends ConsumerWidget {
             title: 'Scene',
             value: auto ? 'Auto' : style.label,
             onTap: () => showKitSheet<void>(context, title: 'Scene', subtitle: 'The world behind your reels', builder: (_) => const SceneSettings()),
+          ),
+          KitRow(
+            icon: Icons.mood_rounded,
+            title: 'Mood',
+            value: !s.moodScenes
+                ? 'Off'
+                : auto
+                    ? 'The story picks'
+                    : s.moodAsk == MoodAsk.never
+                        ? 'On · not asking'
+                        : 'On',
+            onTap: () => showKitSheet<void>(context,
+                title: 'Mood', subtitle: 'Your scene, picked from how you feel', builder: (_) => const MoodSettings()),
           ),
           KitRow(
             icon: s.sceneSound ? Icons.volume_up_rounded : Icons.volume_off_rounded,
@@ -395,6 +409,52 @@ class SceneSettings extends ConsumerWidget {
           onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
         ),
       ]),
+    ]);
+  }
+}
+
+/// Mood scenes: on/off, when to ask, and what Cloro has learnt so far.
+class MoodSettings extends ConsumerWidget {
+  const MoodSettings({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final s = ref.watch(settingsProvider);
+    final n = ref.read(settingsProvider.notifier);
+    final mood = ref.watch(moodProvider);
+    final learning = ref.read(moodProvider.notifier).learning;
+    final answers = mood.answers.length;
+    final story = s.autoScene && s.tier.paid;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      KitGroup(children: [
+        KitSwitchRow(
+          icon: Icons.mood_rounded,
+          title: 'Pick my scene from my mood',
+          subtitle: story ? 'Auto scenes are on: the story picks for now.' : null,
+          value: s.moodScenes,
+          onChanged: (v) => n.update((x) => x.copyWith(moodScenes: v)),
+        ),
+      ]),
+      const SizedBox(height: 12),
+      Text('Ask how I’m feeling', style: kit.heading.copyWith(fontSize: 15.5)),
+      const SizedBox(height: 8),
+      KitSegmented<MoodAsk>(
+        values: MoodAsk.values,
+        selected: s.moodAsk,
+        label: (a) => a.label,
+        onChanged: (a) => n.update((x) => x.copyWith(moodAsk: a)),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        learning
+            ? 'Learning: $answers of 15 answers. Cloro asks at most every 3 hours, then picks your mood itself.'
+            : 'Cloro knows your habit now: Gemma picks your mood${mood.current != null ? ' (now: ${mood.current!.emoji} ${mood.current!.label})' : ''}, '
+                'with a check-in about once a week. Tap “change” on the chip to correct it.',
+        style: kit.caption,
+      ),
+      const SizedBox(height: 8),
+      Text('Only your mood log is used (when, mood, minutes read), never your book’s text.', style: kit.caption),
     ]);
   }
 }

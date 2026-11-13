@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Companion to** | [`DESIGN.md`](./DESIGN.md) |
-| **Status** | Draft v1.0 (Revision 9) |
+| **Status** | Draft v1.0 (Revision 10) |
 | **Date** | 2026-11-12 |
 | **Lenses** | Behavioural psychology · Interaction & visual design · Flutter engineering |
 
@@ -66,6 +66,15 @@
 > | **On-device AI (Free)** | Settings → On-device AI downloads a small model once (345 MB; a 2 GB one on phones with 8 GB of memory). It then adds recaps and quick checks every few minutes of reading, a teaser for the next chapter and "in this sentence" word meanings, all on the phone, free and offline. It can be paused or removed; phones that can't run it say why. |
 
 > **Revision 9 (Cloro: black and white, no boxes).** The app is named Cloro. Every screen is built from black, white and greys: black (light) or white (dark) buttons, switches, chips, sliders and the selected tab. The logo red appears only on the logo, the streak flame, the liked heart and badges. Lists of options have no boxes and no lines between similar options, just one line between groups, as in Instagram and YouTube; row icons are plain. The reader keeps its scene, with menus in the same neutral black or white. Details: `docs/CLORO_PLAN.md` §3.
+
+> **Revision 10 (day and night scenes; the scene follows your mood).**
+> - **Scenes:** 4 by day (Meadow, Forest morning, Beach, Snow day) and 4 by night (Night, Rain, City, Café). The three new day scenes have dark text on a light veil, contrast-tested like the others. The picker shows DAY, then NIGHT.
+> - **Mood:** while Cloro is learning (the first 15 answers, or two weeks), opening a book asks **"How are you feeling?"**, at most every 3 hours. There are seven moods, plus "Not now". The book opens in that mood's scene, by day or by night.
+> - **Prediction:** after learning, Google's **Gemma** predicts the mood for this part of the day: on the phone when Gemma is downloaded, otherwise on the server. The reader's own habit is the fallback. A small **"😌 Calm · change"** chip shows for a few seconds; a tap corrects it, and corrections count double. A check-in comes about once a week.
+> - **Privacy:** only the mood log (when, mood, minutes read) is ever used.
+> - **Settings:** Settings → Mood turns this off, or stops the asking.
+>
+> Details: `docs/CLORO_PLAN.md` §5 and §8.
 
 ## 0. The answer in one paragraph
 

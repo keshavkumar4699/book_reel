@@ -12,6 +12,15 @@ enum KeyPointStyle { off, subtle, bold }
 /// Calm animated backgrounds behind the reader's reels.
 enum Vibe { forest, cafe, rain, ocean, night, meadow, snow, city, paper }
 
+/// When Cloro asks "How are you feeling?" (Cloro plan §8).
+enum MoodAsk {
+  learning('While learning, then weekly'),
+  never('Never');
+
+  const MoodAsk(this.label);
+  final String label;
+}
+
 /// Light or dark for every screen except the reader (which wears its scene).
 enum AppAppearance {
   system('System default'),
@@ -110,6 +119,8 @@ class AppSettings {
     this.sceneSound = true,
     this.sceneSoundVolume = 0.6,
     this.autoScene = true,
+    this.moodScenes = true,
+    this.moodAsk = MoodAsk.learning,
   });
 
   final ReadingThemeId theme;
@@ -181,6 +192,12 @@ class AppSettings {
   /// Let the AI pick the background per chapter (paid tiers).
   final bool autoScene;
 
+  /// Open books in the scene that suits your mood (asked, then predicted).
+  final bool moodScenes;
+
+  /// When to ask how you're feeling.
+  final MoodAsk moodAsk;
+
   GoalConfig get goal => GoalConfig(
         unit: goalUnit,
         dailyTarget: dailyGoal,
@@ -238,6 +255,8 @@ class AppSettings {
     bool? sceneSound,
     double? sceneSoundVolume,
     bool? autoScene,
+    bool? moodScenes,
+    MoodAsk? moodAsk,
   }) =>
       AppSettings(
         theme: theme ?? this.theme,
@@ -287,6 +306,8 @@ class AppSettings {
         sceneSound: sceneSound ?? this.sceneSound,
         sceneSoundVolume: sceneSoundVolume ?? this.sceneSoundVolume,
         autoScene: autoScene ?? this.autoScene,
+        moodScenes: moodScenes ?? this.moodScenes,
+        moodAsk: moodAsk ?? this.moodAsk,
       );
 
   Map<String, dynamic> toJson() => {
@@ -337,6 +358,8 @@ class AppSettings {
         'sceneSound': sceneSound,
         'sceneSoundVolume': sceneSoundVolume,
         'autoScene': autoScene,
+        'moodScenes': moodScenes,
+        'moodAsk': moodAsk.name,
         'planVersion': currentPlanVersion,
       };
 
@@ -411,6 +434,8 @@ class AppSettings {
       sceneSound: (j['sceneSound'] as bool?) ?? (j['soundtrack'] as bool?) ?? d.sceneSound,
       sceneSoundVolume: num_(j['sceneSoundVolume'], d.sceneSoundVolume).clamp(0.0, 1.0),
       autoScene: (j['autoScene'] as bool?) ?? d.autoScene,
+      moodScenes: (j['moodScenes'] as bool?) ?? d.moodScenes,
+      moodAsk: pick(MoodAsk.values, j['moodAsk'], d.moodAsk),
     );
   }
 }

@@ -137,4 +137,13 @@ export const MIGRATIONS: string[] = [
   );
   create index entitlements_user on entitlements (user_id);
   `,
+  // Mood suggestions (Gemma): calls per reader per day.
+  `
+  create table mood_usage (
+    user_id text not null,
+    day date not null,
+    calls int not null default 0,
+    primary key (user_id, day)
+  );
+  `,
 ];

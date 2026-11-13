@@ -23,6 +23,7 @@ import '../../data/notebook.dart';
 import '../../data/segments.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
+import '../../services/mood.dart';
 import '../../services/notifications.dart';
 import '../../services/on_device_ai.dart';
 import '../../services/scene_sound.dart';
@@ -35,6 +36,7 @@ import '../share/share_sheet.dart';
 import 'cards/special_cards.dart';
 import 'cards/text_card.dart';
 import 'goal_setup_sheet.dart';
+import 'mood_sheet.dart';
 import 'page_mode.dart';
 import 'session_complete.dart';
 import 'word_sheet.dart';
@@ -76,6 +78,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// Kept from initState: `ref` must not be used in dispose(), where the last
   /// card's reading time is still recorded.
   late final HabitNotifier _habit;
+  late final MoodController _mood;
   late final SceneSoundController _sound;
   late final ReadAloud _readAloud;
   Map<int, ChapterSegments>? _segments;
@@ -98,6 +101,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// The scene and on/off state the sound was last set for.
   (Vibe, bool)? _soundFor;
 
+  /// "How are you feeling?" was checked for this opening of the book.
+  bool _moodChecked = false;
+
+  /// The mood Cloro picked the scene from, shown as "· change" for a moment.
+  Mood? _moodChip;
+  bool _moodChipShown = false;
+  Timer? _moodChipTimer;
+
   /// Dwell on the earlier reels of a split card, by feed index (the card is
   /// credited once, on its last reel).
   final Map<int, int> _partDwell = {};
@@ -118,6 +129,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _chromeFlag = ref.read(readerChromeProvider.notifier);
     WidgetsBinding.instance.addObserver(this);
     _habit = ref.read(habitProvider.notifier);
+    _mood = ref.read(moodProvider.notifier);
     _sound = ref.read(sceneSoundProvider.notifier);
     _readAloud = ref.read(readAloudProvider);
   }
@@ -187,6 +199,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _recordCurrent(deferred: true);
     scheduleMicrotask(_sound.stop);
     WidgetsBinding.instance.removeObserver(this);
+    _moodChipTimer?.cancel();
     _pager?.dispose();
     unawaited(_readAloud.stop());
     super.dispose();
@@ -206,6 +219,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     } else if (state == AppLifecycleState.resumed && _visible) {
       _shownAt = DateTime.now();
       unawaited(_sound.resume());
+      // Back after a while: maybe time to ask (or a new part of the day).
+      if (_moodChecked) unawaited(_checkMood());
     }
   }
 
@@ -373,12 +388,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       words += _wordsOf(_feed[i]);
     }
     if (total < 300) return null;
-    CardRecord record() => _habit.recordCard(
-          words: words,
-          dwellMs: total,
-          bookId: widget.bookId,
-          cardRef: '${widget.bookId.substring(0, 12)}:${card.startSid}',
-        );
+    CardRecord record() {
+      _mood.addMinutes(total);
+      return _habit.recordCard(
+        words: words,
+        dwellMs: total,
+        bookId: widget.bookId,
+        cardRef: '${widget.bookId.substring(0, 12)}:${card.startSid}',
+      );
+    }
     if (deferred) {
       scheduleMicrotask(record);
       return null;
@@ -617,9 +635,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         final style = vibeStyles[scene]!;
         final auto = s.autoScene && s.tier.paid && s.vibe != Vibe.paper;
         void pick(String v) => Navigator.of(context).pop(v);
+        final mood = ref.watch(moodProvider).current;
+        final moodOn = ref.read(moodProvider.notifier).active;
         return Column(mainAxisSize: MainAxisSize.min, children: [
           KitGroup(children: [
             KitRow(emoji: auto ? '✨' : style.emoji, title: 'Theme', value: auto ? 'Auto' : style.label, onTap: () => pick('theme')),
+            if (moodOn)
+              KitRow(emoji: mood?.emoji ?? '🙂', title: 'Mood', value: mood?.label ?? 'Not set', onTap: () => pick('mood')),
             KitSwitchRow(
               icon: s.sceneSound ? Icons.volume_up_rounded : Icons.volume_off_rounded,
               title: 'Scene sound',
@@ -643,6 +665,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     switch (choice) {
       case 'theme':
         _pickVibe();
+      case 'mood':
+        _askMood(correcting: ref.read(moodProvider).current != null);
       case 'toc':
         _openContents(book);
       case 'page':
@@ -656,6 +680,40 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       case 'report':
         showKitToast(_ui, 'Thanks! Reports like this help us cut cards better.', emoji: '✂️');
     }
+  }
+
+  /// On opening the book (and coming back to it): ask how you feel while
+  /// Cloro is learning, or use the mood it predicted for this part of the day.
+  Future<void> _checkMood() async {
+    if (!mounted || !_mood.active) return;
+    if (_mood.shouldAsk()) return _askMood();
+    await _mood.refreshPrediction();
+    if (!mounted) return;
+    final picked = _mood.applyPrediction();
+    if (picked != null) _showMoodChip(picked);
+  }
+
+  Future<void> _askMood({bool correcting = false}) async {
+    final picked = await showMoodSheet(_ui, current: ref.read(moodProvider).current);
+    if (!mounted) return;
+    if (picked == null) {
+      if (!correcting) _mood.skip();
+      return;
+    }
+    HapticFeedback.selectionClick();
+    _mood.answer(picked, corrected: correcting);
+    setState(() => _moodChipShown = false);
+  }
+
+  void _showMoodChip(Mood mood) {
+    _moodChipTimer?.cancel();
+    setState(() {
+      _moodChip = mood;
+      _moodChipShown = true;
+    });
+    _moodChipTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _moodChipShown = false);
+    });
   }
 
   /// The note box: an empty page for your own thoughts on this reel, kept in
@@ -759,6 +817,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final scene = _sceneFor(s);
     final chromeColor = t.text;
     _syncSound(scene, s.sceneSound);
+    if (widget.embedded && !_moodChecked && s.gestureTutorialSeen && _feed.isNotEmpty) {
+      _moodChecked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_checkMood()));
+    }
 
     return Stack(children: [
       PageView.builder(
@@ -788,6 +850,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
             shadows: t.textShadows,
             title: _feed.isEmpty ? book.title : book.chapters[_feed[_page.clamp(0, _feed.length - 1)].chapterIndex].title,
             onFocus: () => _setChrome(false),
+          ),
+        ),
+      ),
+      // "😌 Calm · change" when the scene was picked from your mood.
+      Positioned(
+        top: padding.top + 58,
+        left: 0,
+        right: 0,
+        child: Center(
+          child: MoodChip(
+            mood: _moodChip,
+            visible: _moodChipShown,
+            theme: t,
+            onTap: () => _askMood(correcting: true),
           ),
         ),
       ),

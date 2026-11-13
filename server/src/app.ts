@@ -14,6 +14,7 @@ import type { Db } from "./db/db.js";
 import { ActivityBatchSchema, ActivityService, HandleTaken, InvalidHandle } from "./habit/activity.js";
 import { localDateKey, weekKey } from "./habit/engine.js";
 import { LeagueService } from "./habit/leagues.js";
+import { MoodInvalid, MoodQuotaExceeded, MoodSuggestSchema, MoodUnavailable, type MoodService } from "./mood/suggest.js";
 import { SegmentRequestSchema } from "./segmentation/schema.js";
 import { QuotaExceeded, SegmentService, TierNotEligible, type Caller } from "./segmentation/service.js";
 import { landingPage, ShareSchema, ShareService } from "./social/shares.js";
@@ -45,6 +46,8 @@ export interface AppDeps {
   voiceChooser?: VoiceChooser;
   /** Natural read-aloud voice; without it the app uses the phone's voice. */
   speech?: SpeechService;
+  /** Gemma mood suggestions; without it the app predicts the mood on its own. */
+  mood?: MoodService;
   /** Play Billing; without it plans are not verified (development). */
   billing?: BillingService;
   /** Shared secret in the Pub/Sub push URL for Play notifications (?secret=…). */
@@ -94,6 +97,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (err instanceof BillingUnavailable) return reply.code(503).send({ error: "billing_unavailable", message: err.message });
     if (err instanceof SpeechUnavailable) return reply.code(503).send({ error: "tts_unavailable", message: err.message });
     if (err instanceof InvalidHandle) return reply.code(400).send({ error: "invalid_handle", message: err.message });
+    if (err instanceof MoodQuotaExceeded) return reply.code(429).send({ error: "mood_quota", limit: err.limit });
+    if (err instanceof MoodUnavailable) return reply.code(503).send({ error: "mood_unavailable", message: err.message });
+    if (err instanceof MoodInvalid) return reply.code(502).send({ error: "mood_invalid", message: err.message });
     const status = (err as { statusCode?: number }).statusCode;
     if (status && status < 500) return reply.code(status).send({ error: (err as Error).message });
     app.log.error(err);
@@ -262,6 +268,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       .header("cache-control", "private, max-age=31536000, immutable")
       .header("x-cache", out.cached ? "hit" : "miss")
       .send(out.audio);
+  });
+
+  // ------------------------------------------------------------ mood (Gemma)
+  // Only the mood log (weekday, hour, mood, minutes) is accepted: the schema is strict.
+  app.post("/v1/mood/suggest", async (req, reply) => {
+    const c = await caller(req);
+    const body = MoodSuggestSchema.parse(req.body);
+    body.tier = await billing.tierFor(c.userId, body.tier);
+    if (!deps.mood) return reply.code(503).send({ error: "mood_unavailable", message: "No mood model is configured." });
+    return deps.mood.suggest(c.userId, body);
   });
 
   // ------------------------------------------------------------ share links & web pages
