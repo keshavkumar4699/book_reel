@@ -42,7 +42,16 @@ void main() {
     await tester.pump();
     expect(find.text('👏 3'), findsOneWidget);
     expect(server.kudos, ['f1']);
-    await tester.runAsync(() async => dir.deleteSync(recursive: true));
+    await tester.runAsync(() async {
+      // A store write can still land in the folder as it goes: retry once.
+      for (var i = 0; i < 2 && dir.existsSync(); i++) {
+        try {
+          dir.deleteSync(recursive: true);
+        } on FileSystemException {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+      }
+    });
   });
 
   testWidgets('Friends tab explains what is needed when no server is configured', (tester) async {
@@ -54,6 +63,15 @@ void main() {
       child: const MaterialApp(home: FriendsScreen()),
     ));
     expect(find.text('Friends and leagues need the Cloro server'), findsOneWidget);
-    await tester.runAsync(() async => dir.deleteSync(recursive: true));
+    await tester.runAsync(() async {
+      // A store write can still land in the folder as it goes: retry once.
+      for (var i = 0; i < 2 && dir.existsSync(); i++) {
+        try {
+          dir.deleteSync(recursive: true);
+        } on FileSystemException {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+      }
+    });
   });
 }

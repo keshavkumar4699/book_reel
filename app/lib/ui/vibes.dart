@@ -190,9 +190,10 @@ ReadingTheme readingThemeForVibe(Vibe vibe, ReadingTheme paper) {
     muted: p.muted,
     keyPoint: p.emphasis.withValues(alpha: 0.24),
     hardWordUnderline: p.emphasis,
-    highlights: p.lightInk
-        ? const [Color(0x66E0A23A), Color(0x664FA873), Color(0x664A82C9), Color(0x66C85C8A)]
-        : const [Color(0x59F2B84B), Color(0x5967C587), Color(0x595B9BE6), Color(0x59E87AA4)],
+    // Tints of the scene's own colour, with the scene's darkest (or lightest)
+    // colour as the text on them.
+    highlights: highlightFills(darkSurface: p.lightInk, family: p.emphasis),
+    highlightInk: p.tint,
     isDark: p.lightInk,
     glass: p.lightInk ? p.tint.withValues(alpha: 0.62) : p.tint.withValues(alpha: 0.78),
     emphasis: p.emphasis,

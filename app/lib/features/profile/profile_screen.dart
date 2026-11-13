@@ -62,7 +62,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         );
 
+    // The Profile tab: no back button, room for the tab bar.
     return KitPage(
+      back: false,
+      backdrop: false,
+      dock: true,
       title: s.username.isEmpty ? s.displayName : '@${s.username}',
       actions: [
         KitIconButton(icon: Icons.settings_rounded, semanticLabel: 'Settings', onPressed: () => context.push('/settings')),
@@ -100,7 +104,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         if (reading != null) ...[
           const SizedBox(height: 6),
           KitPressable(
-            onTap: () => context.push('/read/${reading.id}'),
+            onTap: () => context.go('/read/${reading.id}'),
             child: Text.rich(TextSpan(children: [
               TextSpan(text: '📖 Reading ', style: kit.caption),
               TextSpan(text: reading.title, style: kit.caption.copyWith(color: kit.ink, fontWeight: FontWeight.w800)),
@@ -138,7 +142,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           KitIconButton(
             icon: Icons.person_add_alt_1_rounded,
             semanticLabel: 'Find friends',
-            onPressed: () => context.go('/friends'),
+            onPressed: () => context.push('/friends'),
             size: 40,
           ),
         ]),
@@ -154,7 +158,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               itemBuilder: (context, i) {
                 final b = books[i];
                 return KitPressable(
-                  onTap: () => context.push('/read/${b.id}'),
+                  onTap: () => context.go('/read/${b.id}'),
                   semanticLabel: '${b.title}, ${(b.progress * 100).round()}% read',
                   excludeSemantics: true,
                   child: SizedBox(
@@ -305,7 +309,7 @@ class _QuotesGrid extends StatelessWidget {
       children: [
         for (final q in items)
           KitPressable(
-            onTap: () => context.push(q.link),
+            onTap: () => context.go(q.link),
             pressedScale: 0.97,
             semanticLabel: q.text,
             excludeSemantics: true,
@@ -348,7 +352,7 @@ class _BooksList extends ConsumerWidget {
           leading: ClipRRect(borderRadius: BorderRadius.circular(4), child: BookCover(book: b, width: 38)),
           title: b.title,
           subtitle: b.finishedAt != null ? '${b.author} · Finished ✓' : '${b.author} · ${(b.progress * 100).round()}%',
-          onTap: () => context.push('/read/${b.id}'),
+          onTap: () => context.go('/read/${b.id}'),
         ),
     ]);
   }

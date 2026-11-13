@@ -36,7 +36,14 @@ void main() {
     }
     containers.clear();
     for (final d in dirs) {
-      if (d.existsSync()) d.deleteSync(recursive: true);
+      // A store write can still land in the folder as it goes: retry once.
+      for (var i = 0; i < 2 && d.existsSync(); i++) {
+        try {
+          d.deleteSync(recursive: true);
+        } on FileSystemException {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+      }
     }
     dirs.clear();
   });

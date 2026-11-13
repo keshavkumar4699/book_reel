@@ -36,8 +36,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           (s) => s.copyWith(onboardingDone: true, interests: _interests.toList(), vibe: _vibe),
         );
     if (!mounted) return;
-    context.go('/today');
-    if (starter != null) context.push('/read/${starter.id}');
+    // Straight into the first book, in the Reading tab.
+    context.go(starter != null ? '/read/${starter.id}' : '/library');
   }
 
   @override

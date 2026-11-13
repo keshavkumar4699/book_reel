@@ -35,7 +35,10 @@ final friendsDataProvider = FutureProvider.autoDispose<FriendsData>((ref) async 
 /// Friends tab (UX_DESIGN.md §5.7): weekly league of similar readers, friends
 /// board, activity feed with kudos (no dislikes, no follower counts), invites.
 class FriendsScreen extends ConsumerWidget {
-  const FriendsScreen({super.key});
+  const FriendsScreen({super.key, this.asPage = false});
+
+  /// Opened from Profile or Today (a page with a back button), not a tab.
+  final bool asPage;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -69,9 +72,9 @@ class FriendsScreen extends ConsumerWidget {
               ],
             );
     return KitPage(
-      back: false,
-      backdrop: false,
-      dock: true,
+      back: asPage,
+      backdrop: asPage,
+      dock: !asPage,
       title: 'Friends',
       onRefresh: api.enabled ? () => ref.refresh(friendsDataProvider.future) : null,
       actions: [

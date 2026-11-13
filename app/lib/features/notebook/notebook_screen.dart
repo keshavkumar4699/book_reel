@@ -83,7 +83,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: KitPanel(
-            onTap: () => context.push('/read/${s.bookId}?sid=${s.startSid}'),
+            onTap: () => context.go('/read/${s.bookId}?sid=${s.startSid}'),
             padding: const EdgeInsets.fromLTRB(16, 16, 6, 6),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Padding(
@@ -140,7 +140,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
             ),
             onDismissed: (_) => ref.read(notebookProvider.notifier).removeHighlight(h.id),
             child: KitPanel(
-              onTap: () => context.push('/read/${h.bookId}?sid=${h.sid}'),
+              onTap: () => context.go('/read/${h.bookId}?sid=${h.sid}'),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(
                   width: 5,
@@ -207,6 +207,10 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
           child: KitPanel(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(r.text, style: kit.body),
+              if (r.quote != null) ...[
+                const SizedBox(height: 6),
+                Text('“${r.quote}”', maxLines: 3, overflow: TextOverflow.ellipsis, style: kit.caption.copyWith(fontStyle: FontStyle.italic)),
+              ],
               const SizedBox(height: 8),
               Text('${r.bookTitle} · ${r.chapterTitle}', style: kit.caption),
             ]),

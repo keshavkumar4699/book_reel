@@ -230,6 +230,7 @@ class Reflection {
     required this.chapterTitle,
     required this.text,
     required this.createdAt,
+    this.quote,
   });
 
   final String id;
@@ -238,8 +239,17 @@ class Reflection {
   final String text;
   final DateTime createdAt;
 
-  Map<String, dynamic> toJson() =>
-      {'id': id, 'title': bookTitle, 'chapter': chapterTitle, 'text': text, 'at': createdAt.toIso8601String()};
+  /// The passage a note was written on (the reel's text), when there is one.
+  final String? quote;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': bookTitle,
+        'chapter': chapterTitle,
+        'text': text,
+        'at': createdAt.toIso8601String(),
+        if (quote != null) 'quote': quote,
+      };
 
   factory Reflection.fromJson(Map<String, dynamic> j) => Reflection(
         id: j['id'] as String,
@@ -247,6 +257,7 @@ class Reflection {
         chapterTitle: (j['chapter'] as String?) ?? '',
         text: j['text'] as String,
         createdAt: DateTime.parse(j['at'] as String),
+        quote: j['quote'] as String?,
       );
 }
 
@@ -445,10 +456,12 @@ class NotebookNotifier extends Notifier<NotebookState> {
 
   void removeWord(String word) => _set(state.copyWith(words: state.words.where((w) => w.word != word).toList()));
 
-  void addReflection({required String bookTitle, required String chapterTitle, required String text}) {
+  /// Saves a reflection (end of a chapter) or a note on a reel ([quote]).
+  void addReflection({required String bookTitle, required String chapterTitle, required String text, String? quote}) {
     if (text.trim().isEmpty) return;
     _set(state.copyWith(reflections: [
-      Reflection(id: _id(), bookTitle: bookTitle, chapterTitle: chapterTitle, text: text.trim(), createdAt: DateTime.now()),
+      Reflection(
+          id: _id(), bookTitle: bookTitle, chapterTitle: chapterTitle, text: text.trim(), createdAt: DateTime.now(), quote: quote),
       ...state.reflections,
     ]));
   }

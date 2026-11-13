@@ -26,7 +26,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     try {
       final file = files.first;
       final meta = await ref.read(libraryProvider.notifier).importBytes(await file.readAsBytes(), file.name);
-      if (mounted) context.push('/read/${meta.id}');
+      if (mounted) context.go('/read/${meta.id}');
     } on ParseException catch (e) {
       _error(e.message);
     } catch (e) {
@@ -55,9 +55,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     if (!mounted) return;
     switch (action) {
       case 'read':
-        context.push('/read/${book.id}');
+        context.go('/read/${book.id}');
       case 'restart':
-        context.push('/read/${book.id}?sid=c0.b0.s0');
+        context.go('/read/${book.id}?sid=c0.b0.s0');
       case 'remove':
         final ok = await showKitConfirm(
           context,
@@ -113,7 +113,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             itemBuilder: (context, i) {
               final b = books[i];
               return KitPressable(
-                onTap: () => context.push('/read/${b.id}'),
+                onTap: () => context.go('/read/${b.id}'),
                 onLongPress: () => _bookMenu(b),
                 pressedScale: 0.97,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

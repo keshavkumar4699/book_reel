@@ -39,11 +39,24 @@ import 'page_mode.dart';
 import 'session_complete.dart';
 import 'word_sheet.dart';
 
+/// Whether the reader's controls are showing (the tab bar follows them).
+class ReaderChrome extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool visible) => state = visible;
+}
+
+final readerChromeProvider = NotifierProvider<ReaderChrome, bool>(ReaderChrome.new);
+
 class ReaderScreen extends ConsumerStatefulWidget {
-  const ReaderScreen({super.key, required this.bookId, this.startSid});
+  const ReaderScreen({super.key, required this.bookId, this.startSid, this.embedded = false});
 
   final String bookId;
   final String? startSid;
+
+  /// Shown in the Reading tab (with the tab bar under the controls).
+  final bool embedded;
 
   @override
   ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
@@ -71,6 +84,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// The chapter and block of cards the on-device model last wrote ahead for.
   (int, int)? _localBlock;
 
+  /// Focus mode is off: the controls (top bar, rail, tab bar) are showing.
+  /// A tap on empty space shows them; only the eye button hides them.
+  bool _chrome = false;
+  late final ReaderChrome _chromeFlag;
+
+  void _setChrome(bool on) {
+    if (_chrome == on) return;
+    setState(() => _chrome = on);
+    _chromeFlag.set(on);
+  }
+
   /// The scene and on/off state the sound was last set for.
   (Vibe, bool)? _soundFor;
 
@@ -91,6 +115,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   @override
   void initState() {
     super.initState();
+    _chromeFlag = ref.read(readerChromeProvider.notifier);
     WidgetsBinding.instance.addObserver(this);
     _habit = ref.read(habitProvider.notifier);
     _sound = ref.read(sceneSoundProvider.notifier);
@@ -105,7 +130,28 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       on ? unawaited(_sound.play(scene)) : unawaited(_sound.stop());
+      if (!_visible) unawaited(_sound.pause());
     });
+  }
+
+  /// The Reading tab is on screen (another tab hides it but keeps it alive).
+  bool _visible = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible == _visible) return;
+    _visible = visible;
+    if (!visible) {
+      // Leaving the tab: no sound or voice in other tabs; count this reel.
+      unawaited(_sound.pause());
+      if (_tts) _toggleTts();
+      _recordCurrent();
+    } else {
+      _shownAt = DateTime.now();
+      unawaited(_sound.resume());
+    }
   }
 
   /// The scene behind the card on screen: the AI's choice for this part of
@@ -133,6 +179,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
 
   @override
   void dispose() {
+    // The tab bar shows again once the reader is gone.
+    final flag = _chromeFlag;
+    Future.microtask(() => flag.set(false));
     // Providers can't be modified while the tree is being torn down, so the
     // last card's reading time is recorded right after.
     _recordCurrent(deferred: true);
@@ -154,7 +203,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       if (!habit.today(DateTime.now()).meets(ref.read(settingsProvider).goal)) {
         ReminderService.instance.scheduleStreakNudge(streak: notifier.displayStreak(), freezesLeft: notifier.freezesLeft());
       }
-    } else if (state == AppLifecycleState.resumed) {
+    } else if (state == AppLifecycleState.resumed && _visible) {
       _shownAt = DateTime.now();
       unawaited(_sound.resume());
     }
@@ -514,77 +563,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (note != null) ref.read(notebookProvider.notifier).updateHighlight(h.copyWith(note: note));
   }
 
-  Future<void> _highlightSheet(BookContent book, List<String> sids) async {
-    const names = ['Amber', 'Green', 'Blue', 'Pink'];
-    await showKitSheet<void>(
-      _ui,
-      title: 'Highlight & note',
-      subtitle: 'Tap a sentence to highlight it',
-      builder: (context) => Consumer(builder: (context, ref, _) {
-        final kit = Kit.of(context);
-        final notebook = ref.watch(notebookProvider);
-        final colors = ReadingTheme.of(ReadingThemeId.paper).highlights;
-        return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          for (final sid in sids)
-            if (_sentences[sid] != null)
-              Builder(builder: (context) {
-                final h = notebook.highlightFor(widget.bookId, sid);
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: KitPressable(
-                    pressedScale: 0.98,
-                    onTap: () => ref.read(notebookProvider.notifier).toggleHighlight(
-                          bookId: widget.bookId,
-                          bookTitle: book.title,
-                          sid: sid,
-                          text: _sentences[sid]!.sentence.text,
-                        ),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
-                      decoration: BoxDecoration(
-                        color: h == null ? kit.field : Color.alphaBlend(colors[h.color].withValues(alpha: 0.55), kit.sheet),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: kit.stroke),
-                      ),
-                      child: Row(children: [
-                        Expanded(
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(_sentences[sid]!.sentence.text, style: kit.body),
-                            if (h?.note != null && h!.note!.isNotEmpty)
-                              Padding(padding: const EdgeInsets.only(top: 6), child: Text('📝 ${h.note}', style: kit.caption)),
-                          ]),
-                        ),
-                        if (h != null)
-                          KitIconButton(
-                            icon: Icons.more_horiz_rounded,
-                            semanticLabel: 'Note or colour',
-                            glass: false,
-                            onPressed: () async {
-                              final v = await showKitActions<String>(context, title: 'Highlight', actions: [
-                                const KitAction('note', 'Add note', icon: Icons.edit_note_rounded),
-                                for (var i = 0; i < highlightColorCount; i++)
-                                  KitAction('$i', names[i],
-                                      leadingColor: colors[i].withValues(alpha: 1), selected: h.color == i),
-                              ]);
-                              if (v == null) return;
-                              if (v == 'note') {
-                                _editNote(h);
-                              } else {
-                                ref.read(notebookProvider.notifier).updateHighlight(h.copyWith(color: int.parse(v)));
-                              }
-                            },
-                          ),
-                      ]),
-                    ),
-                  ),
-                );
-              }),
-        ]);
-      }),
-    );
-  }
-
   Future<void> _openContents(BookContent book) async {
     final current = _feed.isNotEmpty ? _feed[_page].chapterIndex : -1;
     final wpm = ref.read(habitProvider).wpm;
@@ -625,17 +603,46 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (sid != null && mounted) _pager?.jumpToPage(feedIndexForSid(_feed, sid));
   }
 
-  void _more(BookContent book, AppSettings s, ReadingTheme theme) async {
-    final choice = await showKitActions<String>(_ui, title: book.title, subtitle: book.author, actions: const [
-      KitAction('toc', 'Contents', icon: Icons.format_list_bulleted_rounded),
-      KitAction('page', 'Page mode', icon: Icons.chrome_reader_mode_rounded, subtitle: 'Read the chapter as one page'),
-      KitAction('goal', 'Daily goal', icon: Icons.flag_rounded),
-      KitAction('gestures', 'Gestures', icon: Icons.touch_app_rounded),
-      KitAction('settings', 'Settings', icon: Icons.settings_rounded),
-      KitAction('report', 'This cut feels wrong', icon: Icons.content_cut_rounded),
-    ]);
+  /// Everything else, in one sheet (long press on empty space, or the rail's
+  /// last button): theme, scene sound, contents, page mode, goal, gestures,
+  /// settings, and "this cut feels wrong".
+  Future<void> _options(BookContent book, AppSettings s, ReadingTheme theme) async {
+    final choice = await showKitSheet<String>(
+      _ui,
+      title: book.title,
+      subtitle: book.author,
+      builder: (context) => Consumer(builder: (context, ref, _) {
+        final s = ref.watch(settingsProvider);
+        final scene = _sceneFor(s);
+        final style = vibeStyles[scene]!;
+        final auto = s.autoScene && s.tier.paid && s.vibe != Vibe.paper;
+        void pick(String v) => Navigator.of(context).pop(v);
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          KitGroup(children: [
+            KitRow(emoji: auto ? '✨' : style.emoji, title: 'Theme', value: auto ? 'Auto' : style.label, onTap: () => pick('theme')),
+            KitSwitchRow(
+              icon: s.sceneSound ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+              title: 'Scene sound',
+              subtitle: sceneSoundLabels[scene],
+              value: s.sceneSound,
+              onChanged: (_) => _toggleSound(scene),
+            ),
+            KitRow(icon: Icons.format_list_bulleted_rounded, title: 'Contents', onTap: () => pick('toc')),
+            KitRow(icon: Icons.chrome_reader_mode_rounded, title: 'Page mode', subtitle: 'Read the chapter as one page', onTap: () => pick('page')),
+            KitRow(icon: Icons.flag_rounded, title: 'Daily goal', onTap: () => pick('goal')),
+            KitRow(icon: Icons.touch_app_rounded, title: 'Gestures', onTap: () => pick('gestures')),
+            KitRow(icon: Icons.settings_rounded, title: 'Settings', onTap: () => pick('settings')),
+          ]),
+          KitGroup(divided: true, children: [
+            KitRow(icon: Icons.content_cut_rounded, title: 'This cut feels wrong', chevron: false, onTap: () => pick('report')),
+          ]),
+        ]);
+      }),
+    );
     if (!mounted) return;
     switch (choice) {
+      case 'theme':
+        _pickVibe();
       case 'toc':
         _openContents(book);
       case 'page':
@@ -649,6 +656,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       case 'report':
         showKitToast(_ui, 'Thanks! Reports like this help us cut cards better.', emoji: '✂️');
     }
+  }
+
+  /// The note box: an empty page for your own thoughts on this reel, kept in
+  /// the Notebook with the passage it was written on.
+  Future<void> _writeThought(BookContent book, FeedItem item) async {
+    final text = await showKitPrompt(_ui, title: 'Your thoughts', hint: 'What does this make you think?', maxLines: 6);
+    if (text == null || text.trim().isEmpty || !mounted) return;
+    ref.read(notebookProvider.notifier).addReflection(
+          bookTitle: book.title,
+          chapterTitle: book.chapters[item.chapterIndex].title,
+          text: text,
+          quote: _reelText(item),
+        );
+    showKitToast(_ui, 'Saved to your Notebook', emoji: '📝');
   }
 
   // ---------------------------------------------------------------- build
@@ -736,8 +757,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final goal = s.goal;
     final padding = MediaQuery.paddingOf(context);
     final scene = _sceneFor(s);
-    final style = vibeStyles[scene]!;
-    final auto = s.autoScene && s.tier.paid && s.vibe != Vibe.paper;
     final chromeColor = t.text;
     _syncSound(scene, s.sceneSound);
 
@@ -750,51 +769,31 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         onPageChanged: (i) => _onPageChanged(i, book, meta),
         itemBuilder: (context, i) => _buildItem(book, meta, s, t, type, lexicon, notebook, _feed[i], i == _page, padding),
       ),
-      // Segmented goal bar (Stories style): always visible, very thin.
+      // Today's goal as one thin line that fills as you read: always there, never in the way.
       Positioned(
         top: padding.top + 6,
         left: 16,
         right: 16,
-        child: _GoalBar(
-          segments: goal.unit == GoalUnit.cards && goal.dailyTarget <= 40 ? goal.dailyTarget : 0,
-          done: goal.unit == GoalUnit.cards ? today.verifiedCards : 0,
-          progress: today.progress(goal),
-          color: t.accent,
-          track: chromeColor.withValues(alpha: 0.25),
-        ),
+        child: _GoalLine(progress: today.progress(goal), color: chromeColor, track: chromeColor.withValues(alpha: 0.22)),
       ),
+      // With the controls: the focus (eye) button and where you are.
       Positioned(
         top: padding.top + 14,
         left: 4,
         right: 4,
-        child: _TopBar(
-          color: chromeColor,
-          accent: t.accent,
-          // Frosted pills on bright scenes, tinted ones elsewhere.
-          pill: t.isDark
-              ? (t.onScene ? const Color(0x33000000) : const Color(0x1FFFFFFF))
-              : (t.onScene ? const Color(0x80FFFFFF) : const Color(0x14000000)),
-          shadows: t.textShadows,
-          streak: ref.read(habitProvider.notifier).displayStreak(),
-          goalLabel: goal.unit == GoalUnit.cards
-              ? '${today.verifiedCards}/${goal.dailyTarget}'
-              : '${today.minutes.floor()}/${goal.dailyTarget} min',
-          goalDone: today.meets(goal),
-          vibeEmoji: auto ? '✨' : style.emoji,
-          soundOn: s.sceneSound,
-          soundLabel: sceneSoundLabels[scene] ?? '',
-          onSound: () => _toggleSound(scene),
-          onStreak: () => showStreakSheet(_ui),
-          onGoal: () => showGoalSheet(_ui),
-          onClose: () => context.canPop() ? context.pop() : context.go('/library'),
-          onVibe: _pickVibe,
-          onMore: () => _more(book, s, t),
+        child: FadeChrome(
+          visible: _chrome,
+          child: _TopBar(
+            color: chromeColor,
+            shadows: t.textShadows,
+            title: _feed.isEmpty ? book.title : book.chapters[_feed[_page.clamp(0, _feed.length - 1)].chapterIndex].title,
+            onFocus: () => _setChrome(false),
+          ),
         ),
       ),
       if (!s.gestureTutorialSeen && _feed.isNotEmpty)
         Positioned.fill(
           child: _GestureGuide(
-            accent: t.accent,
             onDone: () => ref.read(settingsProvider.notifier).update((x) => x.copyWith(gestureTutorialSeen: true)),
           ),
         ),
@@ -824,6 +823,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
 
   Widget _buildItem(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, BookType type, Lexicon lexicon,
       NotebookState notebook, FeedItem item, bool active, EdgeInsets padding) {
+    final card = _card(book, meta, s, t, type, lexicon, notebook, item, active, padding);
+    if (item.kind == CardKind.text) return card;
+    // Chapter, recap, quiz and other cards: the same empty-space gestures.
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => _setChrome(true),
+      onLongPress: () => _options(book, s, t),
+      child: card,
+    );
+  }
+
+  Widget _card(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, BookType type, Lexicon lexicon,
+      NotebookState notebook, FeedItem item, bool active, EdgeInsets padding) {
+    final today = ref.read(habitProvider).today(DateTime.now());
     switch (item.kind) {
       case CardKind.text:
         final card = item.card!;
@@ -854,7 +867,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           onRemoveHighlight: (id) => ref.read(notebookProvider.notifier).removeHighlight(id),
           onNoteHighlight: _editNote,
           onSelecting: _setSelecting,
-          onLongPressWord: (word, sentence) {
+          chrome: _chrome,
+          streak: ref.read(habitProvider.notifier).displayStreak(),
+          goalLabel: s.goal.unit == GoalUnit.cards
+              ? '${today.verifiedCards}/${s.goal.dailyTarget}'
+              : '${today.minutes.floor()}/${s.goal.dailyTarget}m',
+          goalDone: today.meets(s.goal),
+          onStreak: () => showStreakSheet(_ui),
+          onGoal: () => showGoalSheet(_ui),
+          onOptions: () => _options(book, s, t),
+          onTapEmpty: () => _setChrome(true),
+          // In the Reading tab the tab bar shows with the controls: keep the rail above it.
+          railLift: widget.embedded && _chrome ? KitNavBar.reservedHeight - 10 : 0,
+          onLongPressEmpty: () => _options(book, s, t),
+          onTapWord: (word, sentence) {
             final meaning = card.hardWords
                 .where((h) => h.word.toLowerCase() == word.toLowerCase() && h.meaning != null)
                 .map((h) => h.meaning)
@@ -877,7 +903,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           onLike: () => ref.read(notebookProvider.notifier).toggleLike(widget.bookId, item.anchorSid!),
           onSave: () => _toggleSave(book, item),
           onShare: () => _share(book, meta, item),
-          onNote: () => _highlightSheet(book, item.shownSids),
+          onNote: () => _writeThought(book, item),
           onListen: _toggleTts,
           onOverscroll: (dir) {
             if (dir > 0) {
@@ -955,158 +981,73 @@ class _ReelPagePhysics extends PageScrollPhysics {
   double get dragStartDistanceMotionThreshold => 6;
 }
 
-class _GoalBar extends StatelessWidget {
-  const _GoalBar({required this.segments, required this.done, required this.progress, required this.color, required this.track});
+/// Today's goal as one continuous line that fills as you read.
+class _GoalLine extends StatelessWidget {
+  const _GoalLine({required this.progress, required this.color, required this.track});
 
-  final int segments;
-  final int done;
   final double progress;
   final Color color;
   final Color track;
 
   @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Today\'s goal ${(progress * 100).round()} percent',
-      child: SizedBox(
-        height: 3,
-        child: segments == 0
-            ? KitProgress(value: progress, height: 3, color: color, track: track)
-            : Row(children: [
-                for (var i = 0; i < segments; i++) ...[
-                  if (i > 0) const SizedBox(width: 2),
-                  Expanded(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      decoration: BoxDecoration(color: i < done ? color : track, borderRadius: BorderRadius.circular(2)),
-                    ),
-                  ),
-                ],
-              ]),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Semantics(
+        label: 'Today\'s goal ${(progress * 100).round()} percent',
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: progress.clamp(0.0, 1.0)),
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutCubic,
+          builder: (context, v, _) => KitProgress(value: v, height: 2.5, color: color, track: track),
+        ),
+      );
 }
 
-/// Top bar: close · streak flame · today's goal · scene sound · vibe switcher · menu.
-/// The flame opens the streak, the flag opens today's goal.
+/// With the controls showing: the focus (eye) button, which hides them all
+/// again, and the chapter you're in. (No close button: switch tabs to leave.)
 class _TopBar extends StatelessWidget {
-  const _TopBar({
-    required this.color,
-    required this.accent,
-    required this.pill,
-    required this.shadows,
-    required this.streak,
-    required this.goalLabel,
-    required this.goalDone,
-    required this.vibeEmoji,
-    required this.soundOn,
-    required this.soundLabel,
-    required this.onSound,
-    required this.onStreak,
-    required this.onGoal,
-    required this.onClose,
-    required this.onVibe,
-    required this.onMore,
-  });
+  const _TopBar({required this.color, required this.shadows, required this.title, required this.onFocus});
 
   final Color color;
-  final Color accent;
-
-  /// Background of the streak and goal pills.
-  final Color pill;
-
-  /// Soft shadows that lift icons off a scene (null on paper).
   final List<Shadow>? shadows;
-  final int streak;
-  final String goalLabel;
-  final bool goalDone;
-  final String vibeEmoji;
-  /// The scene's ambient sound is on.
-  final bool soundOn;
-  final String soundLabel;
-  final VoidCallback onSound;
-  final VoidCallback onStreak;
-  final VoidCallback onGoal;
-  final VoidCallback onClose;
-  final VoidCallback onVibe;
-  final VoidCallback onMore;
+  final String title;
+  final VoidCallback onFocus;
 
   @override
-  Widget build(BuildContext context) {
-    final shadow = shadows;
-    Widget pill({required Widget child, required VoidCallback onTap, required String semantic}) => KitPressable(
-          onTap: onTap,
-          haptic: true,
-          semanticLabel: semantic,
-          excludeSemantics: true,
-          pressedScale: 0.9,
-          // A 48 dp target around the slim pill.
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(color: this.pill, borderRadius: BorderRadius.circular(20)),
-              child: child,
-            ),
-          ),
-        );
-    Widget icon(IconData i, String semantic, VoidCallback onTap) =>
-        KitIconButton(icon: i, semanticLabel: semantic, onPressed: onTap, glass: false, color: color, shadows: shadow, iconSize: 24);
-    return Row(children: [
-      icon(Icons.close_rounded, 'Close', onClose),
-      const Spacer(),
-      pill(
-        onTap: onStreak,
-        semantic: '$streak day streak. Open streak',
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.local_fire_department_rounded, size: 18, color: streak > 0 ? accent : color.withValues(alpha: 0.6)),
-          const SizedBox(width: 4),
-          Text('$streak', style: TextStyle(color: color, fontWeight: FontWeight.w800)),
-        ]),
-      ),
-      const SizedBox(width: 6),
-      pill(
-        onTap: onGoal,
-        semantic: 'Today\'s goal $goalLabel${goalDone ? ', done' : ''}. Open goal',
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(goalDone ? Icons.check_circle_rounded : Icons.flag_rounded, size: 16, color: goalDone ? accent : color),
-          const SizedBox(width: 4),
-          Text(goalLabel, style: TextStyle(color: color, fontWeight: FontWeight.w800)),
-        ]),
-      ),
-      const Spacer(),
-      icon(soundOn ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-          soundOn ? 'Mute scene sound ($soundLabel)' : 'Play scene sound ($soundLabel)', onSound),
-      KitIconButton(
-        icon: Icons.landscape_rounded,
-        semanticLabel: 'Change vibe',
-        onPressed: onVibe,
-        glass: false,
-        child: Text(vibeEmoji, style: const TextStyle(fontSize: 20)),
-      ),
-      icon(Icons.more_horiz_rounded, 'More', onMore),
-    ]);
-  }
+  Widget build(BuildContext context) => Row(children: [
+        KitIconButton(
+          icon: Icons.visibility_outlined,
+          semanticLabel: 'Focus: hide the controls',
+          onPressed: onFocus,
+          glass: false,
+          color: color,
+          shadows: shadows,
+          iconSize: 25,
+        ),
+        const SizedBox(width: 2),
+        Expanded(
+          child: Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 15, shadows: shadows)),
+        ),
+      ]);
 }
 
 /// One-time overlay that teaches the gestures (can be reopened from ⋯).
 class _GestureGuide extends StatelessWidget {
-  const _GestureGuide({required this.accent, required this.onDone});
-  final Color accent;
+  const _GestureGuide({required this.onDone});
   final VoidCallback onDone;
 
   @override
   Widget build(BuildContext context) {
     const rows = [
-      (Icons.swipe_up_outlined, 'Swipe up', 'Next card'),
+      (Icons.swipe_up_outlined, 'Swipe up', 'Next reel'),
+      (Icons.translate, 'Tap a word', 'Its meaning'),
+      (Icons.touch_app_outlined, 'Tap empty space', 'Show the buttons (the eye hides them)'),
+      (Icons.border_color_rounded, 'Long-press a word', 'Highlight it, then drag the handles'),
+      (Icons.more_horiz_rounded, 'Long-press empty space', 'Theme, sound, contents and more'),
       (Icons.favorite, 'Double-tap', 'Like'),
-      (Icons.touch_app_outlined, 'Tap a sentence', 'Highlight it'),
       (Icons.swipe_left_outlined, 'Swipe left', 'Save'),
       (Icons.swipe_right_outlined, 'Swipe right', 'Share'),
-      (Icons.translate, 'Long-press a word', 'See its meaning'),
-      (Icons.volume_up_rounded, 'Speaker', 'Mute the scene sound to play your own music'),
-      (Icons.local_fire_department_rounded, 'Flame and flag', 'Your streak and today’s goal'),
     ];
     return GestureDetector(
       onTap: onDone,
@@ -1125,7 +1066,7 @@ class _GestureGuide extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(children: [
-                  KitBubble(icon: r.$1, color: accent, size: 44),
+                  KitBubble(icon: r.$1, color: Colors.white, size: 36),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Text.rich(TextSpan(children: [

@@ -59,13 +59,23 @@ class PostCard extends StatefulWidget {
     required this.onRemoveHighlight,
     required this.onNoteHighlight,
     required this.onSelecting,
-    required this.onLongPressWord,
+    required this.onTapWord,
     required this.onLike,
     required this.onSave,
     required this.onShare,
     required this.onNote,
     required this.onListen,
     required this.onOverscroll,
+    this.chrome = true,
+    this.streak = 0,
+    this.goalLabel = '',
+    this.goalDone = false,
+    this.onStreak,
+    this.onGoal,
+    this.onOptions,
+    this.onTapEmpty,
+    this.onLongPressEmpty,
+    this.railLift = 0,
     this.spotlight = false,
     this.lines,
     this.coverPath,
@@ -108,7 +118,29 @@ class PostCard extends StatefulWidget {
 
   /// A highlight is being adjusted (the reader holds the page still).
   final void Function(bool active) onSelecting;
-  final void Function(String word, Sentence sentence) onLongPressWord;
+
+  /// A tap on a word: its meaning.
+  final void Function(String word, Sentence sentence) onTapWord;
+
+  /// The controls (rail, book row) are showing; off in focus mode.
+  final bool chrome;
+  final int streak;
+  final String goalLabel;
+  final bool goalDone;
+  final VoidCallback? onStreak;
+  final VoidCallback? onGoal;
+
+  /// The options sheet (the rail's last button).
+  final VoidCallback? onOptions;
+
+  /// A tap on empty space (shows the controls).
+  final VoidCallback? onTapEmpty;
+
+  /// A long press on empty space (the options sheet).
+  final VoidCallback? onLongPressEmpty;
+
+  /// Extra room under the rail (the tab bar is showing).
+  final double railLift;
   final VoidCallback onLike;
   final VoidCallback onSave;
   final VoidCallback onShare;
@@ -225,26 +257,39 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
 
   // ------------------------------------------------------------- gestures
 
-  /// Tap on text: highlight its sentence and show handles to adjust it, or
-  /// pick up an existing highlight. While adjusting, a tap elsewhere is done.
+  static final _wordRe = RegExp(r"[A-Za-z][A-Za-z'’\-]*[A-Za-z]|[A-Za-z]");
+
+  /// The word at a point of the text: (sentence, start, end), or null.
+  (Sentence, int, int)? _wordAt(Offset global) {
+    final hit = _textKey.currentState?.hitTest(global);
+    if (hit == null) return null;
+    final sentence = _sentence(hit.piece.sid);
+    if (sentence == null || sentence.text == sceneBreakMarker) return null;
+    final at = (hit.piece.start + hit.offset).clamp(0, sentence.text.length);
+    for (final m in _wordRe.allMatches(sentence.text)) {
+      if (at >= m.start && at <= m.end) return (sentence, m.start, m.end);
+    }
+    return null;
+  }
+
+  /// Tap on a word: its meaning. Tap on empty space: the controls. While a
+  /// highlight is adjusted, a tap outside it finishes it.
   void _onTapUp(TapUpDetails d) {
-    final hit = _textKey.currentState?.hitTest(d.globalPosition);
     final edit = _edit;
     if (edit != null) {
+      final hit = _textKey.currentState?.hitTest(d.globalPosition);
       if (hit != null && _covers(edit, hit.piece.sid, hit.piece.start + hit.offset)) return;
       _commit();
       return;
     }
-    if (hit == null) return;
-    final sentence = _sentence(hit.piece.sid);
-    if (sentence == null || sentence.text == sceneBreakMarker) return;
+    final word = _wordAt(d.globalPosition);
+    if (word == null) {
+      widget.onTapEmpty?.call();
+      return;
+    }
+    final (sentence, from, to) = word;
     HapticFeedback.selectionClick();
-    final at = hit.piece.start + hit.offset;
-    final existing = widget.highlightsIn(sentence.id).where((h) => _covers(h, sentence.id, at)).firstOrNull;
-    final fresh = existing == null;
-    setState(() => _edit = existing ?? widget.onCreateHighlight(sentence));
-    widget.onSelecting(true);
-    if (fresh) _flash.forward(from: 0);
+    widget.onTapWord(sentence.text.substring(from, to), sentence);
   }
 
   int _length(String sid) => _sentence(sid)?.text.length ?? 0;
@@ -484,19 +529,32 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
     setState(() => _bursts.add(burst));
   }
 
+  /// Long press on a word: the highlighter starts on it (drag the handles to
+  /// extend it), or picks up the highlight already there. On empty space:
+  /// the options.
   void _onLongPress(LongPressStartDetails d) {
-    final hit = _textKey.currentState?.hitTest(d.globalPosition);
-    if (hit == null) return;
-    final sentence = _sentence(hit.piece.sid);
-    if (sentence == null) return;
-    final local = (hit.piece.start + hit.offset).clamp(0, sentence.text.length);
-    for (final m in RegExp(r"[A-Za-z][A-Za-z'’\-]*[A-Za-z]|[A-Za-z]").allMatches(sentence.text)) {
-      if (local >= m.start && local <= m.end) {
-        HapticFeedback.selectionClick();
-        widget.onLongPressWord(m.group(0)!, sentence);
-        return;
-      }
+    final word = _wordAt(d.globalPosition);
+    if (word == null) {
+      HapticFeedback.mediumImpact();
+      widget.onLongPressEmpty?.call();
+      return;
     }
+    final (sentence, from, to) = word;
+    HapticFeedback.selectionClick();
+    final existing = widget.highlightsIn(sentence.id).where((h) => _covers(h, sentence.id, from)).firstOrNull;
+    final Highlight edit;
+    if (existing != null) {
+      edit = existing;
+    } else {
+      final whole = widget.onCreateHighlight(sentence);
+      final one = whole.withRange(sid: sentence.id, endSid: sentence.id, start: from, end: to, text: whole.text);
+      edit = one.copyWith(text: sentence.text.substring(from, to));
+      // Saved as just the word straight away (handles then extend it).
+      widget.onSaveHighlight(edit, const {});
+    }
+    setState(() => _edit = edit);
+    widget.onSelecting(true);
+    if (existing == null) _flash.forward(from: 0);
   }
 
   static const _swipeTrigger = 72.0;
@@ -623,12 +681,14 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
             ),
           ),
         ),
-        // Book row (bottom-left, like the account line on a reel).
+        // Book row (bottom-left, like the account line on a reel): only with the controls.
         Positioned(
           left: leftHanded ? railWidth : 16,
           right: leftHanded ? 16 : railWidth,
-          bottom: padding.bottom + 22,
-          child: _BookRow(
+          bottom: padding.bottom + 22 + widget.railLift,
+          child: FadeChrome(
+            visible: widget.chrome,
+            child: _BookRow(
             title: widget.bookTitle,
             subtitle: '${widget.chapterTitle} · ${widget.position}',
             coverPath: widget.coverPath,
@@ -636,20 +696,29 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
             accent: t.accent,
             shadows: t.textShadows,
           ),
+          ),
         ),
-        // Action rail (bottom-right; mirrored for left-handed readers).
+        // Action rail (bottom-right; mirrored for left-handed readers): only with the controls.
         Positioned(
           right: leftHanded ? null : 4,
           left: leftHanded ? 4 : null,
-          bottom: padding.bottom + 16,
+          bottom: padding.bottom + 16 + widget.railLift,
           width: railWidth - 8,
-          child: _ActionRail(
+          child: FadeChrome(
+            visible: widget.chrome,
+            child: _ActionRail(
             ink: t.text,
             accent: t.accent,
             shadows: t.textShadows,
             liked: widget.liked,
             saved: widget.saved,
             listening: widget.listening,
+            streak: widget.streak,
+            goalLabel: widget.goalLabel,
+            goalDone: widget.goalDone,
+            onStreak: widget.onStreak,
+            onGoal: widget.onGoal,
+            onOptions: widget.onOptions,
             onLike: () {
               HapticFeedback.lightImpact();
               widget.onLike();
@@ -661,6 +730,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
             onNote: widget.onNote,
             onShare: widget.onShare,
             onListen: widget.onListen,
+          ),
           ),
         ),
         for (final b in _bursts) _HeartBurstView(burst: b, color: ember),
@@ -877,7 +947,10 @@ class _ReelTextState extends State<ReelText> {
       final style = styleFor(a, b);
       out.add(TextSpan(
         text: text.substring(a, b),
-        style: bg == null ? style : (style ?? const TextStyle()).copyWith(backgroundColor: bg),
+        // Highlighted words in the opposite shade, without the scene's glow.
+        style: bg == null
+            ? style
+            : (style ?? const TextStyle()).copyWith(backgroundColor: bg, color: widget.theme.highlightInk, shadows: const []),
       ));
     }
     return out;
@@ -1164,6 +1237,23 @@ class _ReelTextState extends State<ReelText> {
   }
 }
 
+/// Controls that fade out in focus mode (and stop taking taps).
+class FadeChrome extends StatelessWidget {
+  const FadeChrome({super.key, required this.visible, required this.child});
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        ignoring: !visible,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 220),
+          child: ExcludeSemantics(excluding: !visible, child: child),
+        ),
+      );
+}
+
 class _BookRow extends StatelessWidget {
   const _BookRow({
     required this.title,
@@ -1228,6 +1318,12 @@ class _ActionRail extends StatelessWidget {
     required this.onNote,
     required this.onShare,
     required this.onListen,
+    this.streak = 0,
+    this.goalLabel = '',
+    this.goalDone = false,
+    this.onStreak,
+    this.onGoal,
+    this.onOptions,
   });
 
   final Color ink;
@@ -1241,6 +1337,12 @@ class _ActionRail extends StatelessWidget {
   final VoidCallback onNote;
   final VoidCallback onShare;
   final VoidCallback onListen;
+  final int streak;
+  final String goalLabel;
+  final bool goalDone;
+  final VoidCallback? onStreak;
+  final VoidCallback? onGoal;
+  final VoidCallback? onOptions;
 
   @override
   Widget build(BuildContext context) {
@@ -1258,7 +1360,7 @@ class _ActionRail extends StatelessWidget {
           color: liked ? ember : null, active: liked),
       b(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, saved ? 'Saved' : 'Save', saved ? 'Saved' : 'Save', onSave,
           color: saved ? accent : null, active: saved),
-      b(Icons.edit_note_rounded, 'Note', 'Highlight & note', onNote),
+      b(Icons.edit_note_rounded, 'Note', 'Write a note', onNote),
       // The reels-style share arrow (curving up and to the right).
       _RailButton(
         icon: ShareArrowIcon(size: 33, color: ink, shadows: shadows),
@@ -1271,6 +1373,26 @@ class _ActionRail extends StatelessWidget {
       b(listening ? Icons.stop_circle_outlined : Icons.headphones_rounded, listening ? 'Stop' : 'Listen',
           listening ? 'Stop reading aloud' : 'Read aloud', onListen,
           color: listening ? accent : null, active: listening),
+      // The streak (the flame is the one coloured thing) and today's goal.
+      if (onStreak != null)
+        _RailButton(
+          icon: Icon(Icons.local_fire_department_rounded, size: 29, color: streak > 0 ? ember : ink, shadows: shadows),
+          label: '$streak',
+          semanticLabel: '$streak day streak. Open streak',
+          color: ink,
+          shadows: shadows,
+          onTap: onStreak!,
+        ),
+      if (onGoal != null)
+        _RailButton(
+          icon: Icon(goalDone ? Icons.check_circle_rounded : Icons.flag_rounded, size: 27, color: ink, shadows: shadows),
+          label: goalLabel,
+          semanticLabel: 'Today\'s goal $goalLabel${goalDone ? ', done' : ''}. Open goal',
+          color: ink,
+          shadows: shadows,
+          onTap: onGoal!,
+        ),
+      if (onOptions != null) b(Icons.more_horiz_rounded, 'More', 'Options', onOptions!),
     ]);
   }
 }
@@ -1304,7 +1426,7 @@ class _RailButton extends StatelessWidget {
       excludeSemantics: true,
       pressedScale: 0.86,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 7),
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           TweenAnimationBuilder<double>(
             key: ValueKey(active),

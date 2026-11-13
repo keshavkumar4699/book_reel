@@ -27,9 +27,11 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
     Color? accent,
     this.scrim,
     this.textShadows,
+    Color? highlightInk,
   })  : emphasis = emphasis ?? text,
         spot = spot ?? text,
-        accent = accent ?? text;
+        accent = accent ?? text,
+        highlightInk = highlightInk ?? background;
 
   final Color background;
   final Color text;
@@ -57,11 +59,18 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
   /// Soft shadows that lift text off the scene (null on paper).
   final List<Shadow>? textShadows;
 
+  /// Text on a highlight: the opposite shade of the [highlights] fills.
+  final Color highlightInk;
+
   /// True when the reading surface is a scene rather than plain paper.
   bool get onScene => scrim != null;
 
-  static ReadingTheme of(ReadingThemeId id) => switch (id) {
-        ReadingThemeId.paper => const ReadingTheme(
+  static ReadingTheme of(ReadingThemeId id) => _themes[id]!;
+
+  static final _themes = {for (final id in ReadingThemeId.values) id: _build(id)};
+
+  static ReadingTheme _build(ReadingThemeId id) => switch (id) {
+        ReadingThemeId.paper => ReadingTheme(
             background: Color(0xFFFBF8F1),
             text: Color(0xFF1F1D1A),
             muted: Color(0xFF6E685E),
@@ -72,7 +81,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             emphasis: Color(0xFF8A4B12),
             accent: Color(0xFF1F1D1A),
           ),
-        ReadingThemeId.white => const ReadingTheme(
+        ReadingThemeId.white => ReadingTheme(
             background: Color(0xFFFFFFFF),
             text: Color(0xFF1A1A1A),
             muted: Color(0xFF6B6B6B),
@@ -83,7 +92,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             emphasis: Color(0xFF8A4B12),
             accent: Color(0xFF1A1A1A),
           ),
-        ReadingThemeId.sepia => const ReadingTheme(
+        ReadingThemeId.sepia => ReadingTheme(
             background: Color(0xFFF1E7D0),
             text: Color(0xFF3B2F22),
             muted: Color(0xFF6E5D49),
@@ -94,7 +103,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             emphasis: Color(0xFF773D0B),
             accent: Color(0xFF3B2F22),
           ),
-        ReadingThemeId.dark => const ReadingTheme(
+        ReadingThemeId.dark => ReadingTheme(
             background: Color(0xFF141414),
             text: Color(0xFFE6E1D6),
             muted: Color(0xFF9A948A),
@@ -105,7 +114,7 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
             emphasis: Color(0xFFE9BC72),
             accent: Color(0xFFE6E1D6),
           ),
-        ReadingThemeId.black => const ReadingTheme(
+        ReadingThemeId.black => ReadingTheme(
             background: Color(0xFF000000),
             text: Color(0xFFDCD7CC),
             muted: Color(0xFF8E897F),
@@ -118,14 +127,28 @@ class ReadingTheme extends ThemeExtension<ReadingTheme> {
           ),
       };
 
-  static const _lightHighlights = [Color(0x40F2B84B), Color(0x4067C587), Color(0x405B9BE6), Color(0x40E87AA4)];
-  static const _darkHighlights = [Color(0x40F2B84B), Color(0x4067C587), Color(0x405B9BE6), Color(0x40E87AA4)];
+  // Deep fills with light text on light pages; light fills with dark text on dark ones.
+  static final _lightHighlights = highlightFills(darkSurface: false, family: const Color(0xFFF2B84B));
+  static final _darkHighlights = highlightFills(darkSurface: true, family: const Color(0xFFF2B84B));
 
   @override
   ReadingTheme copyWith() => this;
 
   @override
   ReadingTheme lerp(ThemeExtension<ReadingTheme>? other, double t) => t < 0.5 ? this : (other as ReadingTheme? ?? this);
+}
+
+/// Four highlight colours that suit a reading surface, the first in its own
+/// colour [family]: light tints on dark surfaces (read with dark text), deep
+/// tones on light ones (read with light text), so highlighted words stay
+/// clearly readable.
+List<Color> highlightFills({required bool darkSurface, required Color family}) {
+  const hues = [Color(0xFFF2B84B), Color(0xFF67C587), Color(0xFF5B9BE6), Color(0xFFE87AA4)];
+  return [
+    for (final (i, hue) in hues.indexed)
+      Color.lerp(i == 0 ? family : Color.lerp(hue, family, 0.25)!, darkSurface ? const Color(0xFFFFFFFF) : const Color(0xFF000000),
+          darkSurface ? 0.45 : 0.55)!,
+  ];
 }
 
 /// The effective reading theme: dark when the system is dark (unless the user

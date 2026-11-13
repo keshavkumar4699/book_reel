@@ -1,6 +1,6 @@
 # Cloro redesign — implementation plan
 
-Status: **in progress** (Nov 2026): steps 1, 1b, 2 and 3 done. Phase 10 of `IMPLEMENTATION_PLAN.md`.
+Status: **in progress** (Nov 2026): steps 1, 1b, 2, 3 and 4 done. Phase 10 of `IMPLEMENTATION_PLAN.md`.
 Source: the product owner's change list of 13 Nov 2026. Each item below says what changes, where in the code, and how we know it's done.
 
 ## 0. Before we start (needs you)
@@ -212,7 +212,7 @@ A scrolling feed of reading activities, newest first:
 | 1b | Black/white tints and flat lists (§3, revised) | M — ✅ done |
 | 2 | Logo, icon, splash (§2) | S — ✅ done |
 | 3 | Open at the introduction (§7) | M — ✅ done |
-| 4 | Reading tab + reel overhaul (focus mode, gestures, buttons, note box, progress line) + tab dock (§6, §9) | L |
+| 4 | Reading tab + reel overhaul (focus mode, gestures, buttons, note box, progress line) + tab dock (§6, §9) | L — ✅ done (Friends opens from Profile/Today until steps 7–8) |
 | 5 | Save/share swipe animation (§6) | M |
 | 6 | Light/dark scenes (§5), mood learning + Gemma suggestion (§8) | L |
 | 7 | Profile redesign + followers/following (§11) | L |

@@ -84,40 +84,36 @@ void main() {
     expect(find.text('Read like you scroll'), findsNothing);
     expect(container.read(settingsProvider).gestureTutorialSeen, isTrue);
 
-    // The speaker mutes the scene sound (to play your own music) and brings it back.
-    await tester.tap(find.bySemanticsLabel('Mute scene sound (Wind in the pines, birds and crickets)'));
+    // Focus mode: a book opens with nothing on screen but the reel.
+    expect(find.bySemanticsLabel('Focus: hide the controls'), findsNothing);
+
+    // A long press on empty space opens the options; the scene sound is a switch there.
+    await tester.longPressAt(const Offset(30, 400));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    for (final o in ['Theme', 'Scene sound', 'Contents', 'Page mode', 'Daily goal', 'Gestures', 'Settings', 'This cut feels wrong']) {
+      expect(find.text(o), findsOneWidget, reason: o);
+    }
+    await tester.tap(find.text('Scene sound'));
     await tester.pump();
     await tester.pump();
     expect(container.read(settingsProvider).sceneSound, isFalse);
     expect(sounds.where((x) => x == 'released'), hasLength(3));
-    expect(find.text('Scene sound off. Play your own music if you like.'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('Play scene sound (Wind in the pines, birds and crickets)'));
+    await tester.tap(find.text('Scene sound'));
     await tester.pump();
     await tester.pump();
     expect(container.read(settingsProvider).sceneSound, isTrue);
     expect(sounds.where((x) => x.endsWith('.ogg')), hasLength(6));
-    // The toast drops in at the top, times out and leaves on its own.
-    expect(find.text('Wind in the pines, birds and crickets'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pump(const Duration(seconds: 3));
-    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
-    expect(find.text('Wind in the pines, birds and crickets'), findsNothing);
-    expect(find.byType(SnackBar), findsNothing);
-
-    // The flame and flag pills open the streak and today's goal.
-    await tester.tap(find.bySemanticsLabel(RegExp(r'day streak\. Open streak$')));
-    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
-    expect(find.text('Your streak'), findsOneWidget);
     await tester.tapAt(const Offset(20, 20)); // outside the sheet
+    await tester.pump(const Duration(seconds: 4)); // the toasts time out
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
-    expect(find.text('Your streak'), findsNothing);
-    await tester.tap(find.bySemanticsLabel(RegExp(r'^Today.s goal .*Open goal$')));
+    expect(find.text('This cut feels wrong'), findsNothing);
+
+    // A tap on empty space shows the controls; they stay until the eye hides them.
+    await tester.tapAt(const Offset(30, 400));
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
-    expect(find.text('Daily goal'), findsOneWidget);
-    expect(find.text('Days per week'), findsOneWidget);
-    await tester.tapAt(const Offset(20, 20));
-    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
-    expect(find.text('Daily goal'), findsNothing);
+    expect(find.bySemanticsLabel('Focus: hide the controls'), findsOneWidget);
+    expect(container.read(readerChromeProvider), isTrue);
 
     await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
@@ -127,6 +123,44 @@ void main() {
     // The share button is the reels-style arrow, not the system share glyph.
     expect(find.byType(ShareArrowIcon), findsOneWidget);
     expect(find.byIcon(Icons.ios_share), findsNothing);
+
+    // The rail: like, save, note, share, listen, streak, goal, options.
+    expect(find.bySemanticsLabel('Write a note'), findsOneWidget);
+    expect(find.bySemanticsLabel('Options'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel(RegExp(r'day streak\. Open streak$')));
+    // Buttons on a reel answer after the double-tap window.
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(find.text('Your streak'), findsOneWidget);
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    await tester.tap(find.bySemanticsLabel(RegExp(r'^Today.s goal .*Open goal$')));
+    // Buttons on a reel answer after the double-tap window.
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(find.text('Days per week'), findsOneWidget);
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+
+    // The note box opens empty, for your own thoughts; they go to the Notebook.
+    await tester.tap(find.bySemanticsLabel('Write a note'));
+    // Buttons on a reel answer after the double-tap window.
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(find.text('Your thoughts'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'Curiosity starts the whole story.');
+    await tester.tap(find.text('Save').last); // the sheet's button (the rail has a "Save" too)
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    final thought = container.read(notebookProvider).reflections.single;
+    expect(thought.text, 'Curiosity starts the whole story.');
+    expect(thought.quote, contains('Alice was beginning'));
+    await tester.pump(const Duration(seconds: 4));
+
+    // The eye hides everything again.
+await tester.tap(find.bySemanticsLabel('Focus: hide the controls'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(tester.widgetList<FadeChrome>(find.byType(FadeChrome)).every((c) => !c.visible), isTrue, reason: 'rail, book row and top bar hidden');
+    expect(container.read(readerChromeProvider), isFalse);
 
     // Double-tap anywhere on the post likes it.
     final post = find.byType(PostCard);
@@ -148,7 +182,7 @@ void main() {
     await tester.runAsync(() async => dir.deleteSync(recursive: true));
   });
 
-  testWidgets('tapping text highlights it; handles adjust the range word by word', (tester) async {
+  testWidgets('a tap on a word shows its meaning; a long press highlights it and the handles extend it', (tester) async {
     tester.view.physicalSize = const Size(1236, 2745);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -175,12 +209,21 @@ void main() {
     final lines = find.descendant(of: find.byType(ReelText), matching: find.byType(RichText));
     final first = tester.getRect(lines.first);
 
-    // One tap: the sentence is highlighted, with handles and a toolbar.
+    // A tap on a word: its meaning.
     await tester.tapAt(first.topLeft + const Offset(30, 12));
     await tester.pump(const Duration(milliseconds: 400)); // past the double-tap window
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(find.text('Add to word list'), findsOneWidget);
+    expect(container.read(notebookProvider).highlights, isEmpty, reason: 'a tap no longer highlights');
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+
+    // A long press on a word: the highlighter starts on that word, with handles and a toolbar.
+    await tester.longPressAt(first.topLeft + const Offset(30, 12));
     await tester.pump(const Duration(milliseconds: 400));
     final created = container.read(notebookProvider).highlights.single;
-    expect(created.start, isNull, reason: 'a tap highlights the whole sentence first');
+    expect(created.start, 0, reason: 'just the word');
+    expect(created.end, lessThan(15));
     expect(find.bySemanticsLabel('Start of highlight'), findsOneWidget);
     expect(find.bySemanticsLabel('End of highlight'), findsOneWidget);
     expect(find.bySemanticsLabel('Done'), findsOneWidget);
@@ -188,9 +231,9 @@ void main() {
     expect((tester.widget<PageView>(find.byType(PageView)).physics), isA<NeverScrollableScrollPhysics>(),
         reason: 'the reel holds still while the highlight is adjusted');
 
-    // Drag the end handle back to the first line: the highlight shrinks to whole words.
+    // Drag the end handle along the first line: the highlight grows by whole words.
     final end = tester.getCenter(find.bySemanticsLabel('End of highlight'));
-    final target = first.topLeft + Offset(first.width * 0.45, first.height / 2);
+    final target = first.topLeft + Offset(first.width * 0.7, first.height / 2);
     final gesture = await tester.startGesture(end);
     for (var k = 1; k <= 8; k++) {
       await gesture.moveTo(Offset.lerp(end, target, k / 8)!);
@@ -203,17 +246,15 @@ void main() {
     final saved = container.read(notebookProvider).highlights.single;
     expect(saved.id, created.id);
     expect(saved.start, 0);
-    expect(saved.end, isNotNull);
-    expect(saved.text.length, lessThan(created.text.length));
-    expect(created.text, startsWith(saved.text));
+    expect(saved.end, greaterThan(created.end!));
+    expect(saved.text, startsWith(created.text));
     expect(saved.text, isNot(endsWith(' ')), reason: 'snapped to the end of a word');
     expect(find.bySemanticsLabel('Done'), findsNothing);
     expect((tester.widget<PageView>(find.byType(PageView)).physics), isNot(isA<NeverScrollableScrollPhysics>()));
     expect(page.mounted, isTrue);
 
-    // Tapping the highlight picks it up again; the toolbar removes it.
-    await tester.tapAt(first.topLeft + const Offset(30, 12));
-    await tester.pump(const Duration(milliseconds: 400));
+    // A long press on the highlight picks it up again; the toolbar removes it.
+    await tester.longPressAt(first.topLeft + const Offset(30, 12));
     await tester.pump(const Duration(milliseconds: 400));
     expect(container.read(notebookProvider).highlights, hasLength(1), reason: 'no second highlight');
     await tester.tap(find.bySemanticsLabel('Remove highlight'));
