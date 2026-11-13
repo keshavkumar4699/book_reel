@@ -56,8 +56,10 @@ final deviceIdProvider = Provider<String>((ref) {
   return id;
 });
 
-final aiClientProvider = Provider<AiSegmentationClient>(
-    (ref) => AiSegmentationClient(baseUrl: bookreelApi, deviceId: ref.read(deviceIdProvider)));
+final aiClientProvider = Provider<AiSegmentationClient>((ref) => AiSegmentationClient(
+      baseUrl: ref.watch(settingsProvider.select((s) => s.online)) ? bookreelApi : '',
+      deviceId: ref.watch(deviceIdProvider),
+    ));
 
 /// Just-in-time AI segmentation (DESIGN.md §4.3): the chapter being read and
 /// the next one are requested in real time; failures silently keep rule cards.

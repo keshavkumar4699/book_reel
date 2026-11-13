@@ -121,6 +121,7 @@ class AppSettings {
     this.autoScene = true,
     this.moodScenes = true,
     this.moodAsk = MoodAsk.learning,
+    this.online = true,
   });
 
   final ReadingThemeId theme;
@@ -198,6 +199,11 @@ class AppSettings {
   /// When to ask how you're feeling.
   final MoodAsk moodAsk;
 
+  /// Online features (following, the feed, sync, AI cards, share links).
+  /// Off: everything stays on this phone. Turned off when the account is
+  /// deleted, so nothing is uploaded again until you choose to.
+  final bool online;
+
   GoalConfig get goal => GoalConfig(
         unit: goalUnit,
         dailyTarget: dailyGoal,
@@ -257,6 +263,7 @@ class AppSettings {
     bool? autoScene,
     bool? moodScenes,
     MoodAsk? moodAsk,
+    bool? online,
   }) =>
       AppSettings(
         theme: theme ?? this.theme,
@@ -308,6 +315,7 @@ class AppSettings {
         autoScene: autoScene ?? this.autoScene,
         moodScenes: moodScenes ?? this.moodScenes,
         moodAsk: moodAsk ?? this.moodAsk,
+        online: online ?? this.online,
       );
 
   Map<String, dynamic> toJson() => {
@@ -360,6 +368,7 @@ class AppSettings {
         'autoScene': autoScene,
         'moodScenes': moodScenes,
         'moodAsk': moodAsk.name,
+        'online': online,
         'planVersion': currentPlanVersion,
       };
 
@@ -437,6 +446,7 @@ class AppSettings {
       autoScene: (j['autoScene'] as bool?) ?? d.autoScene,
       moodScenes: (j['moodScenes'] as bool?) ?? d.moodScenes,
       moodAsk: pick(MoodAsk.values, j['moodAsk'], d.moodAsk),
+      online: (j['online'] as bool?) ?? d.online,
     );
   }
 }

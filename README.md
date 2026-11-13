@@ -98,6 +98,7 @@ ANTHROPIC_API_KEY=... npm run dev     # http://localhost:8787
 |---|---|
 | `POST /v1/segment`, `GET /v1/segment/jobs/:id` | AI cards for 1–3 chapters (background chapters use the Batch API) |
 | `GET /v1/me`, `PUT /v1/me/profile`, `GET /v1/me/streak`, `GET /v1/me/ai-usage` | Account, invite code, streak, AI quota |
+| `GET /v1/me/export`, `DELETE /v1/me`, `GET /account/delete` | Download all your data; delete the account and everything tied to it; the deletion help page for Google Play |
 | `POST /v1/activity/batch`, `POST /v1/activity/book-finished` | Reading events, re-verified server-side |
 | `GET /v1/leagues/current`, `GET /v1/leaderboards/friends` | Weekly league and friends board |
 | `POST /v1/social/follow/:userId`, `DELETE /v1/social/follow/:userId`, `POST /v1/social/follow-handle`, `POST /v1/social/follow-code` | Following (one way); an invite code makes both readers follow each other |
@@ -126,6 +127,7 @@ Configuration (all optional locally):
 | `PLAY_SERVICE_ACCOUNT_JSON` | Service-account key with Play Console access, to verify purchases (secret) |
 | `PLAY_RTDN_SECRET` | Secret in the Pub/Sub push URL for Play real-time notifications (secret) |
 | `BILLING_ENFORCED` | `1`: serve the verified plan instead of the one the app asks for |
+| `SUPPORT_EMAIL` | Shown on `/account/delete` for readers who no longer have the app |
 
 Keep keys in your host's secret store (e.g. Cloud Run secrets), never in the repository. What else is needed to launch (Play Console, subscriptions, signing, Firebase) is listed in `docs/IMPLEMENTATION_PLAN.md`, "Launch checklist".
 

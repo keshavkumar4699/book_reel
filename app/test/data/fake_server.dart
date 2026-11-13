@@ -16,6 +16,11 @@ class FakeServer {
   final List<Map<String, dynamic>> shares = [];
   final List<String> kudos = [];
 
+  /// Devices whose account was deleted (DELETE /v1/me); [deleteStatus] other
+  /// than 204 makes it fail.
+  final List<String> deletedAccounts = [];
+  int deleteStatus = 204;
+
   /// The Today feed, newest first (GET /v1/feed pages through it 20 at a time).
   late final List<Map<String, dynamic>> feed = [
     {
@@ -141,6 +146,19 @@ class FakeServer {
           if (takenHandles.contains(b['handle'])) return http.Response('{"error":"handle_taken"}', 409);
           profiles[user] = {...?profiles[user], ...b};
           return ok(profiles[user]!);
+        }
+        if (path == '/v1/me' && req.method == 'DELETE') {
+          if (deleteStatus != 204) return http.Response('{"error":"down"}', deleteStatus);
+          deletedAccounts.add(user);
+          return http.Response('', 204);
+        }
+        if (path == '/v1/me/export') {
+          return ok({
+            'exported_at': DateTime.now().toUtc().toIso8601String(),
+            'user': {'id': 'device:$user', 'display_name': 'Asha', ...?profiles[user]},
+            'following': [for (final id in following) readers[id]],
+            'activities': <Object>[],
+          });
         }
         if (path == '/v1/me') {
           return ok({

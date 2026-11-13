@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/habit/habit_engine.dart';
 import '../../core/segmentation/rule_segmenter.dart';
@@ -9,6 +10,7 @@ import '../../data/ai_client.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../data/api_client.dart';
+import '../../services/account.dart';
 import '../../services/billing.dart';
 import '../../services/mood.dart';
 import '../../services/on_device_ai.dart';
@@ -138,6 +140,14 @@ class SettingsScreen extends ConsumerWidget {
             value: s.hideLeaderboards,
             onChanged: (v) => n.update((x) => x.copyWith(hideLeaderboards: v)),
           ),
+          if (bookreelApi.isNotEmpty)
+            KitSwitchRow(
+              icon: s.online ? Icons.cloud_rounded : Icons.cloud_off_rounded,
+              title: 'Online features',
+              subtitle: s.online ? 'Following, the feed, sync, AI cards and share links' : 'Off: everything stays on this phone',
+              value: s.online,
+              onChanged: (v) => n.update((x) => x.copyWith(online: v)),
+            ),
         ]),
         KitGroup(label: 'You', divided: true, children: [
           KitRow(
@@ -156,6 +166,21 @@ class SettingsScreen extends ConsumerWidget {
             value: s.tier.paid ? '${s.tier.label} · ${s.tier.model}' : 'Free',
             onTap: () => showKitSheet<void>(context, title: 'Plan', subtitle: 'Each plan reads your books with a stronger model', builder: (_) => const PlanPicker()),
           ),
+          KitRow(
+            icon: Icons.download_rounded,
+            title: 'Download my data',
+            subtitle: 'Everything Cloro keeps about you, as one file',
+            chevron: false,
+            onTap: () => _downloadData(context, ref),
+          ),
+          if (ref.watch(apiProvider).enabled)
+            KitRow(
+              icon: Icons.delete_forever_rounded,
+              title: 'Delete account',
+              destructive: true,
+              chevron: false,
+              onTap: () => _deleteAccount(context, ref),
+            ),
         ]),
         KitGroup(label: 'About', divided: true, children: [
           KitRow(
@@ -819,5 +844,41 @@ class _PlanPickerState extends ConsumerState<PlanPicker> {
       const SizedBox(height: 6),
       KitButton.ghost(label: 'Restore purchases', icon: Icons.restore_rounded, onPressed: billing.busy ? null : store.restore),
     ]);
+  }
+}
+
+/// Download my data: a JSON file with what's on this phone and what the
+/// server keeps, handed to the share sheet (save it, email it…).
+Future<void> _downloadData(BuildContext context, WidgetRef ref) async {
+  showKitToast(context, 'Preparing your data…', icon: Icons.download_rounded, duration: const Duration(milliseconds: 1400));
+  try {
+    final file = await ref.read(accountProvider).exportFile();
+    await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: 'application/json')], subject: 'My Cloro data'));
+  } catch (_) {
+    if (context.mounted) showKitToast(context, 'Couldn’t prepare the file. Try again.', icon: Icons.error_outline_rounded);
+  }
+}
+
+/// Delete account: erased from the server at once; this phone keeps its books
+/// and notes, and online features turn off.
+Future<void> _deleteAccount(BuildContext context, WidgetRef ref) async {
+  final ok = await showKitConfirm(
+    context,
+    title: 'Delete your account?',
+    message: 'This erases your profile, followers and following, reading activity, comments, kudos, synced notes and share links '
+        'from Cloro’s servers. It can’t be undone.\n\n'
+        'Your books and notes stay on this phone, and online features turn off. '
+        'Subscriptions are managed in Google Play. You can download your data first.',
+    confirm: 'Delete',
+    destructive: true,
+  );
+  if (!ok || !context.mounted) return;
+  try {
+    await ref.read(accountProvider).deleteAccount();
+    if (context.mounted) showKitToast(context, 'Your account is deleted', icon: Icons.check_rounded);
+  } catch (_) {
+    if (context.mounted) {
+      showKitToast(context, 'Couldn’t reach Cloro, so nothing was deleted. Try again.', icon: Icons.cloud_off_rounded);
+    }
   }
 }

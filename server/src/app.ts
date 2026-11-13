@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 
+import { AccountService } from "./account.js";
 import { AuthError, Authenticator } from "./auth.js";
 import {
   BillingService,
@@ -18,7 +19,7 @@ import { LeagueService } from "./habit/leagues.js";
 import { MoodInvalid, MoodQuotaExceeded, MoodSuggestSchema, MoodUnavailable, type MoodService } from "./mood/suggest.js";
 import { SegmentRequestSchema } from "./segmentation/schema.js";
 import { QuotaExceeded, SegmentService, TierNotEligible, type Caller } from "./segmentation/service.js";
-import { landingPage, ShareSchema, ShareService } from "./social/shares.js";
+import { escapeHtml, landingPage, ShareSchema, ShareService } from "./social/shares.js";
 import { SyncPushSchema, SyncService } from "./social/sync.js";
 import type { QuotaStore } from "./stores/memory.js";
 import { SpeechQuotaExceeded, SpeechRequestSchema, SpeechUnavailable, type SpeechService } from "./speech/tts.js";
@@ -55,6 +56,8 @@ export interface AppDeps {
   billing?: BillingService;
   /** Shared secret in the Pub/Sub push URL for Play notifications (?secret=…). */
   rtdnSecret?: string;
+  /** Where readers without the app can ask for their account to be deleted. */
+  supportEmail?: string;
   logger?: boolean;
 }
 
@@ -65,6 +68,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const baseUrl = (deps.publicBaseUrl ?? "http://localhost:8787").replace(/\/$/, "");
   const activity = new ActivityService(deps.db);
   const feeds = new FeedService(deps.db);
+  const accounts = new AccountService(deps.db);
   const leagues = new LeagueService(deps.db, activity);
   const sync = new SyncService(deps.db);
   const shares = new ShareService(deps.db, baseUrl);
@@ -162,6 +166,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       daily_goal_cards: u.daily_goal_cards,
       signed_in: !u.id.startsWith("device:"),
     };
+  });
+
+  // Your data (Production plan A3): download all of it, or delete the account.
+  app.get("/v1/me/export", async (req, reply) => {
+    const data = await accounts.export((await caller(req)).userId);
+    return reply.header("content-disposition", 'attachment; filename="cloro-export.json"').send(data);
+  });
+
+  app.delete("/v1/me", async (req, reply) => {
+    // Resolve without creating: deleting an account that doesn't exist is a no-op.
+    const c = await auth.resolve(req);
+    await accounts.delete(c.userId);
+    return reply.code(204).send();
   });
 
   app.put("/v1/me/profile", async (req) => {
@@ -358,6 +375,29 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const html = await shares.page(req.params.id);
     if (!html) return reply.code(404).type("text/html").send(landingPage({ title: "Not found", description: "", url: baseUrl, body: "<h1>This link has expired.</h1>" }));
     return reply.type("text/html; charset=utf-8").send(html);
+  });
+
+  // For Google Play's account-deletion form: how to delete an account.
+  app.get("/account/delete", async (_req, reply) => {
+    const email = deps.supportEmail ? escapeHtml(deps.supportEmail) : null;
+    return reply.type("text/html; charset=utf-8").send(
+      landingPage({
+        title: "Delete your Cloro account",
+        description: "How to delete your Cloro account and data.",
+        url: `${baseUrl}/account/delete`,
+        body:
+          `<h1>Delete your Cloro account</h1>` +
+          `<p>In the app, open <strong>Profile → ⚙ Settings → You → Delete account</strong>. ` +
+          `This erases your profile, followers and following, reading activity, comments and kudos, synced notes and share links ` +
+          `from our servers straight away. Books and notes stored only on your phone are removed when you uninstall the app.</p>` +
+          `<p>You can download a copy first: <strong>Settings → You → Download my data</strong>.</p>` +
+          (email
+            ? `<p>No longer have the app? Email <a href="mailto:${email}?subject=Delete%20my%20Cloro%20account">${email}</a> ` +
+              `from the address on your account, or with your @username, and we'll delete it within 30 days.</p>`
+            : "") +
+          `<p>Subscriptions are billed by Google Play: cancel them in the Play Store app under <strong>Payments &amp; subscriptions</strong>.</p>`,
+      }),
+    );
   });
 
   app.get<{ Params: { code: string } }>("/i/:code", async (req, reply) => {

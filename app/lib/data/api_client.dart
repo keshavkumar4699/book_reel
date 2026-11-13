@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import 'ai_client.dart' show bookreelApi;
 import 'segments.dart' show deviceIdProvider;
+import 'settings_provider.dart';
 
 class ApiException implements Exception {
   ApiException(this.status, this.body);
@@ -88,6 +89,12 @@ class BookReelApi {
       return null;
     }
   }
+
+  /// Everything the server keeps about you (GET /v1/me/export).
+  Future<Map<String, dynamic>> exportData() async => (await _send('GET', '/v1/me/export')) as Map<String, dynamic>;
+
+  /// Erases the account and everything tied to it on the server.
+  Future<void> deleteAccount() => _send('DELETE', '/v1/me');
 
   /// Updates the server's copy of the profile. Throws [ApiException] 409
   /// when [handle] belongs to someone else.
@@ -231,4 +238,8 @@ class BookReelApi {
       ((await _send('POST', '/v1/share', payload)) as Map<String, dynamic>)['url'] as String;
 }
 
-final apiProvider = Provider<BookReelApi>((ref) => BookReelApi(baseUrl: bookreelApi, deviceId: ref.read(deviceIdProvider)));
+/// The server, while online features are on (Settings → Comfort & privacy).
+final apiProvider = Provider<BookReelApi>((ref) => BookReelApi(
+      baseUrl: ref.watch(settingsProvider.select((s) => s.online)) ? bookreelApi : '',
+      deviceId: ref.watch(deviceIdProvider),
+    ));

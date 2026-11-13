@@ -28,7 +28,7 @@ export function limitWords(text: string, max = MAX_SHARED_WORDS): string {
   return words.length <= max ? text.trim() : `${words.slice(0, max).join(" ")}…`;
 }
 
-const escapeHtml = (s: string) =>
+export const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 export class ShareService {

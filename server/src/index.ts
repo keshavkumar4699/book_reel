@@ -29,6 +29,7 @@ import { SqlJobStore, SqlQuotaStore, SqlSegmentCache, SqlUsageLog } from "./stor
  * - PLAY_SERVICE_ACCOUNT_JSON  service-account key with Play Console access (secret)
  * - PLAY_RTDN_SECRET     secret in the Pub/Sub push URL for Play notifications (secret)
  * - BILLING_ENFORCED=1   serve the verified plan instead of the one the app asks for
+ * - SUPPORT_EMAIL        shown on /account/delete for readers who no longer have the app
  */
 const port = Number(process.env.PORT ?? 8787);
 const db = await openDb(process.env.DATABASE_URL ?? "./data/pglite");
@@ -57,6 +58,7 @@ const app = buildApp({
   mood: moodModel ? new MoodService(db, moodModel) : undefined,
   billing: new BillingService(db, verifierFromEnv(), { enforced: process.env.BILLING_ENFORCED === "1" }),
   rtdnSecret: process.env.PLAY_RTDN_SECRET,
+  supportEmail: process.env.SUPPORT_EMAIL,
   logger: true,
 });
 await app.listen({ port, host: "0.0.0.0" });
