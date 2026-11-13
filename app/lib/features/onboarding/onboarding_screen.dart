@@ -115,14 +115,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const Spacer(),
         Text('What do you like to read?', style: titleStyle),
         const SizedBox(height: 8),
-        Text('Pick a few. We’ll start you with a short classic.', style: bodyStyle),
+        Text('Pick up to 3. We’ll start you with a short classic.', style: bodyStyle),
         const SizedBox(height: 20),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final o in _options)
             KitChip(
               label: o,
               selected: _interests.contains(o),
-              onTap: () => setState(() => _interests.contains(o) ? _interests.remove(o) : _interests.add(o)),
+              // Up to 3, as on the profile.
+              onTap: !_interests.contains(o) && _interests.length >= 3
+                  ? null
+                  : () => setState(() => _interests.contains(o) ? _interests.remove(o) : _interests.add(o)),
             ),
         ]),
         const SizedBox(height: 28),

@@ -224,6 +224,46 @@ A scrolling feed of reading activities, newest first:
 - **Followers / following** — public counts in the header, tap for the lists; follow / unfollow on other readers' profiles, find people by @username, invite links. This replaces mutual-only friends: the server gets a `follows` table (follower, followee) and endpoints for follow, unfollow, lists and counts; existing friendships become two follows. The Today feed shows people you follow. League stays (hidden when "Hide leaderboards" is on).
 - **Done when:** widget tests for the header layout, pronoun choice, 3-genre limit, and each section with sample data.
 
+✅ **Done (step 7).**
+
+*Following (7a)*
+- **Server:** following is one way, with these routes:
+
+  | Route | What it does |
+  |---|---|
+  | `POST /v1/social/follow/:id` | follow by id |
+  | `POST /v1/social/follow-handle` | follow by @username |
+  | `DELETE /v1/social/follow/:id` | unfollow |
+  | `GET /v1/users/:id` | public profile (id, `@handle` or `me`) |
+  | `GET /v1/users/:id/followers` | who follows them, with `you_follow` |
+  | `GET /v1/users/:id/following` | whom they follow, with `you_follow` |
+
+  `/v1/me` has the follower and following counts. Hidden readers can't be seen or followed and don't count. An invite code is a personal invitation, so the two readers follow each other.
+- **App:** the profile sync sends up to 3 genres and the book being read.
+  - The **People** page has Followers and Following tabs with Follow / Following buttons, *Find people* by @username, follow by invite code, and your invite.
+  - **Another reader's profile** (`/u/<id or @handle>`) uses the same header, with Follow, "Follows you" and their streak.
+
+*Profile (7b)*
+- **Header:** `ProfileHeader`, shared with other readers' profiles.
+  - It shows the photo (88 px, with the ink ring when today's goal is done), name · pronouns, followers · following (tap for the lists; left out offline), bio, 📖 Reading, and up to 3 genres.
+  - Buttons: Edit profile and Share. The top bar has Find people and ⚙.
+- **Body:** one flat scroll.
+
+  | Section | Contents |
+  |---|---|
+  | This week | minutes per day as bars, plus totals |
+  | Streak | current, best, freezes left, the 12-week heatmap |
+  | Stats | This year / All time: reading time, cards, books finished, reading days, minutes a reading day, and words a minute or words learned |
+  | Trophies | streak, book and card milestones, plus the best week, with the next of each kind faded |
+  | Books | reading now (progress rings), then finished |
+  | Saved quotes | the quotes grid |
+
+- **Edit profile:**
+  - pronoun chips: he/him, she/her, they/them or Custom;
+  - genres limited to 3, with a disabled 4th; older saves keep their first 3, and onboarding has the same limit;
+  - photos go through an in-app crop step (move and scale inside a circle, saved as a 512 px square).
+- Photos stay on the phone; other readers see the emoji or initial.
+
 ## 12. Decisions (13 Nov 2026)
 
 1. **Followers and following: public counts**, Strava-style one-way follows (§11). DESIGN.md §8's "no public counts" guardrail is retired for these two numbers; kudos counts stay visible only to the author.
@@ -243,7 +283,7 @@ A scrolling feed of reading activities, newest first:
 | 4 | Reading tab + reel overhaul (focus mode, gestures, buttons, note box, progress line) + tab dock (§6, §9) | L — ✅ done (Friends opens from Profile/Today until steps 7–8) |
 | 5 | Save/share swipe animation (§6) | M — ✅ done |
 | 6 | Light/dark scenes (§5), mood learning + Gemma suggestion (§8) | L — ✅ done |
-| 7 | Profile redesign + followers/following (§11) | L |
+| 7 | Profile redesign + followers/following (§11) | L — ✅ done |
 | 8 | Today feed + comments on the server (§10) | L |
 | 9 | Docs, tests, CI, APK | S |
 

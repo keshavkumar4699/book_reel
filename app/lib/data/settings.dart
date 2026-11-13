@@ -426,7 +426,8 @@ class AppSettings {
       bio: (j['bio'] as String?) ?? d.bio,
       avatarEmoji: (j['avatarEmoji'] as String?) ?? d.avatarEmoji,
       avatarPath: j['avatarPath'] as String?,
-      interests: ((j['interests'] as List?) ?? const []).cast<String>(),
+      // Profiles show up to 3 genres; older saves with more keep their first 3.
+      interests: ((j['interests'] as List?) ?? const []).cast<String>().take(3).toList(),
       vibe: pick(Vibe.values, j['vibe'], d.vibe),
       animatedBackground: (j['animatedBackground'] as bool?) ?? d.animatedBackground,
       gestureTutorialSeen: (j['gestureTutorialSeen'] as bool?) ?? d.gestureTutorialSeen,

@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Companion to** | [`DESIGN.md`](./DESIGN.md) |
-| **Status** | Draft v1.0 (Revision 10) |
+| **Status** | Draft v1.0 (Revision 11) |
 | **Date** | 2026-11-12 |
 | **Lenses** | Behavioural psychology · Interaction & visual design · Flutter engineering |
 
@@ -75,6 +75,15 @@
 > - **Settings:** Settings → Mood turns this off, or stops the asking.
 >
 > Details: `docs/CLORO_PLAN.md` §5 and §8.
+
+> **Revision 11 (Strava-style profile; following).**
+> - **Following:** you follow readers one way, and the profile shows public **followers · following** counts. Revision 1's "no follower counts" guardrail is retired for these two numbers only; kudos counts stay private. Tap a count for the list, with Follow / Following buttons. Find people by @username; an invite code still makes two readers follow each other.
+> - **Profile header:** photo, name · pronouns, the counts, bio, what you're reading and up to 3 genres.
+> - **Profile body:** one flat scroll of This week (bars), Streak (with the heatmap), Stats (this year / all time), Trophies, Books and Saved quotes.
+> - **Edit profile:** pronouns are a choice (he/him, she/her, they/them, or your own), and the photo has a crop step.
+> - **Other readers:** their profiles use the same header, with Follow and "Follows you".
+>
+> Details: `docs/CLORO_PLAN.md` §11.
 
 ## 0. The answer in one paragraph
 
