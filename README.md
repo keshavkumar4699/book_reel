@@ -19,7 +19,7 @@ Five tabs, icons only: **Reading · Library · Notebook · Today · Profile**.
 
 - **Reading.** The reels of the book you're reading, and the app opens here.
   - A book opens at its introduction, not the copyright page.
-  - It opens in **focus mode**: just the scene and the text. Tap empty space to show the controls; the eye button hides them again.
+  - It opens in **focus mode**: just the scene and the text. Tap empty space to show the controls; they hide on their own 4 seconds after your last touch (or tap empty space again). With TalkBack on they stay until you hide them.
   - Tap a word for its meaning. Long-press a word to highlight it, or long-press empty space for options.
   - Swipe left to save, right to share.
   - The right rail: like, save, note, share, listen, streak, goal, options.

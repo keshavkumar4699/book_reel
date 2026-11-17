@@ -101,6 +101,7 @@
 > - **No more freezes when recaps arrive.** New recaps, quick checks or the AI's cut used to make the reader lay out the whole book again. Now only the chapter that changed is laid out again (about 0.2 ms instead of 40 ms on the starter book, and far more on a novel).
 > - **No jumps.** When the feed is rebuilt, the reel on screen stays: the same text reel, recap, quick check or chapter card, never the text before it. It doesn't fade in again either, and a feed that changes mid-swipe waits until the reel comes to rest.
 > - **Goal done is a toast** that leaves on its own after a few seconds, with **See** for the session-complete screen (§5.3). Reading is never stopped.
+> - **Controls hide on their own** 4 seconds after the last touch; a tap on empty space shows them or hides them at once. The eye button is gone. With TalkBack (or another screen reader) on, they stay until hidden, since finding buttons by touch takes longer.
 > - **No upload queue without a server.** Builds without a server no longer queue every card for upload (and save the whole queue each time), and they clear any queue left by earlier versions.
 
 ## 0. The answer in one paragraph

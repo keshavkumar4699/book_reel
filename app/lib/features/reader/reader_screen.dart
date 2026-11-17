@@ -123,12 +123,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// The chapter and block of cards the on-device model last wrote ahead for.
   (int, int)? _localBlock;
 
-  /// Focus mode is off: the controls (top bar, rail, tab bar) are showing.
-  /// A tap on empty space shows them; only the eye button hides them.
+  /// The controls (top bar, rail, tab bar) are showing. A tap on empty
+  /// space shows them, or hides them again; they hide on their own a few
+  /// seconds after the last touch, so the reel is left alone.
   bool _chrome = false;
   late final ReaderChrome _chromeFlag;
+  Timer? _chromeTimer;
+  static const chromeFor = Duration(seconds: 4);
 
   void _setChrome(bool on) {
+    _chromeTimer?.cancel();
+    // With TalkBack and the like, controls stay until hidden: finding a
+    // button by touch takes longer than a few seconds.
+    if (on && !(MediaQuery.maybeAccessibleNavigationOf(context) ?? false)) {
+      _chromeTimer = Timer(chromeFor, () {
+        if (mounted) _setChrome(false);
+      });
+    }
     if (_chrome == on) return;
     setState(() => _chrome = on);
     _chromeFlag.set(on);
@@ -239,6 +250,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     scheduleMicrotask(_sound.stop);
     WidgetsBinding.instance.removeObserver(this);
     _moodChipTimer?.cancel();
+    _chromeTimer?.cancel();
     _pager?.dispose();
     unawaited(_readAloud.stop());
     super.dispose();
@@ -940,7 +952,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
 
     // A pager rebuilt from scratch (after a spinner, say) starts on the reel the reader is on.
     if (_pager == null || (!_pager!.hasClients && _pager!.initialPage != _page)) _newPager(_page);
-    return Stack(children: [
+    // Any touch while the controls show keeps them up a little longer.
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) {
+        if (_chrome) _setChrome(true);
+      },
+      child: Stack(children: [
       NotificationListener<ScrollNotification>(
         onNotification: (n) {
           // The page view's own scrolling (not a reel's text scrolling inside it).
@@ -970,18 +988,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         right: 16,
         child: _GoalLine(progress: today.progress(goal), color: chromeColor, track: chromeColor.withValues(alpha: 0.22)),
       ),
-      // With the controls: the focus (eye) button and where you are.
+      // With the controls: where you are.
       Positioned(
         top: padding.top + 14,
-        left: 4,
-        right: 4,
+        left: 16,
+        right: 16,
         child: FadeChrome(
           visible: _chrome,
           child: _TopBar(
             color: chromeColor,
             shadows: t.textShadows,
             title: _feed.isEmpty ? book.title : book.chapters[_feed[_page.clamp(0, _feed.length - 1)].chapterIndex].title,
-            onFocus: () => _setChrome(false),
           ),
         ),
       ),
@@ -1005,7 +1022,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
             onDone: () => ref.read(settingsProvider.notifier).update((x) => x.copyWith(gestureTutorialSeen: true)),
           ),
         ),
-    ]);
+    ]),
+    );
   }
 
   Future<void> _pickVibe() async {
@@ -1036,7 +1054,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     // Chapter, recap, quiz and other cards: the same empty-space gestures.
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onTap: () => _setChrome(true),
+      onTap: () => _setChrome(!_chrome),
       onLongPress: () => _options(book, s, t),
       child: card,
     );
@@ -1088,7 +1106,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           onStreak: () => showStreakSheet(_ui),
           onGoal: () => showGoalSheet(_ui),
           onOptions: () => _options(book, s, t),
-          onTapEmpty: () => _setChrome(true),
+          onTapEmpty: () => _setChrome(!_chrome),
           // In the Reading tab the tab bar shows with the controls: keep the rail above it.
           railLift: widget.embedded && _chrome ? KitNavBar.reservedHeight - 10 : 0,
           onLongPressEmpty: () => _options(book, s, t),
@@ -1213,35 +1231,26 @@ class _GoalLine extends StatelessWidget {
       );
 }
 
-/// With the controls showing: the focus (eye) button, which hides them all
-/// again, and the chapter you're in. (No close button: switch tabs to leave.)
+/// With the controls showing: the chapter you're in. (No close button:
+/// switch tabs to leave.)
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.color, required this.shadows, required this.title, required this.onFocus});
+  const _TopBar({required this.color, required this.shadows, required this.title});
 
   final Color color;
   final List<Shadow>? shadows;
   final String title;
-  final VoidCallback onFocus;
 
   @override
-  Widget build(BuildContext context) => Row(children: [
-        KitIconButton(
-          icon: Icons.visibility_outlined,
-          semanticLabel: 'Focus: hide the controls',
-          onPressed: onFocus,
-          glass: false,
-          color: color,
-          shadows: shadows,
-          iconSize: 25,
-        ),
-        const SizedBox(width: 2),
-        Expanded(
+  Widget build(BuildContext context) => SizedBox(
+        height: 44,
+        child: Align(
+          alignment: Alignment.centerLeft,
           child: Text(title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 15, shadows: shadows)),
         ),
-      ]);
+      );
 }
 
 /// One-time overlay that teaches the gestures (can be reopened from ⋯).
@@ -1254,7 +1263,7 @@ class _GestureGuide extends StatelessWidget {
     const rows = [
       (Icons.swipe_up_outlined, 'Swipe up', 'Next reel'),
       (Icons.translate, 'Tap a word', 'Its meaning'),
-      (Icons.touch_app_outlined, 'Tap empty space', 'Show the buttons (the eye hides them)'),
+      (Icons.touch_app_outlined, 'Tap empty space', 'Show the buttons for a few seconds'),
       (Icons.border_color_rounded, 'Long-press a word', 'Highlight it, then drag the handles'),
       (Icons.more_horiz_rounded, 'Long-press empty space', 'Theme, sound, contents and more'),
       (Icons.favorite, 'Double-tap', 'Like'),

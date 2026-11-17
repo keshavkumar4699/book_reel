@@ -85,7 +85,7 @@ void main() {
     expect(container.read(settingsProvider).gestureTutorialSeen, isTrue);
 
     // Focus mode: a book opens with nothing on screen but the reel.
-    expect(find.bySemanticsLabel('Focus: hide the controls'), findsNothing);
+    expect(container.read(readerChromeProvider), isFalse);
 
     // A long press on empty space opens the options; the scene sound is a switch there.
     await tester.longPressAt(const Offset(30, 400));
@@ -108,12 +108,12 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(find.text('This cut feels wrong'), findsNothing);
 
-    // A tap on empty space shows the controls; they stay until the eye hides them.
+    // A tap on empty space shows the controls (there's no eye button any more).
     await tester.tapAt(const Offset(30, 400));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
-    expect(find.bySemanticsLabel('Focus: hide the controls'), findsOneWidget);
     expect(container.read(readerChromeProvider), isTrue);
+    expect(find.bySemanticsLabel('Focus: hide the controls'), findsNothing);
 
     await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
@@ -156,10 +156,24 @@ void main() {
     expect(thought.quote, contains('Alice was beginning'));
     await tester.pump(const Duration(seconds: 4));
 
-    // The eye hides everything again.
-await tester.tap(find.bySemanticsLabel('Focus: hide the controls'));
+    // Four seconds after the last touch the controls hide on their own.
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(tester.widgetList<FadeChrome>(find.byType(FadeChrome)).every((c) => !c.visible), isTrue, reason: 'rail, book row and top bar hidden');
+    expect(container.read(readerChromeProvider), isFalse);
+
+    // A tap shows them; another tap on empty space hides them at once.
+    await tester.tapAt(const Offset(30, 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(container.read(readerChromeProvider), isTrue);
+    // Touching the screen keeps them up: 3 s, a short swipe that springs back, 3 s more.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.drag(find.byType(PageView), const Offset(0, -60));
+    await tester.pump(const Duration(seconds: 3));
+    expect(container.read(readerChromeProvider), isTrue);
+    await tester.tapAt(const Offset(30, 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(container.read(readerChromeProvider), isFalse);
 
     // Double-tap anywhere on the post likes it.
