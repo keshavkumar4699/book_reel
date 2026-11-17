@@ -51,6 +51,7 @@ class PostCard extends StatefulWidget {
     required this.type,
     required this.lexicon,
     required this.active,
+    this.animateIn = true,
     required this.liked,
     required this.saved,
     required this.listening,
@@ -103,6 +104,10 @@ class PostCard extends StatefulWidget {
 
   /// True when this card is the one on screen (plays the entrance animation).
   final bool active;
+
+  /// False for a reel that was already on screen before the reader rebuilt
+  /// itself: it shows at once rather than fading in again.
+  final bool animateIn;
   final bool liked;
   final bool saved;
   final bool listening;
@@ -241,7 +246,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
 
   void _startReveal() {
     _revealed = true;
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+    if (!widget.animateIn || (MediaQuery.maybeDisableAnimationsOf(context) ?? false)) {
       _reveal.value = 1;
     } else {
       _reveal.forward(from: 0);

@@ -61,18 +61,47 @@ class ReaderScreen extends ConsumerStatefulWidget {
   /// Shown in the Reading tab (with the tab bar under the controls).
   final bool embedded;
 
+  /// The time on each reel is measured with this clock (tests move it on).
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
+
   @override
   ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
 }
 
 class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBindingObserver {
   PageController? _pager;
+
+  /// Bumped when the pager is replaced: the page view starts afresh on it.
+  int _pagerGeneration = 0;
   List<FeedItem> _feed = const [];
   Object? _feedKey;
+  final FeedCache _feedCache = FeedCache();
+
+  /// A swipe is under way (from the first move until the page comes to rest).
+  bool _scrolling = false;
+
+  /// The feed changed during a swipe: it's rebuilt once the page rests.
+  bool _feedStale = false;
+
+  /// Reading time of cards left during the swipe, credited when the page
+  /// rests, so no frame of a swipe waits on storage or a rebuild.
+  final List<({int words, int dwellMs, String cardRef})> _credits = [];
+
+  /// The reel read aloud last, so a page coming to rest doesn't repeat it.
+  FeedItem? _spoken;
+
+  /// The reel that was on screen when the feed was rebuilt under it: it
+  /// shows at once on the new page view instead of fading in again.
+  FeedItem? _steady;
+
+  /// The place last saved for this book.
+  (String, int)? _savedAt;
+  bool _goalSetupAsked = false;
   Map<String, CardSentence> _sentences = const {};
   BookContent? _sentencesFor;
   int _page = 0;
-  DateTime _shownAt = DateTime.now();
+  DateTime _shownAt = ReaderScreen.clock();
   bool _tts = false;
   int _textCardsThisSession = 0;
 
@@ -81,6 +110,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   late final HabitNotifier _habit;
   late final MoodController _mood;
   late final SessionLog _sessions;
+  late final LibraryNotifier _library;
 
   /// The book's library entry as last built (title, progress), for the
   /// session log, which can still be written to while the reader closes.
@@ -115,9 +145,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   bool _moodChipShown = false;
   Timer? _moodChipTimer;
 
-  /// Dwell on the earlier reels of a split card, by feed index (the card is
-  /// credited once, on its last reel).
-  final Map<int, int> _partDwell = {};
+  /// Dwell on the earlier reels of a split card (the card is credited once,
+  /// on its last reel). By reel, which survives the feed being rebuilt.
+  final Map<FeedItem, int> _partDwell = {};
   bool _voiceChecked = false;
 
   /// A highlight is being adjusted with its handles.
@@ -137,6 +167,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _habit = ref.read(habitProvider.notifier);
     _mood = ref.read(moodProvider.notifier);
     _sessions = ref.read(sessionLogProvider.notifier);
+    _library = ref.read(libraryProvider.notifier);
     _sound = ref.read(sceneSoundProvider.notifier);
     _readAloud = ref.read(readAloudProvider);
   }
@@ -163,12 +194,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (visible == _visible) return;
     _visible = visible;
     if (!visible) {
-      // Leaving the tab: no sound or voice in other tabs; count this reel.
+      // Leaving the tab: no sound or voice in other tabs; count this reel
+      // (just after: providers can't change while widgets are building).
       unawaited(_sound.pause());
       if (_tts) _toggleTts();
-      _recordCurrent();
+      _recordCurrent(deferred: true);
     } else {
-      _shownAt = DateTime.now();
+      _shownAt = ReaderScreen.clock();
       unawaited(_sound.resume());
     }
   }
@@ -224,7 +256,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         ReminderService.instance.scheduleStreakNudge(streak: notifier.displayStreak(), freezesLeft: notifier.freezesLeft());
       }
     } else if (state == AppLifecycleState.resumed && _visible) {
-      _shownAt = DateTime.now();
+      _shownAt = ReaderScreen.clock();
       unawaited(_sound.resume());
       // Back after a while: maybe time to ask (or a new part of the day).
       if (_moodChecked) unawaited(_checkMood());
@@ -261,14 +293,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     );
     final key = (segments, s.recallCards, s.reflectCards, maxReelWords);
     if (_feedKey == key) return;
-    // Where the reader is: an explicit start, the saved position, or (when
-    // the feed is rebuilt) the reel on screen.
-    final (String? anchor, int anchorOffset) = _feed.isNotEmpty
-        ? _currentAnchor()
-        : widget.startSid != null
-            ? (widget.startSid, 0)
-            : (meta?.positionSid, meta?.positionOffset ?? 0);
-    _feed = buildFeed(
+    // Never under a finger: a feed that changes mid-swipe waits for the page to rest.
+    if (_scrolling && _feed.isNotEmpty) {
+      _feedStale = true;
+      return;
+    }
+    final feed = buildFeed(
       book,
       segments,
       FeedOptions(
@@ -278,23 +308,45 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         recallEvery: s.cardLength == CardLength.snack ? 15 : 10,
         maxReelWords: maxReelWords,
       ),
+      cache: _feedCache,
     );
-    _feedKey = key;
-    _partDwell.clear();
-    var index = feedIndexForSid(_feed, anchor, offset: anchorOffset);
-    // A book opened for the first time starts at its own text (the
-    // introduction or first chapter), past the title page and copyright.
-    if (anchor == null) index = math.max(0, _feed.indexWhere((f) => f.chapterIndex >= book.bodyStart));
-    _page = index;
-    if (_pager == null) {
-      _pager = PageController(initialPage: index);
-    } else if (_pager!.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _pager!.hasClients) _pager!.jumpToPage(index);
-      });
+    int index;
+    if (_feed.isNotEmpty) {
+      // Rebuilt (recaps arrived, the AI's cut, a new text size): the same reel.
+      index = feedIndexAfterRebuild(_feed, _page, feed);
+    } else {
+      // Where the reader is: an explicit start, or the saved position.
+      final (String? anchor, int offset) =
+          widget.startSid != null ? (widget.startSid, 0) : (meta?.positionSid, meta?.positionOffset ?? 0);
+      index = feedIndexForSid(feed, anchor, offset: offset);
+      // A book opened for the first time starts at its own text (the
+      // introduction or first chapter), past the title page and copyright.
+      if (anchor == null) index = math.max(0, feed.indexWhere((f) => f.chapterIndex >= book.bodyStart));
+      _shownAt = ReaderScreen.clock(); // reading starts once there's something to read
     }
-    _shownAt = DateTime.now();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeRequestAi(book));
+    _feed = feed;
+    _feedKey = key;
+    _feedStale = false;
+    if (_partDwell.length > 64) _partDwell.clear();
+    // The pager follows in the same frame, so no frame shows the wrong reel.
+    if (_pager == null || index != _page) {
+      if (_pager != null && feed.isNotEmpty) _steady = feed[index];
+      _newPager(index);
+    }
+    _page = index;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _maybeRequestAi(book);
+    });
+  }
+
+  /// A pager that starts on [page]. The page view is rebuilt on it (a new
+  /// key), and the old pager is let go once that frame is done.
+  void _newPager(int page) {
+    final old = _pager;
+    _pager = PageController(initialPage: page, keepPage: false);
+    _pagerGeneration++;
+    _scrolling = false;
+    if (old != null) WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
   }
 
   (String?, int) _currentAnchor() {
@@ -372,97 +424,136 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     return pieces.sublist(lines.from.clamp(0, pieces.length), lines.to.clamp(0, pieces.length)).map((p) => p.text).join(' ');
   }
 
-  /// Records dwell time for the card currently on screen. A card shown as
-  /// several reels (text · spotlight · text) counts once, when its last reel
-  /// is left, for the reels read in this session.
-  CardRecord? _recordCurrent({bool deferred = false}) {
-    if (_feed.isEmpty || _page >= _feed.length) return null;
+  /// Ends the time on the reel on screen. A card shown as several reels
+  /// (text · spotlight · text) counts once, when its last reel is left, for
+  /// the reels read in this session; its credit is queued until the page
+  /// rests (see [_settled]).
+  void _leave() {
+    if (_feed.isEmpty || _page >= _feed.length) return;
     final item = _feed[_page];
-    final dwell = DateTime.now().difference(_shownAt).inMilliseconds;
-    _shownAt = DateTime.now();
-    if (item.kind != CardKind.text || item.card == null) return null;
+    final now = ReaderScreen.clock();
+    final dwell = now.difference(_shownAt).inMilliseconds;
+    _shownAt = now;
+    if (item.kind != CardKind.text || item.card == null) return;
     final card = item.card!;
     if (!item.lastPart) {
-      _partDwell[_page] = (_partDwell[_page] ?? 0) + dwell;
-      return null;
+      _partDwell[item] = (_partDwell[item] ?? 0) + dwell;
+      return;
     }
     var total = dwell;
     var words = _wordsOf(item);
     for (var i = _page - 1; i >= 0 && identical(_feed[i].card, card); i--) {
-      final earlier = _partDwell.remove(i);
+      final earlier = _partDwell.remove(_feed[i]);
       if (earlier == null) continue; // not read in this session
       total += earlier;
       words += _wordsOf(_feed[i]);
     }
-    if (total < 300) return null;
-    CardRecord record() {
-      _mood.addMinutes(total);
+    if (total < 300) return;
+    _credits.add((words: words, dwellMs: total, cardRef: '${widget.bookId.substring(0, 12)}:${card.startSid}'));
+  }
+
+  /// Credits the reading time queued so far: today's goal, the streak, and
+  /// this session's card in the feed. Returns the record that met the goal.
+  CardRecord? _creditQueued() {
+    if (_credits.isEmpty) return null;
+    final queued = [..._credits];
+    _credits.clear();
+    CardRecord? met;
+    for (final c in queued) {
+      _mood.addMinutes(c.dwellMs);
       final meta = _meta;
       if (meta != null) {
         _sessions.record(
           bookId: widget.bookId,
           title: meta.title,
           author: meta.author,
-          dwellMs: total,
+          dwellMs: c.dwellMs,
           progress: meta.progress,
           mood: _mood.recent?.name,
         );
       }
-      return _habit.recordCard(
-        words: words,
-        dwellMs: total,
-        bookId: widget.bookId,
-        cardRef: '${widget.bookId.substring(0, 12)}:${card.startSid}',
-      );
+      final r = _habit.recordCard(words: c.words, dwellMs: c.dwellMs, bookId: widget.bookId, cardRef: c.cardRef);
+      if (r.goalJustMet) met = r;
     }
-    if (deferred) {
-      scheduleMicrotask(record);
-      return null;
-    }
-    return record();
+    return met;
   }
 
-  void _onPageChanged(int index, BookContent book, BookMeta? meta) {
-    final record = _recordCurrent();
-    _page = index;
-    _shownAt = DateTime.now();
-    HapticFeedback.selectionClick();
-    final item = _feed[index];
-    final settings = ref.read(settingsProvider);
+  /// Saves the place in the book (the reel on screen, or the text before it).
+  void _savePosition(BookContent book) {
+    if (_feed.isEmpty) return;
+    final item = _feed[_page.clamp(0, _feed.length - 1)];
+    if (item.kind != CardKind.text || item.card == null) return;
+    final anchor = item.anchorSid ?? item.card!.startSid;
+    final at = (anchor, item.offset ?? 0);
+    if (at == _savedAt) return;
+    _savedAt = at;
+    _library.updatePosition(widget.bookId, sid: anchor, offset: at.$2, progress: progressAt(book, anchor));
+  }
 
-    if (item.kind == CardKind.text && item.card != null) {
-      final anchor = item.anchorSid ?? item.card!.startSid;
-      ref.read(libraryProvider.notifier).updatePosition(
-            widget.bookId,
-            sid: anchor,
-            offset: item.offset ?? 0,
-            progress: progressAt(book, anchor),
-          );
-      _textCardsThisSession++;
-      if (!settings.goalSetupDone && _textCardsThisSession == 4) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) showGoalSetup(_ui);
-        });
-      }
-      if (_tts) _speak(item);
+  /// Leaving the reader or the app, or switching tabs: the reel on screen
+  /// counts now, with anything still queued. [deferred] when providers can't
+  /// be changed yet (while the reader is torn down).
+  void _recordCurrent({bool deferred = false}) {
+    _leave();
+    if (deferred) {
+      if (_credits.isNotEmpty) scheduleMicrotask(_creditQueued);
+    } else {
+      _creditQueued();
     }
-    _maybeRequestLocal(book);
-    if (item.kind == CardKind.milestone) {
-      if (ref.read(libraryProvider.notifier).markFinished(widget.bookId)) {
-        ref.read(habitProvider.notifier).bookFinished();
-        final api = ref.read(apiProvider);
-        if (api.enabled) unawaited(api.bookFinished(book.title).catchError((_) {}));
-      }
-    }
-    if (_feed[index].chapterIndex != (index > 0 ? _feed[index - 1].chapterIndex : -1)) _maybeRequestAi(book);
-    if (record != null && record.goalJustMet) {
-      ReminderService.instance.cancelStreakNudge();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _showSessionComplete(record, book, meta));
-    }
+  }
+
+  /// A swipe moved to another reel: only what the next frame needs happens
+  /// here (the new reel starts its reveal); the rest waits for [_settled].
+  void _onPageChanged(int index) {
+    _leave();
+    _page = index;
+    _shownAt = ReaderScreen.clock();
+    HapticFeedback.selectionClick();
+    if (_feed[index].kind == CardKind.text) _textCardsThisSession++;
     setState(() {});
   }
 
-  Future<void> _showSessionComplete(CardRecord record, BookContent book, BookMeta? meta) async {
+  /// The page came to rest: credit the reels read, save the place, and do
+  /// what the reel on screen asks for, between swipes rather than during one.
+  void _settled(BookContent book, BookMeta? meta) {
+    if (!mounted || _feed.isEmpty) return;
+    final met = _creditQueued();
+    _savePosition(book);
+    final item = _feed[_page.clamp(0, _feed.length - 1)];
+    final settings = ref.read(settingsProvider);
+    if (item.kind == CardKind.text && item.card != null) {
+      if (!settings.goalSetupDone && !_goalSetupAsked && _textCardsThisSession >= 4) {
+        _goalSetupAsked = true;
+        showGoalSetup(_ui);
+      }
+      if (_tts && !identical(_spoken, item)) _speak(item);
+    }
+    _maybeRequestAi(book);
+    if (item.kind == CardKind.milestone && _library.markFinished(widget.bookId)) {
+      _habit.bookFinished();
+      final api = ref.read(apiProvider);
+      if (api.enabled) unawaited(api.bookFinished(book.title).catchError((_) {}));
+    }
+    if (met != null) _celebrate(met, book);
+    if (_feedStale) setState(() {});
+  }
+
+  /// Today's goal is met: a toast that leaves on its own (reading goes on
+  /// undisturbed), with the full celebration a tap away.
+  void _celebrate(CardRecord record, BookContent book) {
+    ReminderService.instance.cancelStreakNudge();
+    HapticFeedback.mediumImpact();
+    showKitToast(
+      _ui,
+      record.milestone != null ? '${record.milestone}-day streak! Goal done' : 'Goal done · ${record.streak}-day streak',
+      emoji: '🔥',
+      actionLabel: 'See',
+      onAction: () => _showSessionComplete(record, book),
+      duration: const Duration(seconds: 3),
+    );
+  }
+
+  Future<void> _showSessionComplete(CardRecord record, BookContent book) async {
     if (!mounted) return;
     final today = ref.read(habitProvider).today(DateTime.now());
     final idea = _ideaOfTheDay();
@@ -517,6 +608,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   }
 
   void _speak(FeedItem item) {
+    _spoken = item;
     final text = _reelText(item);
     _sound.duck(true);
     _readAloud.speak(text, next: _nextReelText(_page), onDone: () {
@@ -592,6 +684,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (_tts && _feed[_page].card != null) {
       _speak(_feed[_page]);
     } else {
+      _spoken = null;
       unawaited(_readAloud.stop());
       _sound.duck(false);
     }
@@ -639,7 +732,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         theme: theme,
       ),
     ));
-    _shownAt = DateTime.now();
+    _shownAt = ReaderScreen.clock();
     if (sid != null && mounted) _pager?.jumpToPage(feedIndexForSid(_feed, sid));
   }
 
@@ -845,14 +938,30 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_checkMood()));
     }
 
+    // A pager rebuilt from scratch (after a spinner, say) starts on the reel the reader is on.
+    if (_pager == null || (!_pager!.hasClients && _pager!.initialPage != _page)) _newPager(_page);
     return Stack(children: [
-      PageView.builder(
-        controller: _pager,
-        scrollDirection: Axis.vertical,
-        physics: _selecting ? const NeverScrollableScrollPhysics() : const _ReelPagePhysics(),
-        itemCount: _feed.length,
-        onPageChanged: (i) => _onPageChanged(i, book, meta),
-        itemBuilder: (context, i) => _buildItem(book, meta, s, t, type, lexicon, notebook, _feed[i], i == _page, padding),
+      NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          // The page view's own scrolling (not a reel's text scrolling inside it).
+          if (n.depth != 0) return false;
+          if (n is ScrollStartNotification) {
+            _scrolling = true;
+          } else if (n is ScrollEndNotification) {
+            _scrolling = false;
+            _settled(book, meta);
+          }
+          return false;
+        },
+        child: PageView.builder(
+          key: ValueKey(_pagerGeneration),
+          controller: _pager,
+          scrollDirection: Axis.vertical,
+          physics: _selecting ? const NeverScrollableScrollPhysics() : const _ReelPagePhysics(),
+          itemCount: _feed.length,
+          onPageChanged: _onPageChanged,
+          itemBuilder: (context, i) => _buildItem(book, meta, s, t, type, lexicon, notebook, _feed[i], i == _page, padding),
+        ),
       ),
       // Today's goal as one thin line that fills as you read: always there, never in the way.
       Positioned(
@@ -954,6 +1063,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           theme: t,
           lexicon: lexicon,
           active: active,
+          animateIn: !identical(item, _steady),
           // Likes and saves belong to the reel on screen (the card, or one part of it).
           liked: notebook.liked.contains('${widget.bookId}|${item.anchorSid}'),
           saved: notebook.isSaved(widget.bookId, item.anchorSid!),

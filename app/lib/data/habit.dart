@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/habit/habit_engine.dart';
+import 'ai_client.dart' show bookreelApi;
+import 'api_client.dart';
 import 'settings_provider.dart';
 import 'store_provider.dart';
 
@@ -76,7 +78,13 @@ class HabitNotifier extends Notifier<HabitState> {
 
   @override
   HabitState build() {
-    final json = ref.read(storeProvider).doc('habit');
+    final store = ref.read(storeProvider);
+    // A build without a server can never send its reading events: drop any
+    // queued by earlier versions, which saved them all again on every card.
+    if (bookreelApi.isEmpty && ((store.doc('outbox')?['events'] as List?)?.isNotEmpty ?? false)) {
+      store.saveDoc('outbox', {'events': <Object>[]});
+    }
+    final json = store.doc('habit');
     return json == null ? const HabitState() : HabitState.fromJson(json);
   }
 
@@ -88,11 +96,12 @@ class HabitNotifier extends Notifier<HabitState> {
   StreakEngine get _engine => StreakEngine(ref.read(settingsProvider).goal);
 
   /// Records time spent on a text card and updates goal/streak. With a
-  /// [bookId] and [cardRef] the raw event is also queued for upload, so the
-  /// server can verify it for leagues (see SyncService).
+  /// [bookId] and [cardRef] the raw event is also queued for upload when
+  /// online features are on, so the server can verify it for leagues (see
+  /// SyncService).
   CardRecord recordCard({required int words, required int dwellMs, String? bookId, String? cardRef}) {
     final now = clock();
-    if (bookId != null && cardRef != null) _enqueue(bookId, cardRef, words, dwellMs, now);
+    if (bookId != null && cardRef != null && ref.read(apiProvider).enabled) _enqueue(bookId, cardRef, words, dwellMs, now);
     final goal = ref.read(settingsProvider).goal;
     final result = evaluateDwell(words: words, dwellMs: dwellMs, wpm: state.wpm);
     final key = dateKey(now);
@@ -120,6 +129,8 @@ class HabitNotifier extends Notifier<HabitState> {
     return CardRecord(verified: result.verified, goalJustMet: justMet, streak: streak.current, milestone: milestone);
   }
 
+  static const _outboxMax = 1500;
+
   void _enqueue(String bookId, String cardRef, int words, int dwellMs, DateTime at) {
     final store = ref.read(storeProvider);
     final events = [...((store.doc('outbox')?['events'] as List?) ?? const [])];
@@ -130,8 +141,9 @@ class HabitNotifier extends Notifier<HabitState> {
       'dwell_ms': dwellMs.clamp(0, 3600000),
       'ts': at.toUtc().toIso8601String(),
     });
-    // Keep the queue bounded if the app stays offline for a long time.
-    store.saveDoc('outbox', {'events': events.length > 5000 ? events.sublist(events.length - 5000) : events});
+    // Keep the queue bounded (it's saved whole on every card) if the phone
+    // stays offline for a long time; the server credits recent reading anyway.
+    store.saveDoc('outbox', {'events': events.length > _outboxMax ? events.sublist(events.length - _outboxMax) : events});
   }
 
   void bookFinished() => _set(state.copyWith(booksFinished: state.booksFinished + 1));

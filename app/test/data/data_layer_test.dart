@@ -97,6 +97,18 @@ void main() {
     expect(today.skimmedCards, 1);
   });
 
+  test('habit: without a server nothing is queued for upload, and an old queue is dropped', () async {
+    // An earlier version queued every card, even with nowhere to send it.
+    await store.saveDoc('outbox', {
+      'events': [for (var i = 0; i < 3000; i++) {'book_id': 'bk', 'card_ref': 'bk:$i', 'words': 50, 'dwell_ms': 9000, 'ts': '2026-11-01T09:00:00Z'}],
+    });
+    final c = ProviderContainer(overrides: [storeProvider.overrideWithValue(store)]);
+    addTearDown(c.dispose);
+    c.read(habitProvider.notifier).recordCard(words: 120, dwellMs: 30000, bookId: 'bk', cardRef: 'bk:c0.b0.s0');
+    expect(store.doc('outbox')!['events'], isEmpty);
+    expect(c.read(habitProvider).totalVerifiedCards, 1, reason: 'the reading itself still counts');
+  });
+
   test('notebook: highlights, saves, words and markdown export', () {
     final n = container.read(notebookProvider.notifier);
     final h = n.toggleHighlight(bookId: 'b', bookTitle: 'Book', sid: 'c0.b0.s0', text: 'A key idea.');
