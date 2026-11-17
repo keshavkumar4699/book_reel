@@ -201,6 +201,7 @@ class _ThisWeek extends StatelessWidget {
     final stats = [for (final d in days) habit.stats[dateKey(d)] ?? const DailyStat()];
     final minutes = stats.fold(0.0, (s, d) => s + d.minutes);
     final cards = stats.fold(0, (s, d) => s + d.verifiedCards);
+    final words = stats.fold(0, (s, d) => s + d.words);
     final read = books.where((b) => b.lastReadAt != null && !b.lastReadAt!.isBefore(monday)).length;
     final top = stats.fold(0.0, (m, d) => math.max(m, d.minutes));
     const letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -208,6 +209,7 @@ class _ThisWeek extends StatelessWidget {
       Row(children: [
         Expanded(child: _Figure('${minutes.round()}', 'minutes')),
         Expanded(child: _Figure('$cards', 'cards')),
+        Expanded(child: _Figure(compactCount(words), 'words')),
         Expanded(child: _Figure('$read', read == 1 ? 'book' : 'books')),
       ]),
       const SizedBox(height: 16),
@@ -298,6 +300,8 @@ class _StatsSection extends StatelessWidget {
     ];
     final minutes = days.fold(0.0, (s, d) => s + d.minutes);
     final cards = days.fold(0, (s, d) => s + d.verifiedCards);
+    final words = days.fold(0, (s, d) => s + d.words);
+    final skimmed = days.fold(0, (s, d) => s + d.skimmedCards);
     final readingDays = days.where((d) => d.minutes > 0 || d.verifiedCards > 0).length;
     final finished = thisYear
         ? books.where((b) => b.finishedAt?.year == now.year).length
@@ -305,6 +309,9 @@ class _StatsSection extends StatelessWidget {
     final figures = [
       _Figure(_duration(minutes), 'reading time'),
       _Figure('$cards', 'cards'),
+      _Figure(compactCount(words), 'words read'),
+      // Honest about it: reels flicked past too fast to read count toward nothing.
+      _Figure('$skimmed', skimmed == 1 ? 'reel skimmed (not counted)' : 'reels skimmed (not counted)'),
       _Figure('$finished', finished == 1 ? 'book finished' : 'books finished'),
       _Figure('$readingDays', readingDays == 1 ? 'reading day' : 'reading days'),
       _Figure(readingDays == 0 ? '0' : '${(minutes / readingDays).round()}', 'minutes a reading day'),
@@ -326,6 +333,14 @@ class _StatsSection extends StatelessWidget {
     if (m < 60) return '$m min';
     return m % 60 == 0 ? '${m ~/ 60} h' : '${m ~/ 60} h ${m % 60} min';
   }
+}
+
+/// 950, 1.2k, 12k, 1.3M: a count that fits a small figure.
+String compactCount(int n) {
+  if (n < 1000) return '$n';
+  if (n < 10000) return '${(n / 1000).toStringAsFixed(1).replaceFirst(RegExp(r'\.0$'), '')}k';
+  if (n < 1000000) return '${(n / 1000).round()}k';
+  return '${(n / 1000000).toStringAsFixed(1).replaceFirst(RegExp(r'\.0$'), '')}M';
 }
 
 /// A milestone: earned, or the next one to aim for.

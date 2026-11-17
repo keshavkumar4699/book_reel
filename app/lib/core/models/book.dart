@@ -136,6 +136,7 @@ class BookMeta {
     this.subjects = const [],
     this.voice,
     this.voiceSource,
+    this.wordsRead,
   });
 
   final String id;
@@ -166,6 +167,11 @@ class BookMeta {
   final String? voice;
   final String? voiceSource;
 
+  /// Words on the cards really read in this book (skimmed reels don't
+  /// count; a card read twice counts twice). Null for books opened before
+  /// this was kept.
+  final int? wordsRead;
+
   BookMeta copyWith({
     DateTime? lastReadAt,
     String? positionSid,
@@ -175,6 +181,7 @@ class BookMeta {
     String? coverPath,
     String? voice,
     String? voiceSource,
+    int? wordsRead,
   }) =>
       BookMeta(
         id: id,
@@ -194,6 +201,7 @@ class BookMeta {
         subjects: subjects,
         voice: voice ?? this.voice,
         voiceSource: voiceSource ?? this.voiceSource,
+        wordsRead: wordsRead ?? this.wordsRead,
       );
 
   Map<String, dynamic> toJson() => {
@@ -214,6 +222,7 @@ class BookMeta {
         if (subjects.isNotEmpty) 'subjects': subjects,
         if (voice != null) 'voice': voice,
         if (voiceSource != null) 'voiceSource': voiceSource,
+        if (wordsRead != null) 'read': wordsRead,
       };
 
   factory BookMeta.fromJson(Map<String, dynamic> json) => BookMeta(
@@ -234,6 +243,7 @@ class BookMeta {
         subjects: ((json['subjects'] as List?) ?? const []).cast<String>(),
         voice: json['voice'] as String?,
         voiceSource: json['voiceSource'] as String?,
+        wordsRead: (json['read'] as num?)?.toInt(),
       );
 }
 

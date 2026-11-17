@@ -23,6 +23,7 @@ Five tabs, icons only: **Reading · Library · Notebook · Today · Profile**.
   - Tap a word for its meaning. Long-press a word to highlight it, or long-press empty space for options.
   - Swipe left to save, right to share.
   - The right rail: like, save, note, share, listen, streak, goal, options.
+  - **Only real reading counts.** A reel flicked past faster than careful reading (500 words a minute, or too fast for your own learnt speed) moves your place on but adds nothing to cards, minutes, words, your goal and streak, the feed or leagues. A book counts as finished once at least 60% of it was really read.
 - **Your pictures.** Each book opens on a random picture from `app/assets/images/backgrounds/` (never the one shown last). The row at the top of the reader (with the controls) switches it on the go, as does options → Background. The app measures each picture and shades it just enough for the text to stay readable, with light or dark text, whichever suits it. Until you add pictures, it uses its 8 painted scenes (4 by day, 4 by night).
 - **Your music.** Each book starts a random track from `app/assets/sounds/music/` and plays on through them; previous, pause and next sit at the top with the controls. Until you add music, it plays calm sound loops (rain, café, surf, birdsong…).
 - **Today.** Your goal ring, streak and the book to continue. Below them, the **Activity** feed: your reading sessions and milestones and those of readers you follow, with kudos and comments. Offline it shows your own sessions.

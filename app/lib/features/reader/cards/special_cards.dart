@@ -352,6 +352,7 @@ class MilestoneCardView extends StatelessWidget {
     required this.type,
     required this.onShare,
     required this.onDone,
+    this.readShare,
   });
 
   final String bookTitle;
@@ -361,8 +362,37 @@ class MilestoneCardView extends StatelessWidget {
   final VoidCallback onShare;
   final VoidCallback onDone;
 
+  /// Set when too little of the book was really read for it to count as
+  /// finished: the share that was (0–1).
+  final double? readShare;
+
   @override
   Widget build(BuildContext context) {
+    final short = readShare;
+    if (short != null) {
+      return _CardFrame(
+        theme: theme,
+        bare: true,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('📖', style: TextStyle(fontSize: 56)),
+          const SizedBox(height: 16),
+          Text('The end of', style: _serif(type, theme, scale: 0.9, color: theme.muted)),
+          const SizedBox(height: 8),
+          Text(bookTitle,
+              textAlign: TextAlign.center,
+              style: type.display(color: theme.spot, size: (settings.fontSize * 1.6).clamp(26.0, 42.0), shadows: theme.textShadows)),
+          const SizedBox(height: 20),
+          Text(
+            'About ${(short * 100).round()}% of it was really read, so it doesn’t count as finished yet. '
+            'Skimmed reels don’t count: read the parts you skipped, and it will.',
+            textAlign: TextAlign.center,
+            style: _serif(type, theme, scale: 0.8, color: theme.text),
+          ),
+          const SizedBox(height: 28),
+          KitButton.ghost(label: 'Back to library', onPressed: onDone),
+        ]),
+      );
+    }
     return _CardFrame(
       theme: theme,
       bare: true,

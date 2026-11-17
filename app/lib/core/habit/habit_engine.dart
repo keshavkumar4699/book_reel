@@ -6,11 +6,21 @@ import 'dart:math' as math;
 
 const defaultWpm = 230.0;
 const minWpm = 120.0;
-const maxWpm = 600.0;
+
+/// The fastest careful reading: a card read faster than this was skimmed,
+/// whatever the reader's own speed (adults average about 240 words a
+/// minute; much past 500 is skimming). It's also the most a learnt reading
+/// speed can reach.
+const readingMaxWpm = 500.0;
+const maxWpm = readingMaxWpm;
 
 /// Minimum share of the expected reading time a card must stay on screen to
 /// count as read.
 const verifyRatio = 0.35;
+
+/// A book counts as finished when at least this share of its words was
+/// really read (skimmed reels don't count).
+const finishedShare = 0.6;
 
 class DwellResult {
   const DwellResult({required this.verified, required this.minutes, required this.updatedWpm});
@@ -23,14 +33,19 @@ class DwellResult {
   final double updatedWpm;
 }
 
+/// Whether a card of [words] shown for [dwellMs] was read: long enough for
+/// the reader's own speed ([wpm], learnt) and no faster than careful reading
+/// ([readingMaxWpm]). Only reads that count teach the reading speed, so
+/// skimming steadily can't train it up until skimming passes.
 DwellResult evaluateDwell({required int words, required int dwellMs, required double wpm}) {
   if (words <= 0) return DwellResult(verified: false, minutes: 0, updatedWpm: wpm);
+  wpm = wpm.clamp(minWpm, maxWpm).toDouble();
   final expectedMs = words / wpm * 60000;
-  final verified = dwellMs >= verifyRatio * expectedMs;
+  final verified = dwellMs >= verifyRatio * expectedMs && dwellMs >= words / readingMaxWpm * 60000;
   final creditedMs = math.min(dwellMs.toDouble(), expectedMs * 3);
   var newWpm = wpm;
   // Learn reading speed only from plausible, attentive reads.
-  if (dwellMs >= 0.5 * expectedMs && dwellMs <= 3 * expectedMs) {
+  if (verified && dwellMs >= 0.5 * expectedMs && dwellMs <= 3 * expectedMs) {
     final observed = words / (dwellMs / 60000);
     newWpm = (0.85 * wpm + 0.15 * observed).clamp(minWpm, maxWpm).toDouble();
   }
@@ -73,16 +88,22 @@ class GoalConfig {
 }
 
 class DailyStat {
-  const DailyStat({this.verifiedCards = 0, this.skimmedCards = 0, this.minutes = 0});
+  const DailyStat({this.verifiedCards = 0, this.skimmedCards = 0, this.minutes = 0, this.words = 0});
 
+  /// Cards really read (see [evaluateDwell]); skimmed ones are counted apart
+  /// and add nothing else.
   final int verifiedCards;
   final int skimmedCards;
   final double minutes;
 
-  DailyStat add({required bool verified, required double minutes}) => DailyStat(
+  /// Words on the cards really read.
+  final int words;
+
+  DailyStat add({required bool verified, required double minutes, int words = 0}) => DailyStat(
         verifiedCards: verifiedCards + (verified ? 1 : 0),
         skimmedCards: skimmedCards + (verified ? 0 : 1),
         minutes: this.minutes + minutes,
+        words: this.words + (verified ? words : 0),
       );
 
   bool meets(GoalConfig goal) =>
@@ -93,12 +114,13 @@ class DailyStat {
     return (value / goal.dailyTarget).clamp(0, 1).toDouble();
   }
 
-  Map<String, dynamic> toJson() => {'v': verifiedCards, 's': skimmedCards, 'm': minutes};
+  Map<String, dynamic> toJson() => {'v': verifiedCards, 's': skimmedCards, 'm': minutes, 'w': words};
 
   factory DailyStat.fromJson(Map<String, dynamic> json) => DailyStat(
         verifiedCards: (json['v'] as num?)?.toInt() ?? 0,
         skimmedCards: (json['s'] as num?)?.toInt() ?? 0,
         minutes: ((json['m'] as num?) ?? 0).toDouble(),
+        words: (json['w'] as num?)?.toInt() ?? 0,
       );
 }
 

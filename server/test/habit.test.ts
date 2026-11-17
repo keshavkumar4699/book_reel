@@ -9,10 +9,27 @@ import { testDb } from "./helpers.js";
 
 describe("habit engine", () => {
   it("verifies dwell like the app and flags implausible speed", () => {
-    expect(evaluateDwell(120, 12000, 240).verified).toBe(true);
+    expect(evaluateDwell(120, 20000, 240).verified).toBe(true); // 360 wpm
     expect(evaluateDwell(120, 5000, 240).verified).toBe(false);
     const robot = evaluateDwell(600, 12000, 240);
     expect(robot.implausible || !robot.verified).toBe(true);
+  });
+
+  it("faster than careful reading is skimming, whatever the learnt speed; skims teach nothing", () => {
+    // 120 words in 12 s is 600 wpm: past 500, so skimmed even for a fast reader.
+    expect(evaluateDwell(120, 12000, 500).verified).toBe(false);
+    expect(evaluateDwell(120, 15000, 500).verified).toBe(true); // 480 wpm
+    // A speed learnt above the ceiling (older apps allowed 600) is brought under it.
+    expect(evaluateDwell(120, 13000, 600).verified).toBe(false);
+    // Steady skimming at about 730 wpm (0.55× the time a 400-wpm reader needs) used to
+    // teach the speed up to the old 600 cap; now it doesn't count and teaches nothing.
+    let wpm = 400;
+    for (let i = 0; i < 50; i++) {
+      const r = evaluateDwell(120, 0.55 * (120 / wpm) * 60000, wpm);
+      expect(r.verified).toBe(false);
+      wpm = r.updatedWpm;
+    }
+    expect(wpm).toBe(400);
   });
 
   it("streak freezes cover one missed day", () => {

@@ -49,15 +49,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// Today: 30 minutes, 12 cards. A day last year: 100 minutes, 40 cards.
+  /// Today: 30 minutes, 12 cards, 1,450 words (3 reels skimmed). A day last
+  /// year: 100 minutes, 40 cards, 9,800 words.
   void readingHistory() {
     final now = DateTime.now();
     store.saveDoc(
       'habit',
       HabitState(
         stats: {
-          dateKey(now): const DailyStat(verifiedCards: 12, minutes: 30),
-          dateKey(DateTime(now.year - 1, 6, 3)): const DailyStat(verifiedCards: 40, minutes: 100),
+          dateKey(now): const DailyStat(verifiedCards: 12, skimmedCards: 3, minutes: 30, words: 1450),
+          dateKey(DateTime(now.year - 1, 6, 3)): const DailyStat(verifiedCards: 40, minutes: 100, words: 9800),
         },
         streak: StreakState(current: 5, best: 9, lastGoalDate: dateKey(now)),
       ).toJson(),
@@ -119,6 +120,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(figure('2 h 10 min', 'reading time'), findsOneWidget);
     expect(figure('52', 'cards'), findsOneWidget);
+    expect(figure('11k', 'words read'), findsOneWidget, reason: '1,450 + 9,800');
+    expect(figure('3', 'reels skimmed (not counted)'), findsOneWidget);
     expect(figure('2', 'reading days'), findsOneWidget);
     // Trophies earned, and the next of each kind.
     await scrollTo(find.text('Trophies'));

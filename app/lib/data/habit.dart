@@ -25,6 +25,7 @@ class HabitState {
 
   int get totalVerifiedCards => stats.values.fold(0, (s, d) => s + d.verifiedCards);
   double get totalMinutes => stats.values.fold(0.0, (s, d) => s + d.minutes);
+  int get totalWords => stats.values.fold(0, (s, d) => s + d.words);
 
   HabitState copyWith({
     Map<String, DailyStat>? stats,
@@ -53,16 +54,21 @@ class HabitState {
         stats: ((j['stats'] as Map?) ?? const {})
             .map((k, v) => MapEntry(k as String, DailyStat.fromJson(v as Map<String, dynamic>))),
         streak: j['streak'] == null ? const StreakState() : StreakState.fromJson(j['streak'] as Map<String, dynamic>),
-        wpm: ((j['wpm'] as num?) ?? defaultWpm).toDouble(),
+        // A speed learnt before the careful-reading ceiling came in is brought under it.
+        wpm: ((j['wpm'] as num?) ?? defaultWpm).toDouble().clamp(minWpm, maxWpm).toDouble(),
         booksFinished: (j['booksFinished'] as int?) ?? 0,
         celebratedMilestone: (j['celebrated'] as int?) ?? 0,
       );
 }
 
 class CardRecord {
-  const CardRecord({required this.verified, required this.goalJustMet, required this.streak, this.milestone});
+  const CardRecord({required this.verified, required this.goalJustMet, required this.streak, this.milestone, this.minutes = 0});
 
+  /// Really read: it counts toward everything. A skimmed card counts toward nothing.
   final bool verified;
+
+  /// Reading minutes credited (0 when skimmed).
+  final double minutes;
 
   /// True only on the card that crosses today's goal.
   final bool goalJustMet;
@@ -106,7 +112,7 @@ class HabitNotifier extends Notifier<HabitState> {
     final result = evaluateDwell(words: words, dwellMs: dwellMs, wpm: state.wpm);
     final key = dateKey(now);
     final before = state.today(now);
-    final after = before.add(verified: result.verified, minutes: result.minutes);
+    final after = before.add(verified: result.verified, minutes: result.minutes, words: words);
     final justMet = !before.meets(goal) && after.meets(goal);
     var streak = state.streak;
     int? milestone;
@@ -126,7 +132,7 @@ class HabitNotifier extends Notifier<HabitState> {
       wpm: result.updatedWpm,
       celebratedMilestone: celebrated,
     ));
-    return CardRecord(verified: result.verified, goalJustMet: justMet, streak: streak.current, milestone: milestone);
+    return CardRecord(verified: result.verified, goalJustMet: justMet, streak: streak.current, milestone: milestone, minutes: result.minutes);
   }
 
   static const _outboxMax = 1500;

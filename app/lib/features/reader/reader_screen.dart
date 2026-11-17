@@ -287,6 +287,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     }
     _sentences = map;
     _sentencesFor = book;
+    _bodyWords = book.chapters.where((c) => c.index >= book.bodyStart).fold(0, (n, c) => n + c.wordCount);
   }
 
   void _ensureFeed(BookContent book, Map<int, ChapterSegments> segments, AppSettings s, BookMeta? meta) {
@@ -462,28 +463,49 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _credits.add((words: words, dwellMs: total, cardRef: '${widget.bookId.substring(0, 12)}:${card.startSid}'));
   }
 
-  /// Credits the reading time queued so far: today's goal, the streak, and
-  /// this session's card in the feed. Returns the record that met the goal.
+  /// Credits the reading time queued so far: today's goal, the streak, the
+  /// words read in this book, and this session's card in the feed. A card
+  /// read too fast for reading (see `evaluateDwell`) counts toward none of
+  /// them; only the place in the book moves on. Returns the record that met
+  /// the goal.
   CardRecord? _creditQueued() {
     if (_credits.isEmpty) return null;
     final queued = [..._credits];
     _credits.clear();
     CardRecord? met;
+    var words = 0;
     for (final c in queued) {
+      final r = _habit.recordCard(words: c.words, dwellMs: c.dwellMs, bookId: widget.bookId, cardRef: c.cardRef);
+      if (r.goalJustMet) met = r;
+      if (!r.verified) continue;
+      words += c.words;
       final meta = _meta;
       if (meta != null) {
         _sessions.record(
           bookId: widget.bookId,
           title: meta.title,
           author: meta.author,
-          dwellMs: c.dwellMs,
+          dwellMs: (r.minutes * 60000).round(),
           progress: meta.progress,
         );
       }
-      final r = _habit.recordCard(words: c.words, dwellMs: c.dwellMs, bookId: widget.bookId, cardRef: c.cardRef);
-      if (r.goalJustMet) met = r;
     }
+    if (words > 0) _library.addWordsRead(widget.bookId, words, before: _wordsReadBefore());
     return met;
+  }
+
+  /// Words in the book's own text (the front matter left out).
+  int _bodyWords = 0;
+
+  /// For a book opened before words read were kept: an estimate from how
+  /// far its reader had got.
+  int _wordsReadBefore() => ((_meta?.progress ?? 0) * _bodyWords).round();
+
+  /// The share of the book really read: words read over its words.
+  double _readShare() {
+    final meta = _library.byId(widget.bookId);
+    if (meta == null || _bodyWords <= 0) return 1;
+    return ((meta.wordsRead ?? _wordsReadBefore()) / _bodyWords).clamp(0.0, 1.0);
   }
 
   /// Saves the place in the book (the reel on screen, or the text before it).
@@ -537,7 +559,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       if (_tts && !identical(_spoken, item)) _speak(item);
     }
     _maybeRequestAi(book);
-    if (item.kind == CardKind.milestone && _library.markFinished(widget.bookId)) {
+    // The end: it counts as finished only when most of it was really read.
+    if (item.kind == CardKind.milestone && _readShare() >= finishedShare && _library.markFinished(widget.bookId)) {
       _habit.bookFinished();
       final api = ref.read(apiProvider);
       if (api.enabled) unawaited(api.bookFinished(book.title).catchError((_) {}));
@@ -1137,8 +1160,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
               ),
         );
       case CardKind.milestone:
+        final finished = meta?.finishedAt != null;
+        final share = finished ? 1.0 : _readShare();
         return MilestoneCardView(
           bookTitle: book.title,
+          readShare: finished || share >= finishedShare ? null : share,
           settings: s,
           theme: t,
           type: type,

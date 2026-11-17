@@ -5,9 +5,11 @@ import 'package:book_reel/data/habit.dart';
 import 'package:book_reel/data/json_store.dart';
 import 'package:book_reel/data/library.dart';
 import 'package:book_reel/data/segments.dart';
+import 'package:book_reel/data/sessions.dart';
 import 'package:book_reel/data/settings.dart';
 import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
+import 'package:book_reel/features/reader/cards/special_cards.dart';
 import 'package:book_reel/features/reader/cards/text_card.dart';
 import 'package:book_reel/features/reader/reader_screen.dart';
 import 'package:book_reel/services/music.dart';
@@ -178,5 +180,73 @@ void main() {
     await settle(tester);
     expect(kit().backdrop, Backdrop.paper);
     expect(kit().palette, isNull);
+  });
+
+  testWidgets('skimmed reels count toward nothing: not the goal, the session, the words or the book', (tester) async {
+    var now = DateTime(2026, 11, 17, 9);
+    ReaderScreen.clock = () => now;
+    final (c, bookId) = await open(tester);
+    await tester.fling(find.byType(PageView), const Offset(0, -500), 1500); // past the chapter card
+    await settle(tester);
+    final first = c.read(libraryProvider).single.positionSid;
+    // A second on each reel: skimming.
+    for (var i = 0; i < 6; i++) {
+      now = now.add(const Duration(seconds: 1));
+      await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
+      await settle(tester);
+    }
+    final habit = c.read(habitProvider);
+    final today = habit.today(now);
+    expect(today.verifiedCards, 0);
+    expect(today.skimmedCards, greaterThan(0));
+    expect((today.minutes, today.words), (0.0, 0));
+    expect(c.read(sessionLogProvider), isEmpty, reason: 'nothing for the feed');
+    expect(c.read(libraryProvider).single.wordsRead, 0);
+    expect(c.read(libraryProvider).single.positionSid, isNot(first), reason: 'the place in the book still moves on');
+
+    // A minute on each reel: reading. Cards, minutes, words and the session all count.
+    for (var i = 0; i < 4; i++) {
+      now = now.add(const Duration(minutes: 1));
+      await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
+      await settle(tester);
+    }
+    final read = c.read(habitProvider).today(now);
+    expect(read.verifiedCards, greaterThan(0));
+    expect(read.words, greaterThan(0));
+    expect(c.read(sessionLogProvider).single.cards, read.verifiedCards);
+    expect(c.read(libraryProvider).single.wordsRead, read.words);
+  });
+
+  testWidgets('a book skimmed to the end is not finished; one mostly read is', (tester) async {
+    Future<void> toTheEnd(WidgetTester tester) async {
+      for (var i = 0; i < 6 && find.byType(MilestoneCardView).evaluate().isEmpty; i++) {
+        await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
+        await settle(tester);
+      }
+      expect(find.byType(MilestoneCardView), findsOneWidget);
+    }
+
+    String lastCard(ProviderContainer c, String id) {
+      final seg = c.read(segmentsProvider((bookId: id, length: CardLength.standard))).value!;
+      return seg[seg.keys.reduce((a, b) => a > b ? a : b)]!.cards.last.startSid;
+    }
+
+    // Skimmed: the last card, then straight to the end.
+    final (c, bookId) = await open(tester, startAt: lastCard);
+    await toTheEnd(tester);
+    expect(c.read(libraryProvider).single.finishedAt, isNull);
+    expect(c.read(habitProvider).booksFinished, 0);
+    expect(find.textContaining('doesn’t count as finished yet'), findsOneWidget);
+    expect(find.text('You finished'), findsNothing);
+
+    // Mostly read (70 % of its words): back a reel and to the end again, and it counts.
+    final total = c.read(libraryProvider).single.wordCount;
+    c.read(libraryProvider.notifier).addWordsRead(bookId, (total * 0.7).round());
+    await tester.fling(find.byType(PageView), const Offset(0, 500), 1500);
+    await settle(tester);
+    await toTheEnd(tester);
+    expect(c.read(libraryProvider).single.finishedAt, isNotNull);
+    expect(c.read(habitProvider).booksFinished, 1);
+    expect(find.text('You finished'), findsOneWidget);
   });
 }

@@ -161,7 +161,7 @@ Every shared image includes book title, author, a small BookReel watermark and a
 ### 2.9 Streaks, goals & competition (Strava-like)
 
 **Verified reading activity**
-A card counts as **read** only if the dwell time is at least `0.35 × expected_time`, where `expected_time = words / user_wpm`. The user's WPM is learned from their own history, clamped to 120–600. This stops speed-scrolling from counting. Cards scrolled past too quickly are counted as "skimmed": progress is saved, but they don't count toward goals or leaderboards.
+A card counts as **read** only if the dwell time is at least `0.35 × expected_time`, where `expected_time = words / user_wpm`, **and** no faster than careful reading, 500 words a minute (adults average about 240; much past 500 is skimming). The user's WPM is learned from their own history, clamped to 120–500, and only from reads that count, so steady skimming can't train it up until skimming passes. This stops speed-scrolling from counting. Cards scrolled past too quickly are counted as "skimmed": the place in the book is saved, but they count toward nothing else: not goals, streaks, minutes, words, the session in the feed or leaderboards. A book counts as **finished** only when at least 60% of its words were really read (books opened before words were kept start from an estimate of where their reader got to).
 
 **Daily goal & streak**
 - Daily goal options: 5 / 10 / 20 / 40 verified cards, or 5 / 15 / 30 minutes. Default: 10 cards. Alternative **weekly goal** mode (e.g. 5 of 7 days) for users who find daily streaks stressful.
