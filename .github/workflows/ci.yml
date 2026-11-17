@@ -60,25 +60,35 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
         run: |
-          echo "$KEYSTORE" | base64 -d > android/app/upload-keystore.jks
-          {
-            echo "storeFile=upload-keystore.jks"
-            echo "storePassword=$STORE_PASSWORD"
-            echo "keyAlias=$KEY_ALIAS"
-            echo "keyPassword=$KEY_PASSWORD"
-          } > android/key.properties
+          # Keep only the base64 text: a secret made on Windows (certutil adds
+          # BEGIN/END lines) or pasted with line breaks or spaces still works.
+          printf '%s' "$KEYSTORE" | tr -d '\r' | grep -v -e '-----' | tr -d ' \t\n' | base64 -d > android/app/upload-keystore.jks 2>/dev/null || true
+          # A key that doesn't open never blocks the APKs: they're signed with
+          # the debug key instead, with a warning on the run.
+          if keytool -list -keystore android/app/upload-keystore.jks -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null 2>&1; then
+            {
+              echo "storeFile=upload-keystore.jks"
+              echo "storePassword=$STORE_PASSWORD"
+              echo "keyAlias=$KEY_ALIAS"
+              echo "keyPassword=$KEY_PASSWORD"
+            } > android/key.properties
+            echo "SIGNED=true" >> "$GITHUB_ENV"
+          else
+            rm -f android/app/upload-keystore.jks
+            echo "::warning title=Upload key not used::ANDROID_UPLOAD_KEYSTORE_BASE64 is not a keystore that opens with ANDROID_UPLOAD_STORE_PASSWORD and the alias in ANDROID_UPLOAD_KEY_ALIAS, so these APKs are signed with the debug key and no App Bundle is built. Set the secrets again as in docs/DEPLOY.md, section 2."
+          fi
       # Set the repository variable BOOKREEL_API (your server's https address)
       # to build apps that use it; unset builds the offline Free app.
       - run: >
           flutter build apk --release --split-per-abi --build-number="$BUILD_NUMBER"
           --dart-define=BOOKREEL_API="$BOOKREEL_API" --dart-define=APP_VERSION="$APP_VERSION"
       - name: App Bundle for Google Play
-        if: env.HAS_UPLOAD_KEY == 'true'
+        if: env.SIGNED == 'true'
         run: >
           flutter build appbundle --release --build-number="$BUILD_NUMBER"
           --dart-define=BOOKREEL_API="$BOOKREEL_API" --dart-define=APP_VERSION="$APP_VERSION"
       - uses: actions/upload-artifact@v4
-        if: env.HAS_UPLOAD_KEY == 'true'
+        if: env.SIGNED == 'true'
         with:
           name: cloro-release-aab
           path: app/build/app/outputs/bundle/release/app-release.aab

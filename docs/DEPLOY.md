@@ -118,9 +118,25 @@ Map your domain to the service (Cloud Run → Manage custom domains), then set `
 keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 ```
 
+Then turn the file into one line of text for the secret. On Linux:
+
 ```bash
 base64 -w0 upload-keystore.jks
 ```
+
+On macOS:
+
+```bash
+base64 -i upload-keystore.jks
+```
+
+On Windows (PowerShell):
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("upload-keystore.jks"))
+```
+
+Copy only that text into the secret: no quotes, and no `-----BEGIN…` or `-----END…` lines (CI drops those, and line breaks, if they slip in). If the key doesn't open with the password and alias below, CI still builds the APKs, signs them with the debug key, skips the App Bundle and shows an **Upload key not used** warning on the run.
 
 Then add these **GitHub secrets** (Settings → Secrets and variables → Actions → Secrets):
 
