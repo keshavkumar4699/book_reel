@@ -85,11 +85,15 @@ flutter:
     # The logo (made from assets/images/logo.png; Android icons in res/mipmap-*).
     - assets/images/logo_512.png
     - assets/images/logo_mark.png
+    # Your own background pictures (see the README in the folder).
+    - assets/images/backgrounds/
     - assets/books/
     # The privacy policy and terms (also served by the server at /privacy and /terms).
     - assets/legal/
-    # Scene sounds (licences in assets/sounds/CREDITS.md).
+    # Ambient loops (licences in assets/sounds/CREDITS.md), and your own music
+    # (see the README in the folder).
     - assets/sounds/
+    - assets/sounds/music/
     - assets/lexicon/zipf.tsv.gz
     - assets/lexicon/wordnet.json.gz
     # Font licences, shown on the app's licences page.

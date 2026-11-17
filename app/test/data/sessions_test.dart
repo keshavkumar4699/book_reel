@@ -32,13 +32,13 @@ void main() {
     return (c, store);
   }
 
-  void read(ProviderContainer c, {String book = 'b1', String title = 'Walden', int seconds = 60, double progress = 0.1, String? mood}) =>
-      c.read(sessionLogProvider.notifier).record(bookId: book, title: title, author: 'Thoreau', dwellMs: seconds * 1000, progress: progress, mood: mood);
+  void read(ProviderContainer c, {String book = 'b1', String title = 'Walden', int seconds = 60, double progress = 0.1}) =>
+      c.read(sessionLogProvider.notifier).record(bookId: book, title: title, author: 'Thoreau', dwellMs: seconds * 1000, progress: progress);
 
   test('cards in one book, within 30 minutes of each other, are one session', () async {
     now = DateTime(2026, 11, 13, 20);
     final (c, _) = await container();
-    read(c, seconds: 90, progress: 0.10, mood: 'cozy');
+    read(c, seconds: 90, progress: 0.10);
     now = now.add(const Duration(minutes: 2));
     read(c, seconds: 30, progress: 0.12);
     now = now.add(const Duration(minutes: 29));
@@ -46,7 +46,7 @@ void main() {
     var sessions = c.read(sessionLogProvider);
     expect(sessions, hasLength(1));
     final s = sessions.single;
-    expect((s.cards, s.progress, s.mood), (3, 0.12, 'cozy'));
+    expect((s.cards, s.progress), (3, 0.12));
     expect(s.minutes, closeTo(3, 0.001));
     expect(s.startedAt, DateTime(2026, 11, 13, 19, 58, 30), reason: 'the first card started when it was shown');
 
@@ -73,13 +73,13 @@ void main() {
     expect(q, startsWith('I went to the woods'));
   });
 
-  test('what is uploaded: the stats, the title and author, the mood and line; nothing else', () async {
+  test('what is uploaded: the stats, the title and author, and the line; nothing else', () async {
     now = DateTime(2026, 11, 13, 20);
     final (c, _) = await container();
-    read(c, mood: 'calm');
+    read(c);
     c.read(sessionLogProvider.notifier).quote('b1', 'A line.');
     final up = c.read(sessionLogProvider).single.toUpload();
-    expect(up.keys.toSet(), {'client_id', 'started_at', 'minutes', 'cards', 'book', 'progress', 'mood', 'quote'});
+    expect(up.keys.toSet(), {'client_id', 'started_at', 'minutes', 'cards', 'book', 'progress', 'quote'});
     expect(up['book'], {'title': 'Walden', 'author': 'Thoreau'});
     expect(up['client_id'], matches(RegExp(r'^[A-Za-z0-9_-]{8,64}$')));
     expect(up['started_at'], endsWith('Z'));
@@ -89,7 +89,7 @@ void main() {
     now = DateTime(2026, 11, 13, 20);
     final server = FakeServer();
     final (c, store) = await container(server: server);
-    read(c, mood: 'calm');
+    read(c);
     final sync = c.read(syncServiceProvider);
     await sync.flushSessions();
     final id = c.read(sessionLogProvider).single.id;

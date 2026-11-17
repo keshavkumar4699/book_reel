@@ -9,17 +9,9 @@ enum ReadingFont { book, literata, atkinson, system }
 
 enum KeyPointStyle { off, subtle, bold }
 
-/// Calm animated backgrounds behind the reader's reels.
+/// The painted scenes: behind the reels until you add pictures of your own
+/// (see `lib/ui/backdrops.dart`), and Paper, the plain page.
 enum Vibe { forest, cafe, rain, ocean, night, meadow, snow, city, paper }
-
-/// When Cloro asks "How are you feeling?" (Cloro plan §8).
-enum MoodAsk {
-  learning('While learning, then weekly'),
-  never('Never');
-
-  const MoodAsk(this.label);
-  final String label;
-}
 
 /// Light or dark for every screen except the reader (which wears its scene).
 enum AppAppearance {
@@ -112,15 +104,12 @@ class AppSettings {
     this.avatarEmoji = '',
     this.avatarPath,
     this.interests = const [],
-    this.vibe = Vibe.forest,
+    this.lastBackdrop,
     this.animatedBackground = true,
     this.gestureTutorialSeen = false,
     this.layoutVersion = currentLayoutVersion,
-    this.sceneSound = true,
-    this.sceneSoundVolume = 0.6,
-    this.autoScene = true,
-    this.moodScenes = true,
-    this.moodAsk = MoodAsk.learning,
+    this.music = true,
+    this.musicVolume = 0.6,
     this.online = true,
     this.crashReports = true,
   });
@@ -181,24 +170,19 @@ class AppSettings {
   final String avatarEmoji;
   final String? avatarPath;
   final List<String> interests;
-  final Vibe vibe;
+  /// The picture (or scene) last behind the reels, so the next book opens
+  /// on a different one.
+  final String? lastBackdrop;
+
+  /// Painted scenes move gently.
   final bool animatedBackground;
   final bool gestureTutorialSeen;
   final int layoutVersion;
 
-  /// The scene's own ambient sound (rain, café, waves…), for every tier.
-  /// Readers mute it to play their own music.
-  final bool sceneSound;
-  final double sceneSoundVolume;
-
-  /// Let the AI pick the background per chapter (paid tiers).
-  final bool autoScene;
-
-  /// Open books in the scene that suits your mood (asked, then predicted).
-  final bool moodScenes;
-
-  /// When to ask how you're feeling.
-  final MoodAsk moodAsk;
+  /// Music while reading (your own tracks, else calm ambient loops), for
+  /// every tier. Off: reading starts in silence, and play is a tap away.
+  final bool music;
+  final double musicVolume;
 
   /// Online features (following, the feed, sync, AI cards, share links).
   /// Off: everything stays on this phone. Turned off when the account is
@@ -259,14 +243,11 @@ class AppSettings {
     String? avatarPath,
     bool clearAvatarPath = false,
     List<String>? interests,
-    Vibe? vibe,
+    String? lastBackdrop,
     bool? animatedBackground,
     bool? gestureTutorialSeen,
-    bool? sceneSound,
-    double? sceneSoundVolume,
-    bool? autoScene,
-    bool? moodScenes,
-    MoodAsk? moodAsk,
+    bool? music,
+    double? musicVolume,
     bool? online,
     bool? crashReports,
   }) =>
@@ -311,15 +292,12 @@ class AppSettings {
         avatarEmoji: avatarEmoji ?? this.avatarEmoji,
         avatarPath: clearAvatarPath ? null : (avatarPath ?? this.avatarPath),
         interests: interests ?? this.interests,
-        vibe: vibe ?? this.vibe,
+        lastBackdrop: lastBackdrop ?? this.lastBackdrop,
         animatedBackground: animatedBackground ?? this.animatedBackground,
         gestureTutorialSeen: gestureTutorialSeen ?? this.gestureTutorialSeen,
         layoutVersion: layoutVersion,
-        sceneSound: sceneSound ?? this.sceneSound,
-        sceneSoundVolume: sceneSoundVolume ?? this.sceneSoundVolume,
-        autoScene: autoScene ?? this.autoScene,
-        moodScenes: moodScenes ?? this.moodScenes,
-        moodAsk: moodAsk ?? this.moodAsk,
+        music: music ?? this.music,
+        musicVolume: musicVolume ?? this.musicVolume,
         online: online ?? this.online,
         crashReports: crashReports ?? this.crashReports,
       );
@@ -365,15 +343,12 @@ class AppSettings {
         'avatarEmoji': avatarEmoji,
         'avatarPath': avatarPath,
         'interests': interests,
-        'vibe': vibe.name,
+        'lastBackdrop': lastBackdrop,
         'animatedBackground': animatedBackground,
         'gestureTutorialSeen': gestureTutorialSeen,
         'layoutVersion': layoutVersion,
-        'sceneSound': sceneSound,
-        'sceneSoundVolume': sceneSoundVolume,
-        'autoScene': autoScene,
-        'moodScenes': moodScenes,
-        'moodAsk': moodAsk.name,
+        'music': music,
+        'musicVolume': musicVolume,
         'online': online,
         'crashReports': crashReports,
         'planVersion': currentPlanVersion,
@@ -444,15 +419,13 @@ class AppSettings {
       avatarPath: j['avatarPath'] as String?,
       // Profiles show up to 3 genres; older saves with more keep their first 3.
       interests: ((j['interests'] as List?) ?? const []).cast<String>().take(3).toList(),
-      vibe: pick(Vibe.values, j['vibe'], d.vibe),
+      lastBackdrop: j['lastBackdrop'] as String?,
       animatedBackground: (j['animatedBackground'] as bool?) ?? d.animatedBackground,
       gestureTutorialSeen: (j['gestureTutorialSeen'] as bool?) ?? d.gestureTutorialSeen,
       // Readers who turned the old soundtrack off keep their sound off.
-      sceneSound: (j['sceneSound'] as bool?) ?? (j['soundtrack'] as bool?) ?? d.sceneSound,
-      sceneSoundVolume: num_(j['sceneSoundVolume'], d.sceneSoundVolume).clamp(0.0, 1.0),
-      autoScene: (j['autoScene'] as bool?) ?? d.autoScene,
-      moodScenes: (j['moodScenes'] as bool?) ?? d.moodScenes,
-      moodAsk: pick(MoodAsk.values, j['moodAsk'], d.moodAsk),
+      // Earlier versions called it the scene sound (and before that, the soundtrack).
+      music: (j['music'] as bool?) ?? (j['sceneSound'] as bool?) ?? (j['soundtrack'] as bool?) ?? d.music,
+      musicVolume: num_(j['musicVolume'] ?? j['sceneSoundVolume'], d.musicVolume).clamp(0.0, 1.0),
       online: (j['online'] as bool?) ?? d.online,
       crashReports: (j['crashReports'] as bool?) ?? d.crashReports,
     );

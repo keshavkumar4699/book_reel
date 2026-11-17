@@ -17,7 +17,6 @@ class ReadingSession {
     this.minutes = 0,
     this.cards = 0,
     this.progress = 0,
-    this.mood,
     this.quote,
     this.uploaded = false,
   });
@@ -35,9 +34,6 @@ class ReadingSession {
   /// How far into the book, 0–1.
   final double progress;
 
-  /// The mood's name (Mood.name), when one was set for this session.
-  final String? mood;
-
   /// A line saved during the session (public-domain books only).
   final String? quote;
   final bool uploaded;
@@ -47,7 +43,6 @@ class ReadingSession {
     double? minutes,
     int? cards,
     double? progress,
-    String? mood,
     String? quote,
     bool? uploaded,
   }) =>
@@ -61,7 +56,6 @@ class ReadingSession {
         minutes: minutes ?? this.minutes,
         cards: cards ?? this.cards,
         progress: progress ?? this.progress,
-        mood: mood ?? this.mood,
         quote: quote ?? this.quote,
         uploaded: uploaded ?? this.uploaded,
       );
@@ -76,7 +70,6 @@ class ReadingSession {
         'minutes': minutes,
         'cards': cards,
         'progress': progress,
-        'mood': mood,
         'quote': quote,
         'uploaded': uploaded,
       };
@@ -96,14 +89,13 @@ class ReadingSession {
       minutes: (j['minutes'] as num?)?.toDouble() ?? 0,
       cards: (j['cards'] as num?)?.toInt() ?? 0,
       progress: (j['progress'] as num?)?.toDouble() ?? 0,
-      mood: j['mood'] as String?,
       quote: j['quote'] as String?,
       uploaded: j['uploaded'] == true,
     );
   }
 
-  /// What the feed gets: the stats, the book's title and author, the mood and
-  /// the saved line. Nothing else from the book.
+  /// What the feed gets: the stats, the book's title and author, and the
+  /// saved line. Nothing else from the book.
   Map<String, dynamic> toUpload() => {
         'client_id': id,
         'started_at': startedAt.toUtc().toIso8601String(),
@@ -111,7 +103,6 @@ class ReadingSession {
         'cards': math.min(2000, cards),
         'book': {'title': _cut(title, 200), 'author': _cut(author, 120)},
         'progress': progress.clamp(0.0, 1.0),
-        'mood': ?mood,
         'quote': ?quote,
       };
 
@@ -158,14 +149,13 @@ class SessionLog extends Notifier<List<ReadingSession>> {
     return last != null && last.bookId == bookId && now.difference(last.endedAt) <= gap ? last : null;
   }
 
-  /// A card read: [dwellMs] on it, the book now at [progress], in [mood].
+  /// A card read: [dwellMs] on it, the book now at [progress].
   void record({
     required String bookId,
     required String title,
     required String author,
     required int dwellMs,
     required double progress,
-    String? mood,
   }) {
     final now = clock();
     final open = _open(bookId, now);
@@ -178,7 +168,6 @@ class SessionLog extends Notifier<List<ReadingSession>> {
           minutes: open.minutes + minutes,
           cards: open.cards + 1,
           progress: math.max(open.progress, progress),
-          mood: mood,
           uploaded: false,
         ),
       ]);
@@ -196,7 +185,6 @@ class SessionLog extends Notifier<List<ReadingSession>> {
           minutes: minutes,
           cards: 1,
           progress: progress,
-          mood: mood,
         ),
       ]);
     }

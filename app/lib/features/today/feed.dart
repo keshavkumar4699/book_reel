@@ -9,7 +9,6 @@ import '../../data/library.dart';
 import '../../data/sessions.dart';
 import '../../data/settings_provider.dart';
 import '../../data/sync_service.dart';
-import '../../services/mood.dart';
 import '../../ui/kit.dart';
 import '../../ui/widgets.dart';
 import '../profile/profile_screen.dart' show ReaderAvatar;
@@ -68,7 +67,6 @@ class FeedEntry {
           'minutes': s.minutes,
           'cards': s.cards,
           'progress': s.progress,
-          'mood': ?s.mood,
           'quote': ?s.quote,
         },
         local: true,
@@ -265,7 +263,6 @@ class ActivityCard extends ConsumerWidget {
 
     final Widget body;
     if (e.type == 'session') {
-      final mood = Mood.byName(e.data['mood'] as String?);
       final quote = e.data['quote'] as String?;
       final progress = (e.data['progress'] as num?)?.toDouble() ?? 0;
       Widget stat(String value, String label) => Padding(
@@ -290,7 +287,6 @@ class ActivityCard extends ConsumerWidget {
           stat('${_minutes((e.data['minutes'] as num?) ?? 0)} min', 'Time'),
           stat('${e.data['cards'] ?? 0}', 'Cards'),
           if (progress > 0) stat('${(progress * 100).round()}%', 'Book'),
-          if (mood != null) stat('${mood.emoji} ${mood.label}', 'Mood'),
         ]),
         if (quote != null && quote.isNotEmpty) ...[
           const SizedBox(height: 12),

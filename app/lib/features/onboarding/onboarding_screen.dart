@@ -6,13 +6,11 @@ import '../../data/library.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../ui/kit.dart';
-import '../../ui/theme.dart';
-import '../../ui/vibes.dart';
 
-/// ≤ 60 seconds to the first card: a welcome, pick a study vibe (a live
-/// window onto the scene you will read in), pick interests, then straight
-/// into a starter book. The daily goal is asked later, after the first cards.
-/// Onboarding wears the app's light or dark theme; scenes belong to reading.
+/// ≤ 60 seconds to the first card: a welcome, pick interests, then straight
+/// into a starter book. The daily goal is asked later, after the first cards;
+/// each book opens on a picture of its own. Onboarding wears the app's light
+/// or dark theme; pictures belong to reading.
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -22,7 +20,6 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _step = 0;
-  Vibe _vibe = Vibe.forest;
   final Set<String> _interests = {};
   bool _starting = false;
 
@@ -33,7 +30,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final library = ref.read(libraryProvider.notifier);
     final starter = await library.ensureStarterBook() ?? library.current;
     ref.read(settingsProvider.notifier).update(
-          (s) => s.copyWith(onboardingDone: true, interests: _interests.toList(), vibe: _vibe),
+          (s) => s.copyWith(onboardingDone: true, interests: _interests.toList()),
         );
     if (!mounted) return;
     // Straight into the first book, in the Reading tab.
@@ -43,8 +40,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
-    final style = vibeStyles[_vibe]!;
-    final palette = scenePalettes[_vibe];
     final titleStyle = kit.display;
     final bodyStyle = kit.body.copyWith(fontSize: 17, color: kit.inkSoft);
     Widget primary(String label, VoidCallback? onPressed) => KitButton(label: label, expand: true, onPressed: onPressed);
@@ -61,56 +56,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const SizedBox(height: 32),
         primary('Get started', () => setState(() => _step = 1)),
       ]),
-      // 2. Vibe
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Spacer(),
-        Text('Pick your study vibe', style: titleStyle),
-        const SizedBox(height: 8),
-        Text('The scene and sound behind your reels. ${style.tagline}', style: bodyStyle),
-        const SizedBox(height: 16),
-        // A window onto the scene you'll read in.
-        ClipRRect(
-          borderRadius: BorderRadius.circular(26),
-          child: SizedBox(
-            height: 190,
-            child: Stack(fit: StackFit.expand, children: [
-              RepaintBoundary(
-                child: VibeBackground(
-                  vibe: _vibe,
-                  animate: !MediaQuery.disableAnimationsOf(context),
-                  paperColor: ReadingTheme.of(ReadingThemeId.paper).background,
-                ),
-              ),
-              if (palette != null) DecoratedBox(decoration: BoxDecoration(gradient: palette.scrim)),
-              Padding(
-                padding: const EdgeInsets.all(22),
-                child: Center(
-                  child: Text(
-                    'It is a truth universally acknowledged…',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Literata',
-                      fontSize: 21,
-                      height: 1.35,
-                      color: palette?.ink ?? const Color(0xFF1F1D1A),
-                      shadows: palette?.textShadows,
-                    ),
-                  ),
-                ),
-              ),
-            ]),
-          ),
-        ),
-        const SizedBox(height: 12),
-        KitPanel(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-          radius: 26,
-          child: VibePickerRow(selected: _vibe, onSelected: (v) => setState(() => _vibe = v), height: 120),
-        ),
-        const SizedBox(height: 20),
-        primary('Next', () => setState(() => _step = 2)),
-      ]),
-      // 3. Interests
+      // 2. Interests
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Spacer(),
         Text('What do you like to read?', style: titleStyle),

@@ -10,14 +10,15 @@ import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
 import 'package:book_reel/features/reader/cards/text_card.dart';
 import 'package:book_reel/features/reader/reader_screen.dart';
-import 'package:book_reel/services/scene_sound.dart';
+import 'package:book_reel/services/music.dart';
+import 'package:book_reel/ui/backdrops.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'reader_test.dart' show SilentLoop;
+import '../silent_music.dart';
 
 /// Swiping, saving and celebrating in the reader: nothing is written while a
 /// reel moves, a rebuilt feed keeps the reel on screen, and meeting the goal
@@ -25,8 +26,7 @@ import 'reader_test.dart' show SilentLoop;
 void main() {
   final dirs = <Directory>[];
   setUp(() {
-    SceneSoundController.playerFactory = () => SilentLoop([]);
-    SceneSoundController.fade = Duration.zero;
+    quietReader();
   });
   tearDown(() => ReaderScreen.clock = DateTime.now);
   tearDownAll(() async {
@@ -134,5 +134,49 @@ void main() {
     expect(after.lines, before.lines, reason: 'and the same part of it');
     expect(tester.widget<PageView>(find.byType(PageView)).controller!.page, lessThan(pageBefore!), reason: 'its index moved; the reel did not');
     expect(after.animateIn, isFalse, reason: 'it was already on screen: no second fade-in');
+  });
+
+  testWidgets('each book opens on a random picture and track; the top of the screen switches both', (tester) async {
+    final (c, _) = await open(tester);
+    Kit kit() => Kit.of(tester.element(find.byType(PageView)));
+    expect(kit().backdrop, const Backdrop.scene(Vibe.meadow), reason: 'no pictures added yet: a painted scene');
+    expect(c.read(musicProvider).track!.title, 'Rain on the window');
+
+    // A tap shows the controls: the chapter, the music, and every picture in a row.
+    await tester.tapAt(const Offset(30, 420));
+    await tester.pump(const Duration(milliseconds: 400));
+    await settle(tester);
+    expect(find.bySemanticsLabel('Background: Meadow'), findsOneWidget);
+    expect(find.bySemanticsLabel('Background: Night'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Background: Night'));
+    await tester.pump(const Duration(milliseconds: 100));
+    await settle(tester);
+    expect(kit().backdrop, const Backdrop.scene(Vibe.night));
+    expect(kit().dark, isTrue, reason: 'light text on the night scene: sheets follow');
+    expect(c.read(settingsProvider).lastBackdrop, 'scene:night', reason: 'the next book opens on another');
+    expect(c.read(readerChromeProvider), isTrue, reason: 'picking keeps the controls up');
+
+    await tester.tap(find.bySemanticsLabel('Next track'));
+    await tester.pump();
+    expect(c.read(musicProvider).track!.title, 'Café murmur');
+    await tester.tap(find.bySemanticsLabel('Pause music'));
+    await tester.pump();
+    expect(c.read(musicProvider).playing, isFalse);
+    await tester.tap(find.bySemanticsLabel('Play music'));
+    await tester.pump();
+    expect(c.read(musicProvider).playing, isTrue);
+    await tester.tap(find.bySemanticsLabel('Previous track'));
+    await tester.pump();
+    expect(c.read(musicProvider).track!.title, 'Rain on the window');
+
+    // Plain, at the end of the row (scroll it along): the reading theme's own page.
+    await tester.drag(find.byType(BackdropStrip), const Offset(-400, 0));
+    await settle(tester);
+    await tester.tap(find.byWidgetPredicate((w) => w is BackdropThumb && w.backdrop.isPaper));
+    await tester.pump(const Duration(milliseconds: 100));
+    await settle(tester);
+    expect(kit().backdrop, Backdrop.paper);
+    expect(kit().palette, isNull);
   });
 }

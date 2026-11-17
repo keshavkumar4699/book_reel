@@ -12,13 +12,12 @@ import '../../data/settings_provider.dart';
 import '../../data/api_client.dart';
 import '../../services/account.dart';
 import '../../services/billing.dart';
-import '../../services/mood.dart';
 import '../../services/on_device_ai.dart';
 import '../../services/read_aloud.dart';
-import '../../services/scene_sound.dart';
+import '../../services/music.dart';
+import '../../ui/backdrops.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
-import '../../ui/vibes.dart';
 import '../reader/goal_setup_sheet.dart';
 import '../social/safety.dart';
 
@@ -33,8 +32,8 @@ class SettingsScreen extends ConsumerWidget {
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
     final ai = ref.watch(onDeviceAiProvider);
-    final style = vibeStyles[s.vibe]!;
-    final auto = s.autoScene && s.tier.paid && s.vibe != Vibe.paper;
+    final pictures = ref.watch(backdropsProvider).value;
+    final ownPictures = pictures != null && pictures.any((b) => b.isPicture);
     final time = MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay(hour: s.reminderHour, minute: s.reminderMinute),
         alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context));
 
@@ -56,29 +55,17 @@ class SettingsScreen extends ConsumerWidget {
         ]),
         KitGroup(label: 'Reading', divided: true, children: [
           KitRow(
-            emoji: auto ? '✨' : style.emoji,
-            title: 'Scene',
-            value: auto ? 'Auto' : style.label,
-            onTap: () => showKitSheet<void>(context, title: 'Scene', subtitle: 'The world behind your reels', builder: (_) => const SceneSettings()),
-          ),
-          KitRow(
-            icon: Icons.mood_rounded,
-            title: 'Mood',
-            value: !s.moodScenes
-                ? 'Off'
-                : auto
-                    ? 'The story picks'
-                    : s.moodAsk == MoodAsk.never
-                        ? 'On · not asking'
-                        : 'On',
+            icon: Icons.image_outlined,
+            title: 'Backgrounds',
+            value: ownPictures ? 'Your pictures' : 'Painted scenes',
             onTap: () => showKitSheet<void>(context,
-                title: 'Mood', subtitle: 'Your scene, picked from how you feel', builder: (_) => const MoodSettings()),
+                title: 'Backgrounds', subtitle: 'A different one each time you open a book', builder: (_) => const BackgroundSettings()),
           ),
           KitRow(
-            icon: s.sceneSound ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-            title: 'Scene sound',
-            value: s.sceneSound ? 'On · ${(s.sceneSoundVolume * 100).round()}%' : 'Off',
-            onTap: () => showKitSheet<void>(context, title: 'Scene sound', builder: (_) => const SoundSettings()),
+            icon: s.music ? Icons.music_note_rounded : Icons.music_off_rounded,
+            title: 'Music',
+            value: s.music ? 'On · ${(s.musicVolume * 100).round()}%' : 'Off',
+            onTap: () => showKitSheet<void>(context, title: 'Music', builder: (_) => const MusicSettings()),
           ),
           KitRow(
             icon: Icons.record_voice_over_rounded,
@@ -422,123 +409,83 @@ class _SliderField extends StatelessWidget {
   }
 }
 
-/// Scene picker, Auto and motion.
-class SceneSettings extends ConsumerWidget {
-  const SceneSettings({super.key});
+/// Where the backgrounds come from, and whether painted scenes move.
+class BackgroundSettings extends ConsumerWidget {
+  const BackgroundSettings({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final kit = Kit.of(context);
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
-    final paid = s.tier.paid;
+    final all = ref.watch(backdropsProvider).value ?? const <Backdrop>[];
+    final own = all.where((b) => b.isPicture).length;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      VibePickerRow(
-        selected: s.vibe,
-        autoSelected: paid && s.autoScene && s.vibe != Vibe.paper,
-        onAuto: paid ? () => n.update((x) => x.copyWith(autoScene: true)) : null,
-        onSelected: (v) => n.update((x) => x.copyWith(vibe: v, autoScene: false)),
-      ),
-      const SizedBox(height: 6),
-      Text(paid ? 'Auto lets the AI pick the scene that fits each chapter.' : 'Auto (AI-picked scenes) comes with every paid plan.',
-          style: kit.caption),
-      const SizedBox(height: 14),
-      KitGroup(divided: true, children: [
-        KitSwitchRow(
-          icon: Icons.animation_rounded,
-          title: 'Moving scenes',
-          subtitle: 'Gentle motion. Off when the phone’s “Remove animations” is on.',
-          value: s.animatedBackground,
-          onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
-        ),
-      ]),
-    ]);
-  }
-}
-
-/// Mood scenes: on/off, when to ask, and what Cloro has learnt so far.
-class MoodSettings extends ConsumerWidget {
-  const MoodSettings({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final kit = Kit.of(context);
-    final s = ref.watch(settingsProvider);
-    final n = ref.read(settingsProvider.notifier);
-    final mood = ref.watch(moodProvider);
-    final learning = ref.read(moodProvider.notifier).learning;
-    final answers = mood.answers.length;
-    final story = s.autoScene && s.tier.paid;
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      KitGroup(children: [
-        KitSwitchRow(
-          icon: Icons.mood_rounded,
-          title: 'Pick my scene from my mood',
-          subtitle: story ? 'Auto scenes are on: the story picks for now.' : null,
-          value: s.moodScenes,
-          onChanged: (v) => n.update((x) => x.copyWith(moodScenes: v)),
-        ),
-      ]),
-      const SizedBox(height: 12),
-      Text('Ask how I’m feeling', style: kit.heading.copyWith(fontSize: 15.5)),
-      const SizedBox(height: 8),
-      KitSegmented<MoodAsk>(
-        values: MoodAsk.values,
-        selected: s.moodAsk,
-        label: (a) => a.label,
-        onChanged: (a) => n.update((x) => x.copyWith(moodAsk: a)),
-      ),
-      const SizedBox(height: 12),
       Text(
-        learning
-            ? 'Learning: $answers of 15 answers. Cloro asks at most every 3 hours, then picks your mood itself.'
-            : 'Cloro knows your habit now: Gemma picks your mood${mood.current != null ? ' (now: ${mood.current!.emoji} ${mood.current!.label})' : ''}, '
-                'with a check-in about once a week. Tap “change” on the chip to correct it.',
+        own > 0
+            ? 'Each book opens on one of your $own picture${own == 1 ? '' : 's'}, picked at random. While reading, tap the screen and pick another from the row at the top.'
+            : 'Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. '
+                'Pictures added to the app’s backgrounds folder replace the scenes.',
         style: kit.caption,
       ),
-      const SizedBox(height: 8),
-      Text('Only your mood log is used (when, mood, minutes read), never your book’s text.', style: kit.caption),
+      if (own == 0) ...[
+        const SizedBox(height: 14),
+        KitGroup(divided: true, children: [
+          KitSwitchRow(
+            icon: Icons.animation_rounded,
+            title: 'Moving scenes',
+            subtitle: 'Gentle motion. Off when the phone’s “Remove animations” is on.',
+            value: s.animatedBackground,
+            onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
+          ),
+        ]),
+      ],
     ]);
   }
 }
 
-/// The scene's ambient sound.
-class SoundSettings extends ConsumerWidget {
-  const SoundSettings({super.key});
+/// Music while reading: on or off, and how loud.
+class MusicSettings extends ConsumerWidget {
+  const MusicSettings({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final kit = Kit.of(context);
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
+    final tracks = ref.watch(tracksProvider).value ?? const <Track>[];
+    final own = tracks.where((t) => !t.loop).length;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Text(
-        'Each scene has its own calm sound: ${sceneSoundLabels[s.vibe]!.toLowerCase()} for ${vibeStyles[s.vibe]!.label}. '
-        'Turn it off (or tap the speaker while reading) to play your own music.',
+        own > 0
+            ? 'Each book starts one of your $own track${own == 1 ? '' : 's'} at random, then plays on through them. '
+                'While reading, tap the screen for previous, pause and next.'
+            : 'Each book starts one of the calm sound loops (rain, café, surf…) at random. '
+                'While reading, tap the screen for previous, pause and next. Music added to the app’s music folder replaces the loops.',
         style: kit.caption,
       ),
       const SizedBox(height: 12),
       KitGroup(divided: true, children: [
         KitSwitchRow(
-          icon: Icons.graphic_eq_rounded,
-          title: 'Play the scene’s sound',
-          value: s.sceneSound,
-          onChanged: (v) => n.update((x) => x.copyWith(sceneSound: v)),
+          icon: Icons.music_note_rounded,
+          title: 'Play music while reading',
+          subtitle: s.music ? null : 'Books open in silence; play is a tap away.',
+          value: s.music,
+          onChanged: (v) => n.update((x) => x.copyWith(music: v)),
         ),
       ]),
-      if (s.sceneSound)
-        _SliderField(
-          label: 'Volume',
-          value: s.sceneSoundVolume,
-          min: 0.05,
-          max: 1,
-          divisions: 19,
-          display: (v) => '${(v * 100).round()}%',
-          onChanged: (v) {
-            n.update((x) => x.copyWith(sceneSoundVolume: v));
-            ref.read(sceneSoundProvider.notifier).applyVolume();
-          },
-        ),
+      _SliderField(
+        label: 'Volume',
+        value: s.musicVolume,
+        min: 0.05,
+        max: 1,
+        divisions: 19,
+        display: (v) => '${(v * 100).round()}%',
+        onChanged: (v) {
+          n.update((x) => x.copyWith(musicVolume: v));
+          ref.read(musicProvider.notifier).applyVolume();
+        },
+      ),
     ]);
   }
 }

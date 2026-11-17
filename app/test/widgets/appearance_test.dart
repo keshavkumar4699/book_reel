@@ -11,7 +11,7 @@ import 'package:book_reel/features/onboarding/onboarding_screen.dart';
 import 'package:book_reel/features/reader/reader_screen.dart';
 import 'package:book_reel/features/settings/settings_screen.dart';
 import 'package:book_reel/features/shell/home_shell.dart';
-import 'package:book_reel/services/scene_sound.dart';
+import 'package:book_reel/ui/backdrops.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/scenes.dart';
 import 'package:flutter/material.dart';
@@ -19,7 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-import 'reader_test.dart' show SilentLoop;
+import '../silent_music.dart';
 
 void main() {
   late Directory dir;
@@ -32,8 +32,7 @@ void main() {
     c = ProviderContainer(overrides: [storeProvider.overrideWithValue(store)]);
     c.read(settingsProvider.notifier).update((s) => s.copyWith(onboardingDone: true, goalSetupDone: true, animatedBackground: false));
     await store.flush(); // before the test body: writes from setUp must not outlive the folder
-    SceneSoundController.playerFactory = () => SilentLoop([]);
-    SceneSoundController.fade = Duration.zero;
+    quietReader();
   });
 
   // No store.flush(): a write started inside a widget test's fake-async zone
@@ -109,7 +108,7 @@ void main() {
     final shell = tester.widget<Scaffold>(find.descendant(of: find.byType(HomeShell), matching: find.byType(Scaffold)).first);
     expect(shell.backgroundColor, Kit.appDark.base);
 
-    // Onboarding: plain dark page; the vibe step shows the scene in a small window.
+    // Onboarding: plain dark pages, no scene anywhere (each book brings its own picture).
     await tester.pumpWidget(UncontrolledProviderScope(
       container: c,
       child: MaterialApp(theme: buildAppTheme(Kit.appDark), home: const OnboardingScreen()),
@@ -119,20 +118,17 @@ void main() {
     expect(title.style?.color, Kit.appDark.ink);
     expect(find.byType(VibeBackground), findsNothing);
     await tester.tap(find.text('Get started'));
-    // The preview scene moves (it never settles): pump past the transition.
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Pick your study vibe'), findsOneWidget);
-    // Only small windows onto scenes: the 190 px preview and the picker's thumbnails.
-    final heights = [for (final e in find.byType(VibeBackground).evaluate()) (e.renderObject! as RenderBox).size.height];
-    expect(heights, contains(190));
-    expect(heights.every((h) => h <= 190), isTrue, reason: 'no full-screen scene outside the reader');
+    await tester.pumpAndSettle();
+    expect(find.text('Pick your study vibe'), findsNothing);
+    expect(find.text('What do you like to read?'), findsOneWidget, reason: 'straight to interests');
+    expect(find.byType(VibeBackground), findsNothing);
   });
 
-  testWidgets('the reader keeps its scene even when the app is dark', (tester) async {
+  testWidgets('the reader keeps its picture even when the app is dark', (tester) async {
     late String bookId;
     await tester.runAsync(() async {
-      c.read(settingsProvider.notifier).update((s) => s.copyWith(gestureTutorialSeen: true, vibe: Vibe.meadow, cardLength: CardLength.standard));
+      // No pictures added yet: the first painted scene, Meadow, by day.
+      c.read(settingsProvider.notifier).update((s) => s.copyWith(gestureTutorialSeen: true, cardLength: CardLength.standard));
       bookId = (await c.read(libraryProvider.notifier).ensureStarterBook())!.id;
     });
     await tester.pumpWidget(UncontrolledProviderScope(
@@ -145,7 +141,8 @@ void main() {
     }
     expect(find.byType(VibeBackground), findsWidgets);
     final kit = Kit.of(tester.element(find.text('Swipe up to begin')));
-    expect(kit.vibe, Vibe.meadow);
+    expect(kit.backdrop, const Backdrop.scene(Vibe.meadow));
+    expect(c.read(settingsProvider).lastBackdrop, 'scene:meadow', reason: 'the next book opens on another');
     expect(kit.palette, isNotNull, reason: 'sheets opened here wear the scene, not the app’s dark theme');
     expect(kit.dark, isFalse, reason: 'meadow is a daylight scene');
 

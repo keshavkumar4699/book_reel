@@ -96,12 +96,15 @@
 >
 > Details: `docs/CLORO_PLAN.md` §10.
 
-> **Revision 13 (smooth reels; nothing in the way).** Device feedback: reels sometimes stuttered or jumped, and popups got in the way of reading.
+> **Revision 13 (smooth reels; your own pictures and music; nothing in the way).** Device feedback: reels sometimes stuttered or jumped, popups got in the way of reading, and the reader wanted their own pictures and music instead of being asked about their mood.
 > - **Nothing is saved mid-swipe.** The reading time, the place in the book, the goal and the streak are written once the reel comes to rest, between swipes.
 > - **No more freezes when recaps arrive.** New recaps, quick checks or the AI's cut used to make the reader lay out the whole book again. Now only the chapter that changed is laid out again (about 0.2 ms instead of 40 ms on the starter book, and far more on a novel).
 > - **No jumps.** When the feed is rebuilt, the reel on screen stays: the same text reel, recap, quick check or chapter card, never the text before it. It doesn't fade in again either, and a feed that changes mid-swipe waits until the reel comes to rest.
 > - **Goal done is a toast** that leaves on its own after a few seconds, with **See** for the session-complete screen (§5.3). Reading is never stopped.
 > - **Controls hide on their own** 4 seconds after the last touch; a tap on empty space shows them or hides them at once. The eye button is gone. With TalkBack (or another screen reader) on, they stay until hidden, since finding buttons by touch takes longer.
+> - **Your pictures behind the reels.** Each book opens on a random picture from the app's backgrounds folder, never the one shown last; the painted scenes stand in until pictures are added. A row of thumbnails at the top (with the controls) switches it on the go, as does options → Background, with Plain (the reading theme's page) last. Each picture is measured in 11 bands down the screen and shaded just enough for body text to keep 7:1 contrast and everything else 4.5:1, with light or dark text, whichever leaves more of the picture to see.
+> - **Your music.** Each book starts a random track from the app's music folder and plays on through them, with previous, pause and next at the top with the controls and the track's name under the chapter's. The ambient loops (Revision 5) stand in until music is added; they repeat until skipped. Settings → Music sets the volume or turns it off (books then open in silence, with play a tap away).
+> - **No more mood.** Revision 10's "How are you feeling?", the mood chip, Gemma's mood suggestions (on the phone and the server) and Auto scenes are gone. Moods no longer show on sessions in the feed.
 > - **No upload queue without a server.** Builds without a server no longer queue every card for upload (and save the whole queue each time), and they clear any queue left by earlier versions.
 
 ## 0. The answer in one paragraph
@@ -355,7 +358,7 @@ No red badge counts on the app icon. Quiet hours by default from 22:00 to 08:00.
 - Haptics: `selectionClick` on each card, `mediumImpact` on goal completion, none for errors.
 
 ### 6.5 Sound
-Each scene's own ambient sound, on by default, with its own volume control and a one-tap mute in the reader (see Revision 5).
+Your own music while reading (or, until you add some, calm ambient loops), on by default, with previous, pause and next in the reader and a volume in Settings (see Revisions 5 and 13).
 
 ### 6.6 Voice & tone
 - Warm, short, encouraging. Talk about the user, not the app ("You read 3 books this month", not "BookReel helped you…").

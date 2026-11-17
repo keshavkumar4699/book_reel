@@ -60,7 +60,7 @@ void main() {
   void readALittle(ProviderContainer c) {
     final log = c.read(sessionLogProvider.notifier);
     for (var i = 0; i < 4; i++) {
-      log.record(bookId: 'b1', title: 'Emma', author: 'Jane Austen', dwellMs: 45000, progress: 0.2, mood: 'cozy');
+      log.record(bookId: 'b1', title: 'Emma', author: 'Jane Austen', dwellMs: 45000, progress: 0.2);
     }
   }
 
@@ -69,13 +69,13 @@ void main() {
     final c = await open(tester, server: server, before: readALittle);
     await settle(tester, find.text('Walden'));
 
-    // Ravi's session: the book, the stats, his mood and the line he saved.
+    // Ravi's session: the book, the stats and the line he saved (moods are gone, even from older apps).
     expect(find.text('Ravi'), findsWidgets);
     expect(find.text('Henry David Thoreau'), findsOneWidget);
     expect(find.text('34 min'), findsOneWidget);
     expect(find.text('21'), findsOneWidget);
     expect(find.text('41%'), findsOneWidget);
-    expect(find.text('😌 Calm'), findsOneWidget);
+    expect(find.text('😌 Calm'), findsNothing);
     expect(find.textContaining('live deliberately'), findsOneWidget);
     // Your session went up to the feed before it loaded.
     final mine = c.read(sessionLogProvider).single;
@@ -117,7 +117,7 @@ void main() {
     expect(find.text('3 min'), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
     expect(find.text('20%'), findsOneWidget);
-    expect(find.text('☕ Cozy'), findsOneWidget);
+    expect(find.text('Mood'), findsNothing, reason: 'moods are gone');
     expect(find.textContaining('👏'), findsNothing);
   });
 

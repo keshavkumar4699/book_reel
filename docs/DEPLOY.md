@@ -39,7 +39,7 @@ gcloud sql users create cloro --instance=cloro-db --password='CHOOSE_A_LONG_PASS
 
 Secrets, one per key. Repeat for each key you use:
 - `cloro-anthropic-key`;
-- `cloro-tts-key` (also used for mood);
+- `cloro-tts-key`;
 - `cloro-admin-token`;
 - `cloro-play-service-account`;
 - `cloro-play-rtdn-secret`.

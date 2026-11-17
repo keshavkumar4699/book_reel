@@ -11,7 +11,7 @@ The app and server are feature-complete for a first release, and tested: 179 app
 - Play Billing with server verification and real-time notifications.
 - AI and speech quotas per plan.
 - Contrast-tested scenes.
-- A strict request schema wherever personal data goes to the server (mood, sessions).
+- A strict request schema wherever personal data goes to the server (sessions).
 - Migrations that only ever add.
 - A `/healthz` check.
 
@@ -46,7 +46,7 @@ The app and server are feature-complete for a first release, and tested: 179 app
 | B4 | **Accessibility audit** | A TalkBack pass on every screen. Check large-text layouts at 200% with no clipping, and touch targets of at least 48 px (the kit already has 44–56). Respect reduced motion (scenes and swipes already do). Contrast is already tested. | 🧑‍💻 |
 | B5 | **Languages** | Move the strings to ARB files (`intl` is already a dependency) and set `supportedLocales`. Start with Hindi; dates and numbers by locale. The AI already writes recaps in the book's language. | 🧑‍💻 (+ translators) |
 | B6 | **Privacy-friendly product analytics** | Count retention, streak survival, cards per session, and conversion to paid. Opt-in, no book text, nothing sold. Use self-hosted PostHog or Firebase Analytics with consent mode. | 🔑 + 🧑‍💻 |
-| B7 | **Remote config and kill switches** | Server flags (`/v1/config`): turn off comments, mood, Gemma, an AI tier, or ask for an update if a release breaks. | 🧑‍💻 |
+| B7 | **Remote config and kill switches** | Server flags (`/v1/config`): turn off comments, Gemma, an AI tier, or ask for an update if a release breaks. | 🧑‍💻 |
 | B8 | **Support and feedback** | "Send feedback" in Settings with an optional screenshot and logs, to an email or the server. Show the app version in About. | 🧑‍💻 |
 | B9 | **Store listing** | Screenshots on light and dark scenes, a short video, the feature graphic and the description. A/B test the icon and first screenshot in Play Console. | 🔑 + 🧑‍💻 assets |
 | B10 | **Data retention and cost control** | Prune `reading_events_seen` after 90 days, compact `ai_usage`, and cap the TTS cache size. Watch AI spend per paying user against DESIGN.md §5; the Batch API already halves background chapters. | 🧑‍💻 |
