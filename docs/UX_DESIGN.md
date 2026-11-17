@@ -106,6 +106,12 @@
 > - **Your music.** Each book starts a random track from the app's music folder and plays on through them, with previous, pause and next at the top with the controls and the track's name under the chapter's. The ambient loops (Revision 5) stand in until music is added; they repeat until skipped. Settings → Music sets the volume or turns it off (books then open in silence, with play a tap away).
 > - **No more mood.** Revision 10's "How are you feeling?", the mood chip, Gemma's mood suggestions (on the phone and the server) and Auto scenes are gone. Moods no longer show on sessions in the feed.
 > - **Only real reading counts.** A card read faster than careful reading (500 words a minute), or too fast for the reader's own learnt speed, still moves the place in the book on but counts toward nothing else: cards, minutes, words, the goal and streak, the session in the feed, leagues. The learnt speed only learns from reads that count. Words read are kept per day and per book; the profile shows them, and the reels skimmed (not counted). A book counts as finished only when at least 60% of its words were really read; otherwise its last card says how much was, and that the skipped parts still count when read.
+> - **Shares carry every figure, Strava-style.** The progress card is a headline, what it was about, and a grid of figures, each a big number over a small label:
+>   - goal done (from the session-complete screen): today's cards, words and time, the streak, the reading pace (words a minute) and how far into the book;
+>   - a finished book: its words read, cards, time and days, the streak and books read;
+>   - the profile: books read, cards, words, time, the streak and the best streak.
+>
+>   Only reading that counted is in them. The shared text and the web preview carry the same figures in one line.
 > - **No upload queue without a server.** Builds without a server no longer queue every card for upload (and save the whole queue each time), and they clear any queue left by earlier versions.
 
 ## 0. The answer in one paragraph

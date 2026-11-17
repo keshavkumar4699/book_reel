@@ -44,11 +44,30 @@ class QuoteShare extends ShareContent {
   final String? chapter;
 }
 
+/// Reading progress to share, Strava-style: a headline, what it was about,
+/// and the figures (cards, words, time, streak…) in a grid.
 class ProgressShare extends ShareContent {
-  const ProgressShare({required this.headline, required this.lines, this.emoji = '📚'});
+  const ProgressShare({required this.headline, this.lines = const [], this.emoji = '📚', this.subtitle, this.stats = const []});
   final String headline;
+
+  /// The book, or who's sharing.
+  final String? subtitle;
   final List<String> lines;
   final String emoji;
+
+  /// Figures as (value, label), e.g. ('3.1k', 'words').
+  final List<(String, String)> stats;
+
+  /// The figures in one line: "24 cards · 3.1k words · 18 min" (a time
+  /// carries its own unit).
+  String get statsLine => [for (final (v, l) in stats) l == 'time' ? v : '$v $l'].join(' · ');
+}
+
+/// Minutes as "18 min", "1 h 5 min" or "3 h".
+String shareDuration(double minutes) {
+  final m = minutes.round();
+  if (m < 60) return '$m min';
+  return m % 60 == 0 ? '${m ~/ 60} h' : '${m ~/ 60} h ${m % 60} min';
 }
 
 /// One-tap share sheet with a live preview (UX_DESIGN.md §5.6): the preview is
@@ -81,7 +100,14 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
     return switch (c) {
       QuoteShare() =>
         '“${limitQuote(c.sentences, publicDomain: c.publicDomain).text}”\n— ${c.author}, ${c.bookTitle}\n\nRead it on Cloro',
-      ProgressShare() => '${c.emoji} ${c.headline}\n${c.lines.join('\n')}\n\nReading on Cloro',
+      ProgressShare() => [
+          '${c.emoji} ${c.headline}',
+          ?c.subtitle,
+          if (c.stats.isNotEmpty) c.statsLine,
+          ...c.lines,
+          '',
+          'Reading on Cloro',
+        ].join('\n'),
     };
   }
 
@@ -99,7 +125,16 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
           'author': c.author,
           'public_domain': c.publicDomain,
         },
-      ProgressShare() => {'type': 'progress', 'headline': c.headline, 'lines': c.lines},
+      ProgressShare() => {
+          'type': 'progress',
+          'headline': c.headline,
+          // The web page shows up to 4 lines of up to 140 characters.
+          'lines': [
+            ?c.subtitle,
+            if (c.stats.isNotEmpty) c.statsLine,
+            ...c.lines,
+          ].take(4).map((l) => l.length > 140 ? '${l.substring(0, 139)}…' : l).toList(),
+        },
     };
     try {
       return await api.createShare(payload).timeout(const Duration(seconds: 4));
@@ -268,6 +303,7 @@ class ShareCardArt extends StatelessWidget {
   }
 
   Widget _progressBody(ProgressShare p, Color fg, Color muted) {
+    if (p.stats.isNotEmpty) return _statsBody(p, fg, muted);
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Text(p.emoji, style: const TextStyle(fontSize: 56)),
       const SizedBox(height: 16),
@@ -277,6 +313,66 @@ class ShareCardArt extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Text(l, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: muted, fontFamily: null)),
+        ),
+    ]);
+  }
+
+  /// Strava-style: the headline and what it was about at the top, then the
+  /// figures in a grid, each a big value over a small label.
+  Widget _statsBody(ProgressShare p, Color fg, Color muted) {
+    final square = aspect == ShareAspect.square;
+    final columns = p.stats.length <= 4 ? 2 : 3;
+    final valueSize = square ? 24.0 : (columns == 2 ? 34.0 : 28.0);
+    // The app's own sans faces for figures, as on a run's summary.
+    Widget figure((String, String) f) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(f.$2.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 11,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w800,
+                  fontVariations: const [FontVariation('wght', 800)],
+                  color: muted)),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(f.$1,
+                maxLines: 1,
+                style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: valueSize,
+                    height: 1.1,
+                    fontWeight: FontWeight.w700,
+                    fontVariations: const [FontVariation('wght', 700)],
+                    color: fg)),
+          ),
+        ]);
+    final rows = <Widget>[];
+    for (var i = 0; i < p.stats.length; i += columns) {
+      rows.add(Padding(
+        padding: EdgeInsets.only(bottom: square ? 12 : 20),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (var j = i; j < i + columns; j++) Expanded(child: j < p.stats.length ? figure(p.stats[j]) : const SizedBox()),
+        ]),
+      ));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      Text(p.emoji, style: TextStyle(fontSize: square ? 36 : 48)),
+      SizedBox(height: square ? 8 : 14),
+      Text(p.headline, style: TextStyle(fontSize: square ? 21 : 26, height: 1.2, color: fg, fontWeight: FontWeight.w600)),
+      if (p.subtitle != null) ...[
+        const SizedBox(height: 6),
+        Text(p.subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, color: muted, fontStyle: FontStyle.italic)),
+      ],
+      SizedBox(height: square ? 18 : 30),
+      ...rows,
+      for (final l in p.lines)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(l, style: TextStyle(fontSize: 13.5, color: muted, fontFamily: null)),
         ),
     ]);
   }

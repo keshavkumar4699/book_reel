@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../ui/kit.dart';
+import '../share/progress_shares.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 
@@ -13,6 +14,7 @@ Future<SessionChoice?> showSessionComplete(
   BuildContext context, {
   required int cards,
   required double minutes,
+  int words = 0,
   required int streak,
   int? milestone,
   String? ideaOfTheDay,
@@ -43,7 +45,7 @@ Future<SessionChoice?> showSessionComplete(
                     const SizedBox(height: 12),
                     Text(milestone != null ? '$milestone-day streak!' : 'Goal done', style: kit.display),
                     const SizedBox(height: 8),
-                    Text('$cards cards · ${minutes.round()} min', style: kit.heading),
+                    Text(['$cards cards', if (words > 0) '${compactCount(words)} words', '${minutes.round()} min'].join(' · '), style: kit.heading),
                     const SizedBox(height: 4),
                     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       const Icon(Icons.local_fire_department_rounded, color: ember),

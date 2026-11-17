@@ -33,6 +33,7 @@ import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/typography.dart';
 import '../../ui/vibes.dart';
+import '../share/progress_shares.dart';
 import '../share/share_sheet.dart';
 import 'cards/special_cards.dart';
 import 'cards/text_card.dart';
@@ -592,6 +593,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       _ui,
       cards: today.verifiedCards,
       minutes: today.minutes,
+      words: today.words,
       streak: record.streak,
       milestone: record.milestone,
       ideaOfTheDay: idea,
@@ -602,10 +604,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       case SessionChoice.share:
         await showShareSheet(
           _ui,
-          ProgressShare(
-            emoji: '🔥',
-            headline: '${record.streak}-day reading streak',
-            lines: ['${today.verifiedCards} cards today · ${today.minutes.round()} min', 'Reading ${book.title}'],
+          goalShare(
+            habit: ref.read(habitProvider),
+            streak: record.streak,
+            milestone: record.milestone,
+            bookTitle: book.title,
+            bookProgress: _meta?.progress ?? 0,
+            now: DateTime.now(),
           ),
         );
       case SessionChoice.done:
@@ -1168,14 +1173,19 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           settings: s,
           theme: t,
           type: type,
-          onShare: () => showShareSheet(
-            _ui,
-            ProgressShare(
-              emoji: '🎉',
-              headline: 'Finished ${book.title}',
-              lines: ['by ${book.author}', '${_feed.where((f) => f.kind == CardKind.text).length} reels'],
-            ),
-          ),
+          onShare: () {
+            final meta = _library.byId(widget.bookId);
+            if (meta == null) return;
+            showShareSheet(
+              _ui,
+              bookShare(
+                book: meta,
+                sessions: ref.read(sessionLogProvider),
+                streak: _habit.displayStreak(),
+                booksFinished: math.max(ref.read(habitProvider).booksFinished, ref.read(libraryProvider).where((b) => b.finishedAt != null).length),
+              ),
+            );
+          },
           onDone: () => context.go('/library'),
         );
     }

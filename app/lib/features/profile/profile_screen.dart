@@ -20,6 +20,7 @@ import '../../data/sync_service.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
+import '../share/progress_shares.dart';
 import '../share/share_sheet.dart';
 import '../social/people_screen.dart';
 import '../social/profile_header.dart';
@@ -96,13 +97,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               expand: true,
               onPressed: () => showShareSheet(
                 context,
-                ProgressShare(
+                profileShare(
+                  name: s.displayName,
+                  handle: s.username,
                   emoji: s.avatarEmoji.isNotEmpty ? s.avatarEmoji : '📖',
-                  headline: s.username.isEmpty ? '${s.displayName} on Cloro' : '${s.displayName} · @${s.username}',
-                  lines: [
-                    '$streak-day streak · ${habit.booksFinished} books finished',
-                    if (reading != null) 'Reading ${reading.title}',
-                  ],
+                  reading: reading?.title,
+                  habit: habit,
+                  streak: streak,
+                  booksFinished: math.max(habit.booksFinished, books.where((b) => b.finishedAt != null).length),
                 ),
               ),
             ),
@@ -333,14 +335,6 @@ class _StatsSection extends StatelessWidget {
     if (m < 60) return '$m min';
     return m % 60 == 0 ? '${m ~/ 60} h' : '${m ~/ 60} h ${m % 60} min';
   }
-}
-
-/// 950, 1.2k, 12k, 1.3M: a count that fits a small figure.
-String compactCount(int n) {
-  if (n < 1000) return '$n';
-  if (n < 10000) return '${(n / 1000).toStringAsFixed(1).replaceFirst(RegExp(r'\.0$'), '')}k';
-  if (n < 1000000) return '${(n / 1000).round()}k';
-  return '${(n / 1000000).toStringAsFixed(1).replaceFirst(RegExp(r'\.0$'), '')}M';
 }
 
 /// A milestone: earned, or the next one to aim for.
