@@ -10,9 +10,11 @@ import 'package:path_provider/path_provider.dart';
 import '../data/api_client.dart';
 import '../data/settings.dart';
 import '../data/settings_provider.dart';
+import 'local_voice.dart';
 import 'tts.dart';
 
-/// A natural voice offered for reading aloud (a Kokoro voice on the server).
+/// A natural voice offered for reading aloud (a Kokoro voice, on the phone
+/// or on the server).
 class SpeechVoiceInfo {
   const SpeechVoiceInfo(this.id, this.label, this.description);
   final String id;
@@ -55,12 +57,14 @@ class JustAudioSpeechPlayer implements SpeechPlayer {
   Future<void> dispose() => _player.dispose();
 }
 
-/// Reads reels aloud (DESIGN.md §2.4). The natural AI voice comes from the
-/// Cloro server (a neural model, Kokoro by default); each passage is kept
-/// on the phone, so replays are instant, free and work offline, and the next
-/// reel is fetched while this one plays, so listening flows without gaps.
-/// Without a server, offline or over the daily allowance, the phone's most
-/// natural installed voice reads instead.
+/// Reads reels aloud (DESIGN.md §2.4) with the most natural voice it has:
+/// 1. the natural voice on the phone (Kokoro, once downloaded): free,
+///    unlimited and offline. It speaks a few sentences at a time, so a reel
+///    starts as soon as its first sentence is ready;
+/// 2. the natural voice from the Cloro server, the same model;
+/// 3. the phone's most natural installed voice.
+/// Each passage's audio is kept on the phone, so replays are instant, and the
+/// next reel is made while this one plays, so listening flows without gaps.
 class ReadAloud {
   ReadAloud(this._ref);
 
@@ -78,6 +82,7 @@ class ReadAloud {
   VoidCallback? _onDone;
   int _turn = 0;
   DateTime? _naturalPausedUntil;
+  DateTime? _localPausedUntil;
   final Map<String, Future<File>> _pending = {};
 
   SpeechPlayer get _player {
@@ -92,7 +97,15 @@ class ReadAloud {
     return _playerInstance = created;
   }
 
-  /// The natural voice is in use (not paused after an error).
+  /// The natural voice on the phone is in use (downloaded, and not paused
+  /// after an error).
+  bool get localActive {
+    final s = _ref.read(settingsProvider);
+    final until = _localPausedUntil;
+    return s.naturalVoice && _ref.read(localVoiceProvider).ready && (until == null || DateTime.now().isAfter(until));
+  }
+
+  /// The natural voice from the server is in use (not paused after an error).
   bool get naturalActive {
     final s = _ref.read(settingsProvider);
     final until = _naturalPausedUntil;
@@ -104,6 +117,18 @@ class ReadAloud {
     final turn = ++_turn;
     await _stopPlayback();
     final s = _ref.read(settingsProvider);
+    if (localActive) {
+      try {
+        await _speakLocal(turn, text, next, onDone, s);
+        return;
+      } on VoiceLoadFailure catch (e) {
+        _ref.read(localVoiceProvider.notifier).markBroken(e);
+      } catch (e) {
+        debugPrint('On-device voice unavailable: $e');
+        _localPausedUntil = DateTime.now().add(const Duration(minutes: 5));
+      }
+      if (turn != _turn) return;
+    }
     if (naturalActive) {
       try {
         final file = await _audioFor(text, s);
@@ -136,6 +161,53 @@ class ReadAloud {
     if (p != null) await p.stop();
   }
 
+  /// Speaks [text] with the voice on the phone, part by part: each part is
+  /// made while the one before plays, and the next reel's first part while
+  /// the last plays. A part that can't be made hands the rest to the phone's
+  /// own voice.
+  Future<void> _speakLocal(int turn, String text, String? next, VoidCallback onDone, AppSettings s) async {
+    final parts = speechParts(text);
+    if (parts.isEmpty) return onDone();
+    final made = <int, Future<File>>{};
+    Future<File> make(int i) => made[i] ??= _localAudioFor(parts[i], s);
+
+    Future<void> playFrom(int i) async {
+      final file = await make(i);
+      if (turn != _turn) return;
+      if (i + 1 < parts.length) {
+        make(i + 1).ignore();
+        _onDone = () => unawaited(playFrom(i + 1).catchError((Object e) {
+              debugPrint('On-device voice stopped: $e');
+              if (turn == _turn) unawaited(Tts.instance.speak(parts.sublist(i + 1).join(' '), rate: 0.5 * s.voiceSpeed, onDone: onDone));
+            }));
+      } else {
+        _onDone = onDone;
+        final first = next == null ? null : speechParts(next).firstOrNull;
+        if (first != null) _localAudioFor(first, s).ignore();
+      }
+      await _player.playFile(file.path);
+    }
+
+    await playFrom(0);
+  }
+
+  Future<File> _localAudioFor(String text, AppSettings s) {
+    final key = keyFor(text, 'local:${s.voiceName}', s.voiceSpeed);
+    return _pending[key] ??= _makeLocal(key, text, s).whenComplete(() {
+      _pending.remove(key);
+    });
+  }
+
+  Future<File> _makeLocal(String key, String text, AppSettings s) async {
+    final dir = Directory('${(await cacheRoot()).path}/speech');
+    final file = File('${dir.path}/$key.wav');
+    if (await file.exists()) return file;
+    await dir.create(recursive: true);
+    await _ref.read(localSpeechProvider).synthesize(text: text, speaker: localSpeakerFor(s.voiceName), speed: s.voiceSpeed, path: file.path);
+    unawaited(_prune(dir));
+    return file;
+  }
+
   static String keyFor(String text, String voice, double speed) =>
       sha1.convert('$voice|${speed.toStringAsFixed(2)}|${text.trim()}'.codeUnits).toString();
 
@@ -162,13 +234,21 @@ class ReadAloud {
     return file;
   }
 
+  /// At most this much audio is kept (the voice on the phone saves
+  /// uncompressed WAV, about 3 MB a minute).
+  static const keepBytes = 80 * 1000 * 1000;
+
+  /// Keeps the newest passages: at most [keep] files and [keepBytes].
   static Future<void> _prune(Directory dir) async {
     try {
-      final files = dir.listSync().whereType<File>().where((f) => f.path.endsWith('.mp3')).toList();
-      if (files.length <= keep) return;
-      files.sort((a, b) => a.statSync().modified.compareTo(b.statSync().modified));
-      for (final f in files.take(files.length - keep)) {
-        f.deleteSync();
+      final files = [
+        for (final f in dir.listSync().whereType<File>())
+          if (f.path.endsWith('.mp3') || f.path.endsWith('.wav')) (f, f.statSync()),
+      ]..sort((a, b) => b.$2.modified.compareTo(a.$2.modified));
+      var bytes = 0;
+      for (final (i, (file, stat)) in files.indexed) {
+        bytes += stat.size;
+        if (i >= keep || bytes > keepBytes) file.deleteSync();
       }
     } catch (_) {}
   }
@@ -186,3 +266,43 @@ final readAloudProvider = Provider<ReadAloud>((ref) {
   ref.onDispose(r.dispose);
   return r;
 });
+
+int _words(String s) => s.trim().isEmpty ? 0 : s.trim().split(RegExp(r'\s+')).length;
+
+/// A passage in parts the voice on the phone can start on quickly: its
+/// sentences, with short ones joined to a neighbour and long ones split at a
+/// comma, semicolon or colon (about 40 words at most).
+List<String> speechParts(String text) {
+  final clean = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (clean.isEmpty) return const [];
+  final sentences = [
+    for (final m in RegExp(r'[^.!?…]+(?:[.!?…]+["”’)\]]*|$)').allMatches(clean))
+      if (m.group(0)!.trim().isNotEmpty) m.group(0)!.trim(),
+  ];
+  const most = 40;
+  final pieces = <String>[];
+  for (final sentence in sentences) {
+    if (_words(sentence) <= most) {
+      pieces.add(sentence);
+      continue;
+    }
+    var part = '';
+    for (final clause in sentence.split(RegExp(r'(?<=[,;:])\s+'))) {
+      if (part.isNotEmpty && _words(part) + _words(clause) > most) {
+        pieces.add(part);
+        part = '';
+      }
+      part = part.isEmpty ? clause : '$part $clause';
+    }
+    if (part.isNotEmpty) pieces.add(part);
+  }
+  final parts = <String>[];
+  for (final p in pieces) {
+    if (parts.isNotEmpty && (_words(parts.last) < 6 || _words(p) < 4) && _words(parts.last) + _words(p) <= most) {
+      parts[parts.length - 1] = '${parts.last} $p';
+    } else {
+      parts.add(p);
+    }
+  }
+  return parts;
+}

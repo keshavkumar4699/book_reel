@@ -4,7 +4,9 @@ import { z } from "zod";
 
 import type { Db } from "../db/db.js";
 import { notBlocked } from "../moderation.js";
-import { MOODS } from "../mood/suggest.js";
+
+/** Moods older versions of the app sent with a session; still accepted from them. */
+const LEGACY_MOODS = ["calm", "cozy", "focused", "energised", "dreamy", "reflective", "restless"] as const;
 
 /**
  * The Today feed (Cloro plan §10), Strava-style: reading sessions and
@@ -23,7 +25,7 @@ export const SessionSchema = z
     book: z.object({ title: z.string().trim().min(1).max(200), author: z.string().trim().max(120).default("") }).strict(),
     /** How far into the book, 0–1. */
     progress: z.number().min(0).max(1).default(0),
-    mood: z.enum(MOODS).optional(),
+    mood: z.enum(LEGACY_MOODS).optional(),
     /** A line saved during the session (public-domain books only, the app decides). */
     quote: z.string().trim().max(280).optional(),
   })

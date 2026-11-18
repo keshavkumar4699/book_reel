@@ -109,6 +109,8 @@ class LibraryNotifier extends Notifier<List<BookMeta>> {
       subjects: subjects,
       voice: voice.name,
       voiceSource: 'rules',
+      // Kept from the start: only books from before words were kept get an estimate.
+      wordsRead: 0,
     );
     _set([...state, meta]);
     return meta;
@@ -130,6 +132,14 @@ class LibraryNotifier extends Notifier<List<BookMeta>> {
             ? x.copyWith(positionSid: sid, positionOffset: offset, progress: progress, lastReadAt: at ?? DateTime.now())
             : x,
     ]);
+  }
+
+  /// Adds [words] really read in a book. A book opened before words were
+  /// kept starts from [before] (an estimate from where its reader got to).
+  void addWordsRead(String bookId, int words, {int before = 0}) {
+    final b = byId(bookId);
+    if (b == null || words <= 0) return;
+    _set([for (final x in state) x.id == bookId ? x.copyWith(wordsRead: (x.wordsRead ?? before) + words) : x]);
   }
 
   /// Marks a book finished; returns true the first time.

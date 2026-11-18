@@ -41,7 +41,7 @@ You keep the rights to what you write: your profile, comments and notes. You all
 
 ## AI
 
-Recaps, quick checks, meanings, mood suggestions and other AI output can be wrong. Treat it as a reading aid, not advice.
+Recaps, quick checks, meanings and other AI output can be wrong. Treat it as a reading aid, not advice.
 
 ## The service
 

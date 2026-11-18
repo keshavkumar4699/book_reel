@@ -165,7 +165,20 @@ ReadingThemeId effectiveReadingTheme(AppSettings s, Brightness platform) {
 String? fontFamilyFor(ReadingFont f) => switch (f) {
       ReadingFont.book => 'Literata',
       ReadingFont.literata => 'Literata',
+      ReadingFont.merriweather => 'Merriweather',
+      ReadingFont.sourceSerif => 'SourceSerif4',
+      ReadingFont.ebGaramond => 'EBGaramond',
+      ReadingFont.crimsonPro => 'CrimsonPro',
+      ReadingFont.lora => 'Lora',
+      ReadingFont.libreBaskerville => 'LibreBaskerville',
+      ReadingFont.alegreya => 'Alegreya',
+      ReadingFont.newsreader => 'Newsreader',
+      ReadingFont.bitter => 'Bitter',
+      ReadingFont.inter => 'Inter',
+      ReadingFont.lexend => 'Lexend',
+      ReadingFont.nunito => 'Nunito',
       ReadingFont.atkinson => 'AtkinsonHyperlegible',
+      ReadingFont.openDyslexic => 'OpenDyslexic',
       ReadingFont.system => null,
     };
 

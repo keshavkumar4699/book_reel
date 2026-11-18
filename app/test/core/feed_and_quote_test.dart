@@ -212,6 +212,75 @@ void main() {
     expect(biteFeed[idx2].card!.sentenceIds, contains(target.sentenceIds.last));
   });
 
+  test('a cached feed lays out only chapters whose cards changed, and matches a fresh build', () {
+    const options = FeedOptions(maxReelWords: 45);
+    final cache = FeedCache();
+    final first = buildFeed(book, segments, options, cache: cache);
+    // Recaps added to chapter 2 (as the on-device model does): the cards are the same objects.
+    final seg = segments[2]!;
+    final withRecap = {
+      ...segments,
+      2: ChapterSegments(chapterIndex: 2, cards: seg.cards, source: seg.source, recaps: {...seg.recaps, 3: ['A recap.']}, recalls: seg.recalls),
+    };
+    final second = buildFeed(book, withRecap, options, cache: cache);
+    expect(second.length, first.length + 1);
+    final firstText = first.where((f) => f.kind == CardKind.text).toList();
+    final secondText = second.where((f) => f.kind == CardKind.text).toList();
+    expect(secondText.length, firstText.length);
+    for (var i = 0; i < firstText.length; i++) {
+      expect(identical(firstText[i], secondText[i]), isTrue, reason: 'reel $i reused');
+    }
+    // A chapter cut again (other cards) is laid out again; the rest stay.
+    final recut = {...withRecap, 4: const RuleSegmenter(length: CardLength.bite).segment(book.chapters[4])};
+    final third = buildFeed(book, recut, options, cache: cache);
+    expect(third.where((f) => f.chapterIndex == 4 && f.kind == CardKind.text).every((f) => identical(f.card, recut[4]!.cards[f.cardIndexInChapter!])), isTrue);
+    expect(identical(third.firstWhere((f) => f.chapterIndex == 3 && f.kind == CardKind.text), firstText.firstWhere((f) => f.chapterIndex == 3)), isTrue);
+    // The same feed as without the cache, reel for reel.
+    final fresh = buildFeed(book, recut, options);
+    expect(third.length, fresh.length);
+    for (var i = 0; i < fresh.length; i++) {
+      expect((third[i].kind, third[i].anchorSid, third[i].lines, third[i].lastPart, third[i].spotlight),
+          (fresh[i].kind, fresh[i].anchorSid, fresh[i].lines, fresh[i].lastPart, fresh[i].spotlight),
+          reason: 'item $i');
+    }
+    // Another text size lays everything out again.
+    final larger = buildFeed(book, recut, const FeedOptions(maxReelWords: 30), cache: cache);
+    expect(larger.length, greaterThan(third.length));
+  });
+
+  test('after a rebuild the reader stays on the same reel, recap or quiz card; never back on read text', () {
+    const options = FeedOptions(maxReelWords: 45);
+    final cache = FeedCache();
+    final old = buildFeed(book, segments, options, cache: cache);
+    // A quick check in chapter 1 (rule cards get one every 10 cards).
+    final recall = old.indexWhere((f) => f.kind == CardKind.recall && f.chapterIndex == 1);
+    expect(recall, greaterThan(0));
+    // Recaps arrive for chapter 1 before and after the reader's place, and for chapter 2.
+    final s1 = segments[1]!, s2 = segments[2]!;
+    final more = {
+      ...segments,
+      1: ChapterSegments(chapterIndex: 1, cards: s1.cards, source: s1.source, recaps: {0: ['Earlier.'], 9: ['Here.'], 14: ['Later.']}),
+      2: ChapterSegments(chapterIndex: 2, cards: s2.cards, source: s2.source, recaps: {0: ['Next chapter.']}),
+    };
+    final feed = buildFeed(book, more, options, cache: cache);
+    final at = feedIndexAfterRebuild(old, recall, feed);
+    expect(feed[at].kind, CardKind.recall, reason: 'still on the quick check');
+    expect(at, recall + 2, reason: 'the recap at card 0 and the one just before it came in earlier');
+    // On a text reel: the very same reel.
+    final text = old.indexWhere((f) => f.kind == CardKind.text && f.chapterIndex == 1 && f.cardIndexInChapter == 12);
+    expect(identical(feed[feedIndexAfterRebuild(old, text, feed)], old[text]), isTrue);
+    // On a chapter card: the same chapter card.
+    final title = old.indexWhere((f) => f.kind == CardKind.chapterTitle && f.chapterIndex == 2);
+    final t2 = feedIndexAfterRebuild(old, title, feed);
+    expect((feed[t2].kind, feed[t2].chapterIndex), (CardKind.chapterTitle, 2));
+    // The quick checks turned off: the reel after the text read last, not that text again.
+    final none = buildFeed(book, more, const FeedOptions(maxReelWords: 45, recallCards: false), cache: cache);
+    final moved = feedIndexAfterRebuild(old, recall, none);
+    final lastRead = old.lastIndexWhere((f) => f.kind == CardKind.text, recall);
+    expect(identical(none[moved - 1], old[lastRead]) || none[moved].kind == CardKind.recap, isTrue);
+    expect(moved, greaterThan(none.indexWhere((f) => identical(f, old[lastRead]))));
+  });
+
   test('quote limit keeps whole sentences up to 75 words for copyrighted books', () {
     final sentences = List.generate(15, (i) => 'Sentence n$i has exactly seven words here.');
     final limited = limitQuote(sentences, publicDomain: false);

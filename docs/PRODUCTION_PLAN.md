@@ -11,7 +11,7 @@ The app and server are feature-complete for a first release, and tested: 179 app
 - Play Billing with server verification and real-time notifications.
 - AI and speech quotas per plan.
 - Contrast-tested scenes.
-- A strict request schema wherever personal data goes to the server (mood, sessions).
+- A strict request schema wherever personal data goes to the server (sessions).
 - Migrations that only ever add.
 - A `/healthz` check.
 
@@ -35,6 +35,7 @@ The app and server are feature-complete for a first release, and tested: 179 app
 | A8 | **Play billing live** | Code done (Phase 8). | The `IMPLEMENTATION_PLAN.md` launch checklist, steps 4–6: products, prices, the service account and the Pub/Sub push, then `BILLING_ENFORCED=1`. | 🔑 | A test purchase, upgrade, cancel and restore work on the closed track |
 | A9 | **App Links and share pages on your domain** | The server already serves `assetlinks.json`, `/c/:id` and `/i/:code`. The app has no intent filter. | Add the intent filter for `https://<domain>/c/*` and `/i/*`, and set `ANDROID_CERT_SHA256` to the Play signing key. Invite links open the app and follow the inviter. | 🔑 domain, 🧑‍💻 manifest and routing | Tapping an invite link on a phone opens Cloro |
 | A10 | **Closed testing** | Testing is by APK side-load. | An internal, then closed, test track with real testers for at least 14 days. Play requires a closed test before production for new personal developer accounts; check the current tester count in Play Console. Collect crashes and feedback; fix the top issues. | 🔑 + 🧑‍💻 | Crash-free sessions ≥ 99.5%, no open P1 bugs |
+| A11 | **On-device voice licence** | The natural voice on the phone uses sherpa-onnx 1.13.8, whose library has espeak-ng (GPL-3.0) built in (`app/assets/licences/README.md`). | Decide with a lawyer: keep it (and what GPL-3.0 then asks of the app), or move to sherpa-onnx 2.x, which has no espeak-ng but skips words missing from its word list. | 🔑 decision, 🧑‍💻 switch | A written decision; the licences page matches what ships |
 
 ## Phase B: launch quality (the first month)
 
@@ -46,7 +47,7 @@ The app and server are feature-complete for a first release, and tested: 179 app
 | B4 | **Accessibility audit** | A TalkBack pass on every screen. Check large-text layouts at 200% with no clipping, and touch targets of at least 48 px (the kit already has 44–56). Respect reduced motion (scenes and swipes already do). Contrast is already tested. | 🧑‍💻 |
 | B5 | **Languages** | Move the strings to ARB files (`intl` is already a dependency) and set `supportedLocales`. Start with Hindi; dates and numbers by locale. The AI already writes recaps in the book's language. | 🧑‍💻 (+ translators) |
 | B6 | **Privacy-friendly product analytics** | Count retention, streak survival, cards per session, and conversion to paid. Opt-in, no book text, nothing sold. Use self-hosted PostHog or Firebase Analytics with consent mode. | 🔑 + 🧑‍💻 |
-| B7 | **Remote config and kill switches** | Server flags (`/v1/config`): turn off comments, mood, Gemma, an AI tier, or ask for an update if a release breaks. | 🧑‍💻 |
+| B7 | **Remote config and kill switches** | Server flags (`/v1/config`): turn off comments, Gemma, an AI tier, or ask for an update if a release breaks. | 🧑‍💻 |
 | B8 | **Support and feedback** | "Send feedback" in Settings with an optional screenshot and logs, to an email or the server. Show the app version in About. | 🧑‍💻 |
 | B9 | **Store listing** | Screenshots on light and dark scenes, a short video, the feature graphic and the description. A/B test the icon and first screenshot in Play Console. | 🔑 + 🧑‍💻 assets |
 | B10 | **Data retention and cost control** | Prune `reading_events_seen` after 90 days, compact `ai_usage`, and cap the TTS cache size. Watch AI spend per paying user against DESIGN.md §5; the Batch API already halves background chapters. | 🧑‍💻 |

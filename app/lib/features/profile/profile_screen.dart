@@ -20,6 +20,7 @@ import '../../data/sync_service.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
+import '../share/progress_shares.dart';
 import '../share/share_sheet.dart';
 import '../social/people_screen.dart';
 import '../social/profile_header.dart';
@@ -96,13 +97,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               expand: true,
               onPressed: () => showShareSheet(
                 context,
-                ProgressShare(
+                profileShare(
+                  name: s.displayName,
+                  handle: s.username,
                   emoji: s.avatarEmoji.isNotEmpty ? s.avatarEmoji : '📖',
-                  headline: s.username.isEmpty ? '${s.displayName} on Cloro' : '${s.displayName} · @${s.username}',
-                  lines: [
-                    '$streak-day streak · ${habit.booksFinished} books finished',
-                    if (reading != null) 'Reading ${reading.title}',
-                  ],
+                  reading: reading?.title,
+                  habit: habit,
+                  streak: streak,
+                  booksFinished: math.max(habit.booksFinished, books.where((b) => b.finishedAt != null).length),
                 ),
               ),
             ),
@@ -201,6 +203,7 @@ class _ThisWeek extends StatelessWidget {
     final stats = [for (final d in days) habit.stats[dateKey(d)] ?? const DailyStat()];
     final minutes = stats.fold(0.0, (s, d) => s + d.minutes);
     final cards = stats.fold(0, (s, d) => s + d.verifiedCards);
+    final words = stats.fold(0, (s, d) => s + d.words);
     final read = books.where((b) => b.lastReadAt != null && !b.lastReadAt!.isBefore(monday)).length;
     final top = stats.fold(0.0, (m, d) => math.max(m, d.minutes));
     const letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -208,6 +211,7 @@ class _ThisWeek extends StatelessWidget {
       Row(children: [
         Expanded(child: _Figure('${minutes.round()}', 'minutes')),
         Expanded(child: _Figure('$cards', 'cards')),
+        Expanded(child: _Figure(compactCount(words), 'words')),
         Expanded(child: _Figure('$read', read == 1 ? 'book' : 'books')),
       ]),
       const SizedBox(height: 16),
@@ -298,6 +302,8 @@ class _StatsSection extends StatelessWidget {
     ];
     final minutes = days.fold(0.0, (s, d) => s + d.minutes);
     final cards = days.fold(0, (s, d) => s + d.verifiedCards);
+    final words = days.fold(0, (s, d) => s + d.words);
+    final skimmed = days.fold(0, (s, d) => s + d.skimmedCards);
     final readingDays = days.where((d) => d.minutes > 0 || d.verifiedCards > 0).length;
     final finished = thisYear
         ? books.where((b) => b.finishedAt?.year == now.year).length
@@ -305,6 +311,9 @@ class _StatsSection extends StatelessWidget {
     final figures = [
       _Figure(_duration(minutes), 'reading time'),
       _Figure('$cards', 'cards'),
+      _Figure(compactCount(words), 'words read'),
+      // Honest about it: reels flicked past too fast to read count toward nothing.
+      _Figure('$skimmed', skimmed == 1 ? 'reel skimmed (not counted)' : 'reels skimmed (not counted)'),
       _Figure('$finished', finished == 1 ? 'book finished' : 'books finished'),
       _Figure('$readingDays', readingDays == 1 ? 'reading day' : 'reading days'),
       _Figure(readingDays == 0 ? '0' : '${(minutes / readingDays).round()}', 'minutes a reading day'),

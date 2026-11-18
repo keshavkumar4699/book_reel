@@ -5,9 +5,10 @@ import 'package:flutter/services.dart';
 import '../data/settings.dart';
 import 'theme.dart';
 
-/// Bundled font families and their names. All are unmodified Google Fonts
-/// under the SIL Open Font License; each ships its licence text as
-/// `assets/fonts/OFL-<family>.txt`.
+/// Bundled font families and their names. All are under the SIL Open Font
+/// License and unmodified, except the regular and bold weights instanced
+/// from Source Serif 4, EB Garamond and Inter (pubspec.yaml); each ships its
+/// licence text as `assets/fonts/OFL-<family>.txt`.
 const bundledFonts = <String, String>{
   'Literata': 'Literata',
   'AtkinsonHyperlegible': 'Atkinson Hyperlegible',
@@ -23,9 +24,26 @@ const bundledFonts = <String, String>{
   'Outfit': 'Outfit',
   'Nunito': 'Nunito',
   'Fredoka': 'Fredoka',
+  'Merriweather': 'Merriweather',
+  'SourceSerif4': 'Source Serif 4',
+  'EBGaramond': 'EB Garamond',
+  'CrimsonPro': 'Crimson Pro',
+  'Newsreader': 'Newsreader',
+  'Bitter': 'Bitter',
+  'Inter': 'Inter',
+  'Lexend': 'Lexend',
+  'OpenDyslexic': 'OpenDyslexic',
 };
 
-/// Adds the font and scene-sound licences to the app's licences page
+/// [weight] on a variable font's weight axis. A variable font is drawn at
+/// its default instance unless told otherwise (Bitter's is Thin), and a
+/// static font ignores it, so text styles always carry both.
+List<FontVariation> weightAxis(FontWeight weight) => [FontVariation('wght', weight.value.toDouble())];
+
+/// A style at another [weight], on variable fonts too.
+TextStyle withWeight(TextStyle style, FontWeight weight) => style.copyWith(fontWeight: weight, fontVariations: weightAxis(weight));
+
+/// Adds the font, sound and on-device voice licences to the app's licences page
 /// (Settings → About).
 void registerFontLicenses() {
   LicenseRegistry.addLicense(() async* {
@@ -34,6 +52,18 @@ void registerFontLicenses() {
     }
     // Several recordings are CC BY and must be credited.
     yield LicenseEntryWithLineBreaks(['Scene sounds'], await rootBundle.loadString('assets/sounds/CREDITS.md'));
+    // The natural voice on the phone (sherpa-onnx's own licence is listed with the packages).
+    yield LicenseEntryWithLineBreaks(['ONNX Runtime (on-device voice)'], await rootBundle.loadString('assets/licences/onnxruntime-MIT.txt'));
+    yield LicenseEntryWithLineBreaks(
+      ['espeak-ng (on-device voice)'],
+      'espeak-ng is built into the sherpa-onnx speech library. Its source code: https://github.com/espeak-ng/espeak-ng\n\n'
+      '${await rootBundle.loadString('assets/licences/espeak-ng-GPL-3.0.txt')}',
+    );
+    yield LicenseEntryWithLineBreaks(
+      ['Kokoro-82M voice (downloaded)'],
+      'The voice model, by hexgrad (https://huggingface.co/hexgrad/Kokoro-82M), converted by sherpa-onnx.\n\n'
+      '${await rootBundle.loadString('assets/licences/kokoro-Apache-2.0.txt')}',
+    );
   });
 }
 
@@ -186,6 +216,7 @@ class BookType {
         fontFamily: bodyFamily,
         fontSize: settings.fontSize * scale * (usesVoice ? style.bodyScale : 1),
         fontWeight: usesVoice ? style.bodyWeight : FontWeight.w400,
+        fontVariations: weightAxis(usesVoice ? style.bodyWeight : FontWeight.w400),
         height: usesVoice ? style.bodyHeight : settings.lineHeight.clamp(1.4, 1.7),
         letterSpacing: settings.letterSpacing,
         wordSpacing: settings.wordSpacing,
@@ -198,6 +229,7 @@ class BookType {
         fontFamily: displayFamily,
         fontSize: size * (usesVoice ? style.displayScale : 1),
         fontWeight: usesVoice ? style.displayWeight : FontWeight.w700,
+        fontVariations: weightAxis(usesVoice ? style.displayWeight : FontWeight.w700),
         fontStyle: usesVoice ? style.displayStyle : FontStyle.normal,
         letterSpacing: usesVoice ? style.displayLetterSpacing : -0.2,
         height: usesVoice ? style.displayHeight : 1.16,

@@ -2,8 +2,6 @@
 import 'package:flutter/material.dart';
 
 import '../data/settings.dart';
-import 'kit.dart';
-import 'scenes.dart';
 import 'theme.dart';
 
 export 'scenes.dart';
@@ -190,8 +188,11 @@ const vibeStyles = <Vibe, VibeStyle>{
 };
 
 /// Reading-surface colours on top of a scene (the scene's palette).
-ReadingTheme readingThemeForVibe(Vibe vibe, ReadingTheme paper) {
-  final p = scenePalettes[vibe];
+ReadingTheme readingThemeForVibe(Vibe vibe, ReadingTheme paper) => readingThemeForPalette(scenePalettes[vibe], paper);
+
+/// Reading-surface colours on top of a scene or picture with palette [p]
+/// (none: the plain page in the reading theme's own colours).
+ReadingTheme readingThemeForPalette(ScenePalette? p, ReadingTheme paper) {
   if (p == null) return paper;
   return ReadingTheme(
     background: const Color(0x00000000),
@@ -213,152 +214,3 @@ ReadingTheme readingThemeForVibe(Vibe vibe, ReadingTheme paper) {
   );
 }
 
-/// Horizontal row of scene thumbnails (static) for picking a vibe.
-class VibePickerRow extends StatelessWidget {
-  const VibePickerRow({
-    super.key,
-    required this.selected,
-    required this.onSelected,
-    this.height = 132,
-    this.onAuto,
-    this.autoSelected = false,
-  });
-
-  final Vibe selected;
-  final ValueChanged<Vibe> onSelected;
-  final double height;
-
-  /// When set, shows an "Auto" tile first (AI picks the scene).
-  final VoidCallback? onAuto;
-  final bool autoSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final kit = Kit.of(context);
-    // Day scenes, then night ones, each under a small label; Paper last.
-    final entries = <Object>[
-      if (onAuto != null) #auto,
-      'Day', ...dayScenes,
-      'Night', ...nightScenes,
-      Vibe.paper,
-    ];
-    return SizedBox(
-      height: height + 28,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: entries.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, index) => switch (entries[index]) {
-          final Vibe v => _sceneTile(context, v),
-          final String label => _groupLabel(kit, label),
-          _ => _autoTile(context),
-        },
-      ),
-    );
-  }
-}
-
-extension on VibePickerRow {
-  /// A group name written up the side of the row, like a spine.
-  Widget _groupLabel(Kit kit, String label) => Padding(
-        padding: const EdgeInsets.only(bottom: 28),
-        child: RotatedBox(
-          quarterTurns: 3,
-          child: Center(
-            child: Text(label.toUpperCase(),
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 1.6, color: kit.inkSoft)),
-          ),
-        ),
-      );
-
-  Widget _sceneTile(BuildContext context, Vibe v) {
-    final ink = Kit.of(context).ink;
-    final style = vibeStyles[v]!;
-    final isSelected = !autoSelected && v == selected;
-    return Semantics(
-      button: true,
-      selected: isSelected,
-      label: '${style.label} vibe: ${style.tagline}',
-      child: GestureDetector(
-        onTap: () => onSelected(v),
-        child: Column(children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: height * 0.62,
-            height: height,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: isSelected ? ink : Colors.transparent, width: 3),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Stack(fit: StackFit.expand, children: [
-                VibeBackground(vibe: v, animate: false),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(style.emoji, style: const TextStyle(fontSize: 22)),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-          const SizedBox(height: 4),
-          SizedBox(
-            width: height * 0.62 + 16,
-            child: Text(style.label,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600, color: ink)),
-          ),
-        ]),
-      ),
-    );
-  }
-  Widget _autoTile(BuildContext context) {
-    final ink = Kit.of(context).ink;
-    return Semantics(
-      button: true,
-      selected: autoSelected,
-      label: 'Auto vibe: the AI picks the scene for each chapter',
-      child: GestureDetector(
-        onTap: onAuto,
-        child: Column(children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: height * 0.62,
-            height: height,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: autoSelected ? ink : Colors.transparent, width: 3),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Stack(fit: StackFit.expand, children: [
-                // A quartered preview of four scenes.
-                Column(children: [
-                  Expanded(child: Row(children: const [
-                    Expanded(child: VibeBackground(vibe: Vibe.meadow, animate: false)),
-                    Expanded(child: VibeBackground(vibe: Vibe.city, animate: false)),
-                  ])),
-                  Expanded(child: Row(children: const [
-                    Expanded(child: VibeBackground(vibe: Vibe.night, animate: false)),
-                    Expanded(child: VibeBackground(vibe: Vibe.ocean, animate: false)),
-                  ])),
-                ]),
-                const ColoredBox(color: Color(0x33000000)),
-                const Center(child: Text('✨', style: TextStyle(fontSize: 28))),
-              ]),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text('Auto', style: TextStyle(fontWeight: autoSelected ? FontWeight.w800 : FontWeight.w600, color: ink)),
-        ]),
-      ),
-    );
-  }
-}

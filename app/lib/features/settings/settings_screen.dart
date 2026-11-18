@@ -12,13 +12,14 @@ import '../../data/settings_provider.dart';
 import '../../data/api_client.dart';
 import '../../services/account.dart';
 import '../../services/billing.dart';
-import '../../services/mood.dart';
 import '../../services/on_device_ai.dart';
 import '../../services/read_aloud.dart';
-import '../../services/scene_sound.dart';
+import '../../services/local_voice.dart';
+import '../../services/music.dart';
+import '../../ui/backdrops.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
-import '../../ui/vibes.dart';
+import '../../ui/typography.dart';
 import '../reader/goal_setup_sheet.dart';
 import '../social/safety.dart';
 
@@ -33,8 +34,8 @@ class SettingsScreen extends ConsumerWidget {
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
     final ai = ref.watch(onDeviceAiProvider);
-    final style = vibeStyles[s.vibe]!;
-    final auto = s.autoScene && s.tier.paid && s.vibe != Vibe.paper;
+    final pictures = ref.watch(backdropsProvider).value;
+    final ownPictures = pictures != null && pictures.any((b) => b.isPicture);
     final time = MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay(hour: s.reminderHour, minute: s.reminderMinute),
         alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context));
 
@@ -56,29 +57,17 @@ class SettingsScreen extends ConsumerWidget {
         ]),
         KitGroup(label: 'Reading', divided: true, children: [
           KitRow(
-            emoji: auto ? '✨' : style.emoji,
-            title: 'Scene',
-            value: auto ? 'Auto' : style.label,
-            onTap: () => showKitSheet<void>(context, title: 'Scene', subtitle: 'The world behind your reels', builder: (_) => const SceneSettings()),
-          ),
-          KitRow(
-            icon: Icons.mood_rounded,
-            title: 'Mood',
-            value: !s.moodScenes
-                ? 'Off'
-                : auto
-                    ? 'The story picks'
-                    : s.moodAsk == MoodAsk.never
-                        ? 'On · not asking'
-                        : 'On',
+            icon: Icons.image_outlined,
+            title: 'Backgrounds',
+            value: ownPictures ? 'Your pictures' : 'Painted scenes',
             onTap: () => showKitSheet<void>(context,
-                title: 'Mood', subtitle: 'Your scene, picked from how you feel', builder: (_) => const MoodSettings()),
+                title: 'Backgrounds', subtitle: 'A different one each time you open a book', builder: (_) => const BackgroundSettings()),
           ),
           KitRow(
-            icon: s.sceneSound ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-            title: 'Scene sound',
-            value: s.sceneSound ? 'On · ${(s.sceneSoundVolume * 100).round()}%' : 'Off',
-            onTap: () => showKitSheet<void>(context, title: 'Scene sound', builder: (_) => const SoundSettings()),
+            icon: s.music ? Icons.music_note_rounded : Icons.music_off_rounded,
+            title: 'Music',
+            value: s.music ? 'On · ${(s.musicVolume * 100).round()}%' : 'Off',
+            onTap: () => showKitSheet<void>(context, title: 'Music', builder: (_) => const MusicSettings()),
           ),
           KitRow(
             icon: Icons.record_voice_over_rounded,
@@ -361,10 +350,44 @@ class AppearanceSettings extends ConsumerWidget {
   }
 }
 
+/// One line on what a font is good for.
+String _fontNote(ReadingFont f) => switch (f) {
+      ReadingFont.book => '',
+      ReadingFont.literata => 'Made for long reading on screens (Google Play Books).',
+      ReadingFont.merriweather => 'Sturdy and open, designed for reading on screens.',
+      ReadingFont.sourceSerif => 'A crisp modern serif in the old-style tradition.',
+      ReadingFont.ebGaramond => 'The classic book face, after Garamond’s 16th-century type.',
+      ReadingFont.crimsonPro => 'An elegant book serif, light on the page.',
+      ReadingFont.lora => 'A calligraphic serif, warm for stories.',
+      ReadingFont.libreBaskerville => 'Baskerville’s classic, tuned for screens.',
+      ReadingFont.alegreya => 'A lively literary serif with a calligraphic rhythm.',
+      ReadingFont.newsreader => 'Made for long reads on screens, newspaper-style.',
+      ReadingFont.bitter => 'A friendly slab serif, very clear at small sizes.',
+      ReadingFont.inter => 'A clean, neutral sans.',
+      ReadingFont.lexend => 'A sans made to reduce visual stress and help reading fluency.',
+      ReadingFont.nunito => 'A soft, rounded sans.',
+      ReadingFont.atkinson => 'Designed for low vision: every letter easy to tell apart.',
+      ReadingFont.openDyslexic => 'Weighted letters some readers with dyslexia find easier.',
+      ReadingFont.system => 'Your phone’s own font.',
+    };
+
 String _fontName(ReadingFont f) => switch (f) {
       ReadingFont.book => "Book's own fonts",
       ReadingFont.literata => 'Literata',
+      ReadingFont.merriweather => 'Merriweather',
+      ReadingFont.sourceSerif => 'Source Serif',
+      ReadingFont.ebGaramond => 'EB Garamond',
+      ReadingFont.crimsonPro => 'Crimson Pro',
+      ReadingFont.lora => 'Lora',
+      ReadingFont.libreBaskerville => 'Libre Baskerville',
+      ReadingFont.alegreya => 'Alegreya',
+      ReadingFont.newsreader => 'Newsreader',
+      ReadingFont.bitter => 'Bitter',
+      ReadingFont.inter => 'Inter',
+      ReadingFont.lexend => 'Lexend',
+      ReadingFont.nunito => 'Nunito',
       ReadingFont.atkinson => 'Atkinson Hyperlegible',
+      ReadingFont.openDyslexic => 'OpenDyslexic',
       ReadingFont.system => 'System font',
     };
 
@@ -422,124 +445,136 @@ class _SliderField extends StatelessWidget {
   }
 }
 
-/// Scene picker, Auto and motion.
-class SceneSettings extends ConsumerWidget {
-  const SceneSettings({super.key});
+/// Where the backgrounds come from, and whether painted scenes move.
+class BackgroundSettings extends ConsumerWidget {
+  const BackgroundSettings({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final kit = Kit.of(context);
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
-    final paid = s.tier.paid;
+    final all = ref.watch(backdropsProvider).value ?? const <Backdrop>[];
+    final own = all.where((b) => b.isPicture).length;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      VibePickerRow(
-        selected: s.vibe,
-        autoSelected: paid && s.autoScene && s.vibe != Vibe.paper,
-        onAuto: paid ? () => n.update((x) => x.copyWith(autoScene: true)) : null,
-        onSelected: (v) => n.update((x) => x.copyWith(vibe: v, autoScene: false)),
-      ),
-      const SizedBox(height: 6),
-      Text(paid ? 'Auto lets the AI pick the scene that fits each chapter.' : 'Auto (AI-picked scenes) comes with every paid plan.',
-          style: kit.caption),
-      const SizedBox(height: 14),
-      KitGroup(divided: true, children: [
-        KitSwitchRow(
-          icon: Icons.animation_rounded,
-          title: 'Moving scenes',
-          subtitle: 'Gentle motion. Off when the phone’s “Remove animations” is on.',
-          value: s.animatedBackground,
-          onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
-        ),
-      ]),
-    ]);
-  }
-}
-
-/// Mood scenes: on/off, when to ask, and what Cloro has learnt so far.
-class MoodSettings extends ConsumerWidget {
-  const MoodSettings({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final kit = Kit.of(context);
-    final s = ref.watch(settingsProvider);
-    final n = ref.read(settingsProvider.notifier);
-    final mood = ref.watch(moodProvider);
-    final learning = ref.read(moodProvider.notifier).learning;
-    final answers = mood.answers.length;
-    final story = s.autoScene && s.tier.paid;
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      KitGroup(children: [
-        KitSwitchRow(
-          icon: Icons.mood_rounded,
-          title: 'Pick my scene from my mood',
-          subtitle: story ? 'Auto scenes are on: the story picks for now.' : null,
-          value: s.moodScenes,
-          onChanged: (v) => n.update((x) => x.copyWith(moodScenes: v)),
-        ),
-      ]),
-      const SizedBox(height: 12),
-      Text('Ask how I’m feeling', style: kit.heading.copyWith(fontSize: 15.5)),
-      const SizedBox(height: 8),
-      KitSegmented<MoodAsk>(
-        values: MoodAsk.values,
-        selected: s.moodAsk,
-        label: (a) => a.label,
-        onChanged: (a) => n.update((x) => x.copyWith(moodAsk: a)),
-      ),
-      const SizedBox(height: 12),
       Text(
-        learning
-            ? 'Learning: $answers of 15 answers. Cloro asks at most every 3 hours, then picks your mood itself.'
-            : 'Cloro knows your habit now: Gemma picks your mood${mood.current != null ? ' (now: ${mood.current!.emoji} ${mood.current!.label})' : ''}, '
-                'with a check-in about once a week. Tap “change” on the chip to correct it.',
+        own > 0
+            ? 'Each book opens on one of your $own picture${own == 1 ? '' : 's'}, picked at random. While reading, tap the screen and pick another from the row at the top.'
+            : 'Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. '
+                'Pictures added to the app’s backgrounds folder replace the scenes.',
         style: kit.caption,
       ),
-      const SizedBox(height: 8),
-      Text('Only your mood log is used (when, mood, minutes read), never your book’s text.', style: kit.caption),
+      if (own == 0) ...[
+        const SizedBox(height: 14),
+        KitGroup(divided: true, children: [
+          KitSwitchRow(
+            icon: Icons.animation_rounded,
+            title: 'Moving scenes',
+            subtitle: 'Gentle motion. Off when the phone’s “Remove animations” is on.',
+            value: s.animatedBackground,
+            onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
+          ),
+        ]),
+      ],
     ]);
   }
 }
 
-/// The scene's ambient sound.
-class SoundSettings extends ConsumerWidget {
-  const SoundSettings({super.key});
+/// Music while reading: on or off, and how loud.
+class MusicSettings extends ConsumerWidget {
+  const MusicSettings({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final kit = Kit.of(context);
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
+    final tracks = ref.watch(tracksProvider).value ?? const <Track>[];
+    final own = tracks.where((t) => !t.loop).length;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Text(
-        'Each scene has its own calm sound: ${sceneSoundLabels[s.vibe]!.toLowerCase()} for ${vibeStyles[s.vibe]!.label}. '
-        'Turn it off (or tap the speaker while reading) to play your own music.',
+        own > 0
+            ? 'Each book starts one of your $own track${own == 1 ? '' : 's'} at random, then plays on through them. '
+                'While reading, tap the screen for previous, pause and next.'
+            : 'Each book starts one of the calm sound loops (rain, café, surf…) at random. '
+                'While reading, tap the screen for previous, pause and next. Music added to the app’s music folder replaces the loops.',
         style: kit.caption,
       ),
       const SizedBox(height: 12),
       KitGroup(divided: true, children: [
         KitSwitchRow(
-          icon: Icons.graphic_eq_rounded,
-          title: 'Play the scene’s sound',
-          value: s.sceneSound,
-          onChanged: (v) => n.update((x) => x.copyWith(sceneSound: v)),
+          icon: Icons.music_note_rounded,
+          title: 'Play music while reading',
+          subtitle: s.music ? null : 'Books open in silence; play is a tap away.',
+          value: s.music,
+          onChanged: (v) => n.update((x) => x.copyWith(music: v)),
         ),
       ]),
-      if (s.sceneSound)
-        _SliderField(
-          label: 'Volume',
-          value: s.sceneSoundVolume,
-          min: 0.05,
-          max: 1,
-          divisions: 19,
-          display: (v) => '${(v * 100).round()}%',
-          onChanged: (v) {
-            n.update((x) => x.copyWith(sceneSoundVolume: v));
-            ref.read(sceneSoundProvider.notifier).applyVolume();
-          },
-        ),
+      _SliderField(
+        label: 'Volume',
+        value: s.musicVolume,
+        min: 0.05,
+        max: 1,
+        divisions: 19,
+        display: (v) => '${(v * 100).round()}%',
+        onChanged: (v) {
+          n.update((x) => x.copyWith(musicVolume: v));
+          ref.read(musicProvider.notifier).applyVolume();
+        },
+      ),
     ]);
+  }
+}
+
+/// The natural voice on this phone: download it, see it come down, or
+/// remove it.
+class _LocalVoicePanel extends ConsumerWidget {
+  const _LocalVoicePanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final local = ref.watch(localVoiceProvider);
+    final voice = ref.read(localVoiceProvider.notifier);
+    switch (local.phase) {
+      case LocalVoicePhase.checking:
+        return const SizedBox.shrink();
+      case LocalVoicePhase.ready:
+        return Row(children: [
+          Icon(Icons.offline_pin_rounded, size: 20, color: kit.ink),
+          const SizedBox(width: 8),
+          Expanded(child: Text('On this phone · ${formatBytes(LocalVoiceModel.installedBytes)}', style: kit.strong.copyWith(fontSize: 14))),
+          KitButton.ghost(label: 'Remove', compact: true, onPressed: voice.remove),
+        ]);
+      case LocalVoicePhase.downloading:
+      case LocalVoicePhase.unpacking:
+        final unpacking = local.phase == LocalVoicePhase.unpacking;
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(
+              child: Text(unpacking ? 'Getting the voice ready…' : 'Downloading the voice · ${local.progress}%',
+                  style: kit.strong.copyWith(fontSize: 14)),
+            ),
+            if (!unpacking) KitButton.ghost(label: 'Cancel', compact: true, onPressed: voice.cancelDownload),
+          ]),
+          const SizedBox(height: 8),
+          KitProgress(value: unpacking ? 1 : local.progress / 100, height: 4, color: kit.ink, track: kit.field),
+        ]);
+      case LocalVoicePhase.absent:
+      case LocalVoicePhase.failed:
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (local.message != null) ...[
+            Text(local.message!, style: kit.caption.copyWith(color: kit.danger)),
+            const SizedBox(height: 8),
+          ],
+          KitButton(
+            label: 'Download the natural voice ($localVoiceDownloadSize)',
+            icon: Icons.download_rounded,
+            expand: true,
+            onPressed: voice.download,
+          ),
+        ]);
+    }
   }
 }
 
@@ -555,6 +590,7 @@ class VoiceSettings extends ConsumerWidget {
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
     final server = ref.watch(apiProvider).enabled;
+    final local = ref.watch(localVoiceProvider);
     void play() => ref.read(readAloudProvider).speak(sample, onDone: () {});
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       KitSegmented<bool>(
@@ -565,17 +601,22 @@ class VoiceSettings extends ConsumerWidget {
       ),
       const SizedBox(height: 10),
       Text(
-        s.naturalVoice
-            ? server
-                ? 'A neural voice that sounds close to a person reading. Each passage is kept on your phone, so '
-                    'listening again is instant and works offline. Free: about 25 minutes of new listening a day; '
-                    'paid plans: hours.'
-                : 'The natural voice comes from the Cloro server, which this build doesn\'t have yet, so your '
-                    'phone\'s most natural voice reads for now.'
-            : 'Your phone\'s own voice: works offline and costs nothing. We pick the most natural one it has installed.',
+        !s.naturalVoice
+            ? 'Your phone\'s own voice: works offline and costs nothing. We pick the most natural one it has installed.'
+            : local.ready
+                ? 'A neural voice that sounds close to a person reading, running on your phone: free, unlimited and '
+                    'offline. Nothing you read is sent anywhere.'
+                : server
+                    ? 'A neural voice that sounds close to a person reading, from the Cloro server. Free: about 25 '
+                        'minutes of new listening a day; paid plans: hours. Download it to your phone and it\'s '
+                        'unlimited, offline too.'
+                    : 'A neural voice that sounds close to a person reading. Download it once ($localVoiceDownloadSize) '
+                        'and it runs on your phone: free, unlimited and offline. Until then, your phone\'s own voice reads.',
         style: kit.caption,
       ),
       if (s.naturalVoice) ...[
+        const SizedBox(height: 12),
+        const _LocalVoicePanel(),
         const SizedBox(height: 12),
         KitGroup(divided: true, children: [
           for (final v in speechVoices)
@@ -625,6 +666,7 @@ class TextSettings extends ConsumerWidget {
           'The best time to plant a tree was twenty years ago. The second best time is now.',
           style: TextStyle(
             fontFamily: fontFamilyFor(s.font),
+            fontVariations: weightAxis(FontWeight.w400),
             fontSize: s.fontSize,
             height: s.lineHeight,
             letterSpacing: s.letterSpacing,
@@ -636,19 +678,23 @@ class TextSettings extends ConsumerWidget {
       const SizedBox(height: 16),
       Text('FONT', style: kit.label),
       const SizedBox(height: 8),
+      // Each font's name in its own face.
       Wrap(spacing: 8, runSpacing: 8, children: [
         for (final f in ReadingFont.values)
-          KitChip(label: _fontName(f), selected: s.font == f, onTap: () => n.update((x) => x.copyWith(font: f))),
+          KitChip(
+            label: _fontName(f),
+            fontFamily: f == ReadingFont.book || f == ReadingFont.system ? null : fontFamilyFor(f),
+            selected: s.font == f,
+            onTap: () => n.update((x) => x.copyWith(font: f)),
+          ),
       ]),
       const SizedBox(height: 6),
       Text(
-        switch (s.font) {
-          ReadingFont.book => s.tier.paid
-              ? 'Each book gets fonts that fit it, chosen by the AI from its genre and opening pages.'
-              : 'Each book gets fonts that fit its genre (fantasy, mystery, sci-fi, romance, non-fiction…).',
-          ReadingFont.atkinson => 'Designed for low vision; used for every book.',
-          _ => 'Used for every book.',
-        },
+        s.font == ReadingFont.book
+            ? (s.tier.paid
+                ? 'Each book gets fonts that fit it, chosen by the AI from its genre and opening pages.'
+                : 'Each book gets fonts that fit its genre (fantasy, mystery, sci-fi, romance, non-fiction…).')
+            : '${_fontNote(s.font)} Used for every book.',
         style: kit.caption,
       ),
       _SliderField(

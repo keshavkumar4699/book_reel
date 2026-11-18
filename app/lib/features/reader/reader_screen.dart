@@ -24,20 +24,20 @@ import '../../data/segments.dart';
 import '../../data/settings.dart';
 import '../../data/sessions.dart';
 import '../../data/settings_provider.dart';
-import '../../services/mood.dart';
 import '../../services/notifications.dart';
 import '../../services/on_device_ai.dart';
-import '../../services/scene_sound.dart';
+import '../../services/music.dart';
 import '../../services/read_aloud.dart';
+import '../../ui/backdrops.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/typography.dart';
 import '../../ui/vibes.dart';
+import '../share/progress_shares.dart';
 import '../share/share_sheet.dart';
 import 'cards/special_cards.dart';
 import 'cards/text_card.dart';
 import 'goal_setup_sheet.dart';
-import 'mood_sheet.dart';
 import 'page_mode.dart';
 import 'session_complete.dart';
 import 'word_sheet.dart';
@@ -47,7 +47,10 @@ class ReaderChrome extends Notifier<bool> {
   @override
   bool build() => false;
 
-  void set(bool visible) => state = visible;
+  void set(bool visible) {
+    // Called just after a reader is torn down, when the app may be closing too.
+    if (ref.mounted) state = visible;
+  }
 }
 
 final readerChromeProvider = NotifierProvider<ReaderChrome, bool>(ReaderChrome.new);
@@ -61,31 +64,65 @@ class ReaderScreen extends ConsumerStatefulWidget {
   /// Shown in the Reading tab (with the tab bar under the controls).
   final bool embedded;
 
+  /// The time on each reel is measured with this clock (tests move it on).
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
+
   @override
   ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
 }
 
 class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBindingObserver {
   PageController? _pager;
+
+  /// Bumped when the pager is replaced: the page view starts afresh on it.
+  int _pagerGeneration = 0;
   List<FeedItem> _feed = const [];
   Object? _feedKey;
+  final FeedCache _feedCache = FeedCache();
+
+  /// A swipe is under way (from the first move until the page comes to rest).
+  bool _scrolling = false;
+
+  /// The feed changed during a swipe: it's rebuilt once the page rests.
+  bool _feedStale = false;
+
+  /// Reading time of cards left during the swipe, credited when the page
+  /// rests, so no frame of a swipe waits on storage or a rebuild.
+  final List<({int words, int dwellMs, String cardRef})> _credits = [];
+
+  /// The reel read aloud last, so a page coming to rest doesn't repeat it.
+  FeedItem? _spoken;
+
+  /// The reel that was on screen when the feed was rebuilt under it: it
+  /// shows at once on the new page view instead of fading in again.
+  FeedItem? _steady;
+
+  /// The place last saved for this book.
+  (String, int)? _savedAt;
+  bool _goalSetupAsked = false;
   Map<String, CardSentence> _sentences = const {};
   BookContent? _sentencesFor;
   int _page = 0;
-  DateTime _shownAt = DateTime.now();
+  DateTime _shownAt = ReaderScreen.clock();
   bool _tts = false;
   int _textCardsThisSession = 0;
 
   /// Kept from initState: `ref` must not be used in dispose(), where the last
   /// card's reading time is still recorded.
   late final HabitNotifier _habit;
-  late final MoodController _mood;
   late final SessionLog _sessions;
+  late final LibraryNotifier _library;
 
   /// The book's library entry as last built (title, progress), for the
   /// session log, which can still be written to while the reader closes.
   BookMeta? _meta;
-  late final SceneSoundController _sound;
+  late final MusicPlayer _music;
+
+  /// The picture (or scene) behind the reels: a random one when the book
+  /// opens, changed from the strip at the top.
+  Backdrop? _backdrop;
+  bool _looksWarmed = false;
   late final ReadAloud _readAloud;
   Map<int, ChapterSegments>? _segments;
   final Set<int> _requestedAi = {};
@@ -93,39 +130,39 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// The chapter and block of cards the on-device model last wrote ahead for.
   (int, int)? _localBlock;
 
-  /// Focus mode is off: the controls (top bar, rail, tab bar) are showing.
-  /// A tap on empty space shows them; only the eye button hides them.
+  /// The controls (top bar, rail, tab bar) are showing. A tap on empty
+  /// space shows them, or hides them again; they hide on their own a few
+  /// seconds after the last touch, so the reel is left alone.
   bool _chrome = false;
   late final ReaderChrome _chromeFlag;
+  Timer? _chromeTimer;
+  static const chromeFor = Duration(seconds: 4);
 
   void _setChrome(bool on) {
+    _chromeTimer?.cancel();
+    // With TalkBack and the like, controls stay until hidden: finding a
+    // button by touch takes longer than a few seconds.
+    if (on && !(MediaQuery.maybeAccessibleNavigationOf(context) ?? false)) {
+      _chromeTimer = Timer(chromeFor, () {
+        if (mounted) _setChrome(false);
+      });
+    }
     if (_chrome == on) return;
     setState(() => _chrome = on);
     _chromeFlag.set(on);
+    if (on) _warmLooks();
   }
 
-  /// The scene and on/off state the sound was last set for.
-  (Vibe, bool)? _soundFor;
-
-  /// "How are you feeling?" was checked for this opening of the book.
-  bool _moodChecked = false;
-
-  /// The mood Cloro picked the scene from, shown as "· change" for a moment.
-  Mood? _moodChip;
-  bool _moodChipShown = false;
-  Timer? _moodChipTimer;
-
-  /// Dwell on the earlier reels of a split card, by feed index (the card is
-  /// credited once, on its last reel).
-  final Map<int, int> _partDwell = {};
+  /// Dwell on the earlier reels of a split card (the card is credited once,
+  /// on its last reel). By reel, which survives the feed being rebuilt.
+  final Map<FeedItem, int> _partDwell = {};
   bool _voiceChecked = false;
 
   /// A highlight is being adjusted with its handles.
   bool _selecting = false;
 
   /// A context under the reader's own theme: sheets and toasts opened from
-  /// here wear the scene on screen (which can differ from the app's when the
-  /// AI picks scenes).
+  /// here wear the picture on screen (which can differ from the app's).
   BuildContext? _themed;
   BuildContext get _ui => _themed != null && _themed!.mounted ? _themed! : context;
 
@@ -135,21 +172,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _chromeFlag = ref.read(readerChromeProvider.notifier);
     WidgetsBinding.instance.addObserver(this);
     _habit = ref.read(habitProvider.notifier);
-    _mood = ref.read(moodProvider.notifier);
     _sessions = ref.read(sessionLogProvider.notifier);
-    _sound = ref.read(sceneSoundProvider.notifier);
+    _library = ref.read(libraryProvider.notifier);
+    _music = ref.read(musicProvider.notifier);
     _readAloud = ref.read(readAloudProvider);
-  }
-
-  /// Keeps the scene's ambient sound in step with the scene on screen
-  /// (including the AI's Auto scenes) and the reader's on/off choice.
-  void _syncSound(Vibe scene, bool on) {
-    if (_soundFor == (scene, on)) return;
-    _soundFor = (scene, on);
+    // A random track for this book (providers can change once the frame is built).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      on ? unawaited(_sound.play(scene)) : unawaited(_sound.stop());
-      if (!_visible) unawaited(_sound.pause());
+      if (mounted) unawaited(_music.start(this));
     });
   }
 
@@ -163,37 +192,55 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (visible == _visible) return;
     _visible = visible;
     if (!visible) {
-      // Leaving the tab: no sound or voice in other tabs; count this reel.
-      unawaited(_sound.pause());
+      // Leaving the tab: no sound or voice in other tabs; count this reel
+      // (just after: providers can't change while widgets are building).
+      unawaited(_music.hold());
       if (_tts) _toggleTts();
-      _recordCurrent();
+      _recordCurrent(deferred: true);
     } else {
-      _shownAt = DateTime.now();
-      unawaited(_sound.resume());
+      _shownAt = ReaderScreen.clock();
+      unawaited(_music.release());
     }
   }
 
-  /// The scene behind the card on screen: the AI's choice for this part of
-  /// the chapter when Auto is on (paid tiers), otherwise the reader's vibe.
-  Vibe _sceneFor(AppSettings s) {
-    if (!s.autoScene || !s.tier.paid || s.vibe == Vibe.paper || _feed.isEmpty) return s.vibe;
-    final item = _feed[_page.clamp(0, _feed.length - 1)];
-    final name = _segments?[item.chapterIndex]?.sceneAt(item.cardIndexInChapter ?? 0);
-    return Vibe.values.where((v) => v.name == name && v != Vibe.paper).firstOrNull ?? s.vibe;
+  /// Music on or off (options sheet): the setting, and the player with it.
+  void _toggleMusic() {
+    final on = !ref.read(settingsProvider).music;
+    HapticFeedback.selectionClick();
+    ref.read(settingsProvider.notifier).update((x) => x.copyWith(music: on));
+    if (on != ref.read(musicProvider).playing) unawaited(_music.toggle());
   }
 
-  /// Speaker button: mute the scene's sound (to play your own music), or
-  /// bring it back.
-  void _toggleSound(Vibe scene) {
-    final on = !ref.read(settingsProvider).sceneSound;
+  /// Reads on [b] from now on: its colours are measured first, so it never
+  /// shows with the wrong ones.
+  Future<void> _setBackdrop(Backdrop b) async {
+    if (b == _backdrop) return;
     HapticFeedback.selectionClick();
-    ref.read(settingsProvider.notifier).update((x) => x.copyWith(sceneSound: on));
-    showKitToast(
-      _ui,
-      on ? '${sceneSoundLabels[scene]}' : 'Scene sound off. Play your own music if you like.',
-      icon: on ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-      duration: const Duration(milliseconds: 1800),
-    );
+    final asset = b.asset;
+    if (asset != null) {
+      try {
+        await ref.read(pictureLookProvider(pictureLookKey(asset, MediaQuery.sizeOf(context))).future);
+      } catch (_) {
+        if (mounted) showKitToast(_ui, 'Couldn’t open that picture', icon: Icons.broken_image_outlined);
+        return;
+      }
+    }
+    if (!mounted) return;
+    setState(() => _backdrop = b);
+    ref.read(settingsProvider.notifier).update((x) => x.copyWith(lastBackdrop: b.id));
+  }
+
+  /// Measures every picture's colours once the strip is first shown, so
+  /// picking one is instant.
+  void _warmLooks() {
+    if (_looksWarmed) return;
+    final all = ref.read(backdropsProvider).value;
+    if (all == null) return;
+    _looksWarmed = true;
+    final size = MediaQuery.sizeOf(context);
+    for (final b in all) {
+      if (b.asset != null) ref.read(pictureLookProvider(pictureLookKey(b.asset!, size)).future).ignore();
+    }
   }
 
   @override
@@ -204,9 +251,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     // Providers can't be modified while the tree is being torn down, so the
     // last card's reading time is recorded right after.
     _recordCurrent(deferred: true);
-    scheduleMicrotask(_sound.stop);
+    final music = _music, me = this;
+    scheduleMicrotask(() => music.stop(me));
     WidgetsBinding.instance.removeObserver(this);
-    _moodChipTimer?.cancel();
+    _chromeTimer?.cancel();
     _pager?.dispose();
     unawaited(_readAloud.stop());
     super.dispose();
@@ -215,8 +263,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      // No scene sound while the app is in the background.
-      unawaited(_sound.pause());
+      // No music while the app is in the background.
+      unawaited(_music.hold());
       _recordCurrent();
       final habit = ref.read(habitProvider);
       final notifier = ref.read(habitProvider.notifier);
@@ -224,10 +272,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         ReminderService.instance.scheduleStreakNudge(streak: notifier.displayStreak(), freezesLeft: notifier.freezesLeft());
       }
     } else if (state == AppLifecycleState.resumed && _visible) {
-      _shownAt = DateTime.now();
-      unawaited(_sound.resume());
-      // Back after a while: maybe time to ask (or a new part of the day).
-      if (_moodChecked) unawaited(_checkMood());
+      _shownAt = ReaderScreen.clock();
+      unawaited(_music.release());
     }
   }
 
@@ -245,6 +291,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     }
     _sentences = map;
     _sentencesFor = book;
+    _bodyWords = book.chapters.where((c) => c.index >= book.bodyStart).fold(0, (n, c) => n + c.wordCount);
   }
 
   void _ensureFeed(BookContent book, Map<int, ChapterSegments> segments, AppSettings s, BookMeta? meta) {
@@ -261,14 +308,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     );
     final key = (segments, s.recallCards, s.reflectCards, maxReelWords);
     if (_feedKey == key) return;
-    // Where the reader is: an explicit start, the saved position, or (when
-    // the feed is rebuilt) the reel on screen.
-    final (String? anchor, int anchorOffset) = _feed.isNotEmpty
-        ? _currentAnchor()
-        : widget.startSid != null
-            ? (widget.startSid, 0)
-            : (meta?.positionSid, meta?.positionOffset ?? 0);
-    _feed = buildFeed(
+    // Never under a finger: a feed that changes mid-swipe waits for the page to rest.
+    if (_scrolling && _feed.isNotEmpty) {
+      _feedStale = true;
+      return;
+    }
+    final feed = buildFeed(
       book,
       segments,
       FeedOptions(
@@ -278,23 +323,45 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         recallEvery: s.cardLength == CardLength.snack ? 15 : 10,
         maxReelWords: maxReelWords,
       ),
+      cache: _feedCache,
     );
-    _feedKey = key;
-    _partDwell.clear();
-    var index = feedIndexForSid(_feed, anchor, offset: anchorOffset);
-    // A book opened for the first time starts at its own text (the
-    // introduction or first chapter), past the title page and copyright.
-    if (anchor == null) index = math.max(0, _feed.indexWhere((f) => f.chapterIndex >= book.bodyStart));
-    _page = index;
-    if (_pager == null) {
-      _pager = PageController(initialPage: index);
-    } else if (_pager!.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _pager!.hasClients) _pager!.jumpToPage(index);
-      });
+    int index;
+    if (_feed.isNotEmpty) {
+      // Rebuilt (recaps arrived, the AI's cut, a new text size): the same reel.
+      index = feedIndexAfterRebuild(_feed, _page, feed);
+    } else {
+      // Where the reader is: an explicit start, or the saved position.
+      final (String? anchor, int offset) =
+          widget.startSid != null ? (widget.startSid, 0) : (meta?.positionSid, meta?.positionOffset ?? 0);
+      index = feedIndexForSid(feed, anchor, offset: offset);
+      // A book opened for the first time starts at its own text (the
+      // introduction or first chapter), past the title page and copyright.
+      if (anchor == null) index = math.max(0, feed.indexWhere((f) => f.chapterIndex >= book.bodyStart));
+      _shownAt = ReaderScreen.clock(); // reading starts once there's something to read
     }
-    _shownAt = DateTime.now();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeRequestAi(book));
+    _feed = feed;
+    _feedKey = key;
+    _feedStale = false;
+    if (_partDwell.length > 64) _partDwell.clear();
+    // The pager follows in the same frame, so no frame shows the wrong reel.
+    if (_pager == null || index != _page) {
+      if (_pager != null && feed.isNotEmpty) _steady = feed[index];
+      _newPager(index);
+    }
+    _page = index;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _maybeRequestAi(book);
+    });
+  }
+
+  /// A pager that starts on [page]. The page view is rebuilt on it (a new
+  /// key), and the old pager is let go once that frame is done.
+  void _newPager(int page) {
+    final old = _pager;
+    _pager = PageController(initialPage: page, keepPage: false);
+    _pagerGeneration++;
+    _scrolling = false;
+    if (old != null) WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
   }
 
   (String?, int) _currentAnchor() {
@@ -372,97 +439,156 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     return pieces.sublist(lines.from.clamp(0, pieces.length), lines.to.clamp(0, pieces.length)).map((p) => p.text).join(' ');
   }
 
-  /// Records dwell time for the card currently on screen. A card shown as
-  /// several reels (text · spotlight · text) counts once, when its last reel
-  /// is left, for the reels read in this session.
-  CardRecord? _recordCurrent({bool deferred = false}) {
-    if (_feed.isEmpty || _page >= _feed.length) return null;
+  /// Ends the time on the reel on screen. A card shown as several reels
+  /// (text · spotlight · text) counts once, when its last reel is left, for
+  /// the reels read in this session; its credit is queued until the page
+  /// rests (see [_settled]).
+  void _leave() {
+    if (_feed.isEmpty || _page >= _feed.length) return;
     final item = _feed[_page];
-    final dwell = DateTime.now().difference(_shownAt).inMilliseconds;
-    _shownAt = DateTime.now();
-    if (item.kind != CardKind.text || item.card == null) return null;
+    final now = ReaderScreen.clock();
+    final dwell = now.difference(_shownAt).inMilliseconds;
+    _shownAt = now;
+    if (item.kind != CardKind.text || item.card == null) return;
     final card = item.card!;
     if (!item.lastPart) {
-      _partDwell[_page] = (_partDwell[_page] ?? 0) + dwell;
-      return null;
+      _partDwell[item] = (_partDwell[item] ?? 0) + dwell;
+      return;
     }
     var total = dwell;
     var words = _wordsOf(item);
     for (var i = _page - 1; i >= 0 && identical(_feed[i].card, card); i--) {
-      final earlier = _partDwell.remove(i);
+      final earlier = _partDwell.remove(_feed[i]);
       if (earlier == null) continue; // not read in this session
       total += earlier;
       words += _wordsOf(_feed[i]);
     }
-    if (total < 300) return null;
-    CardRecord record() {
-      _mood.addMinutes(total);
+    if (total < 300) return;
+    _credits.add((words: words, dwellMs: total, cardRef: '${widget.bookId.substring(0, 12)}:${card.startSid}'));
+  }
+
+  /// Credits the reading time queued so far: today's goal, the streak, the
+  /// words read in this book, and this session's card in the feed. A card
+  /// read too fast for reading (see `evaluateDwell`) counts toward none of
+  /// them; only the place in the book moves on. Returns the record that met
+  /// the goal.
+  CardRecord? _creditQueued() {
+    if (_credits.isEmpty) return null;
+    final queued = [..._credits];
+    _credits.clear();
+    CardRecord? met;
+    var words = 0;
+    for (final c in queued) {
+      final r = _habit.recordCard(words: c.words, dwellMs: c.dwellMs, bookId: widget.bookId, cardRef: c.cardRef);
+      if (r.goalJustMet) met = r;
+      if (!r.verified) continue;
+      words += c.words;
       final meta = _meta;
       if (meta != null) {
         _sessions.record(
           bookId: widget.bookId,
           title: meta.title,
           author: meta.author,
-          dwellMs: total,
+          dwellMs: (r.minutes * 60000).round(),
           progress: meta.progress,
-          mood: _mood.recent?.name,
         );
       }
-      return _habit.recordCard(
-        words: words,
-        dwellMs: total,
-        bookId: widget.bookId,
-        cardRef: '${widget.bookId.substring(0, 12)}:${card.startSid}',
-      );
     }
-    if (deferred) {
-      scheduleMicrotask(record);
-      return null;
-    }
-    return record();
+    if (words > 0) _library.addWordsRead(widget.bookId, words, before: _wordsReadBefore());
+    return met;
   }
 
-  void _onPageChanged(int index, BookContent book, BookMeta? meta) {
-    final record = _recordCurrent();
-    _page = index;
-    _shownAt = DateTime.now();
-    HapticFeedback.selectionClick();
-    final item = _feed[index];
-    final settings = ref.read(settingsProvider);
+  /// Words in the book's own text (the front matter left out).
+  int _bodyWords = 0;
 
-    if (item.kind == CardKind.text && item.card != null) {
-      final anchor = item.anchorSid ?? item.card!.startSid;
-      ref.read(libraryProvider.notifier).updatePosition(
-            widget.bookId,
-            sid: anchor,
-            offset: item.offset ?? 0,
-            progress: progressAt(book, anchor),
-          );
-      _textCardsThisSession++;
-      if (!settings.goalSetupDone && _textCardsThisSession == 4) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) showGoalSetup(_ui);
-        });
-      }
-      if (_tts) _speak(item);
+  /// For a book opened before words read were kept: an estimate from how
+  /// far its reader had got.
+  int _wordsReadBefore() => ((_meta?.progress ?? 0) * _bodyWords).round();
+
+  /// The share of the book really read: words read over its words.
+  double _readShare() {
+    final meta = _library.byId(widget.bookId);
+    if (meta == null || _bodyWords <= 0) return 1;
+    return ((meta.wordsRead ?? _wordsReadBefore()) / _bodyWords).clamp(0.0, 1.0);
+  }
+
+  /// Saves the place in the book (the reel on screen, or the text before it).
+  void _savePosition(BookContent book) {
+    if (_feed.isEmpty) return;
+    final item = _feed[_page.clamp(0, _feed.length - 1)];
+    if (item.kind != CardKind.text || item.card == null) return;
+    final anchor = item.anchorSid ?? item.card!.startSid;
+    final at = (anchor, item.offset ?? 0);
+    if (at == _savedAt) return;
+    _savedAt = at;
+    _library.updatePosition(widget.bookId, sid: anchor, offset: at.$2, progress: progressAt(book, anchor));
+  }
+
+  /// Leaving the reader or the app, or switching tabs: the reel on screen
+  /// counts now, with anything still queued. [deferred] when providers can't
+  /// be changed yet (while the reader is torn down).
+  void _recordCurrent({bool deferred = false}) {
+    _leave();
+    if (deferred) {
+      if (_credits.isNotEmpty) scheduleMicrotask(_creditQueued);
+    } else {
+      _creditQueued();
     }
-    _maybeRequestLocal(book);
-    if (item.kind == CardKind.milestone) {
-      if (ref.read(libraryProvider.notifier).markFinished(widget.bookId)) {
-        ref.read(habitProvider.notifier).bookFinished();
-        final api = ref.read(apiProvider);
-        if (api.enabled) unawaited(api.bookFinished(book.title).catchError((_) {}));
-      }
-    }
-    if (_feed[index].chapterIndex != (index > 0 ? _feed[index - 1].chapterIndex : -1)) _maybeRequestAi(book);
-    if (record != null && record.goalJustMet) {
-      ReminderService.instance.cancelStreakNudge();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _showSessionComplete(record, book, meta));
-    }
+  }
+
+  /// A swipe moved to another reel: only what the next frame needs happens
+  /// here (the new reel starts its reveal); the rest waits for [_settled].
+  void _onPageChanged(int index) {
+    _leave();
+    _page = index;
+    _shownAt = ReaderScreen.clock();
+    HapticFeedback.selectionClick();
+    if (_feed[index].kind == CardKind.text) _textCardsThisSession++;
     setState(() {});
   }
 
-  Future<void> _showSessionComplete(CardRecord record, BookContent book, BookMeta? meta) async {
+  /// The page came to rest: credit the reels read, save the place, and do
+  /// what the reel on screen asks for, between swipes rather than during one.
+  void _settled(BookContent book, BookMeta? meta) {
+    if (!mounted || _feed.isEmpty) return;
+    final met = _creditQueued();
+    _savePosition(book);
+    final item = _feed[_page.clamp(0, _feed.length - 1)];
+    final settings = ref.read(settingsProvider);
+    if (item.kind == CardKind.text && item.card != null) {
+      if (!settings.goalSetupDone && !_goalSetupAsked && _textCardsThisSession >= 4) {
+        _goalSetupAsked = true;
+        showGoalSetup(_ui);
+      }
+      if (_tts && !identical(_spoken, item)) _speak(item);
+    }
+    _maybeRequestAi(book);
+    // The end: it counts as finished only when most of it was really read.
+    if (item.kind == CardKind.milestone && _readShare() >= finishedShare && _library.markFinished(widget.bookId)) {
+      _habit.bookFinished();
+      final api = ref.read(apiProvider);
+      if (api.enabled) unawaited(api.bookFinished(book.title).catchError((_) {}));
+    }
+    if (met != null) _celebrate(met, book);
+    if (_feedStale) setState(() {});
+  }
+
+  /// Today's goal is met: a toast that leaves on its own (reading goes on
+  /// undisturbed), with the full celebration a tap away.
+  void _celebrate(CardRecord record, BookContent book) {
+    ReminderService.instance.cancelStreakNudge();
+    HapticFeedback.mediumImpact();
+    showKitToast(
+      _ui,
+      record.milestone != null ? '${record.milestone}-day streak! Goal done' : 'Goal done · ${record.streak}-day streak',
+      emoji: '🔥',
+      actionLabel: 'See',
+      onAction: () => _showSessionComplete(record, book),
+      duration: const Duration(seconds: 3),
+    );
+  }
+
+  Future<void> _showSessionComplete(CardRecord record, BookContent book) async {
     if (!mounted) return;
     final today = ref.read(habitProvider).today(DateTime.now());
     final idea = _ideaOfTheDay();
@@ -470,6 +596,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       _ui,
       cards: today.verifiedCards,
       minutes: today.minutes,
+      words: today.words,
       streak: record.streak,
       milestone: record.milestone,
       ideaOfTheDay: idea,
@@ -480,10 +607,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       case SessionChoice.share:
         await showShareSheet(
           _ui,
-          ProgressShare(
-            emoji: '🔥',
-            headline: '${record.streak}-day reading streak',
-            lines: ['${today.verifiedCards} cards today · ${today.minutes.round()} min', 'Reading ${book.title}'],
+          goalShare(
+            habit: ref.read(habitProvider),
+            streak: record.streak,
+            milestone: record.milestone,
+            bookTitle: book.title,
+            bookProgress: _meta?.progress ?? 0,
+            now: DateTime.now(),
           ),
         );
       case SessionChoice.done:
@@ -517,10 +647,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   }
 
   void _speak(FeedItem item) {
+    _spoken = item;
     final text = _reelText(item);
-    _sound.duck(true);
+    _music.duck(true);
     _readAloud.speak(text, next: _nextReelText(_page), onDone: () {
-      _sound.duck(false);
+      _music.duck(false);
       if (mounted && _tts && _pager != null && _page < _feed.length - 1) {
         _pager!.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       }
@@ -592,8 +723,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     if (_tts && _feed[_page].card != null) {
       _speak(_feed[_page]);
     } else {
+      _spoken = null;
       unawaited(_readAloud.stop());
-      _sound.duck(false);
+      _music.duck(false);
     }
   }
 
@@ -639,7 +771,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         theme: theme,
       ),
     ));
-    _shownAt = DateTime.now();
+    _shownAt = ReaderScreen.clock();
     if (sid != null && mounted) _pager?.jumpToPage(feedIndexForSid(_feed, sid));
   }
 
@@ -653,23 +785,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       subtitle: book.author,
       builder: (context) => Consumer(builder: (context, ref, _) {
         final s = ref.watch(settingsProvider);
-        final scene = _sceneFor(s);
-        final style = vibeStyles[scene]!;
-        final auto = s.autoScene && s.tier.paid && s.vibe != Vibe.paper;
+        final track = ref.watch(musicProvider).track;
         void pick(String v) => Navigator.of(context).pop(v);
-        final mood = ref.watch(moodProvider).current;
-        final moodOn = ref.read(moodProvider.notifier).active;
         return Column(mainAxisSize: MainAxisSize.min, children: [
           KitGroup(children: [
-            KitRow(emoji: auto ? '✨' : style.emoji, title: 'Theme', value: auto ? 'Auto' : style.label, onTap: () => pick('theme')),
-            if (moodOn)
-              KitRow(emoji: mood?.emoji ?? '🙂', title: 'Mood', value: mood?.label ?? 'Not set', onTap: () => pick('mood')),
+            KitRow(icon: Icons.image_outlined, title: 'Background', value: _backdrop?.label, onTap: () => pick('background')),
             KitSwitchRow(
-              icon: s.sceneSound ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-              title: 'Scene sound',
-              subtitle: sceneSoundLabels[scene],
-              value: s.sceneSound,
-              onChanged: (_) => _toggleSound(scene),
+              icon: s.music ? Icons.music_note_rounded : Icons.music_off_rounded,
+              title: 'Music',
+              subtitle: track?.title,
+              value: s.music,
+              onChanged: (_) => _toggleMusic(),
             ),
             KitRow(icon: Icons.format_list_bulleted_rounded, title: 'Contents', onTap: () => pick('toc')),
             KitRow(icon: Icons.chrome_reader_mode_rounded, title: 'Page mode', subtitle: 'Read the chapter as one page', onTap: () => pick('page')),
@@ -685,10 +811,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     );
     if (!mounted) return;
     switch (choice) {
-      case 'theme':
-        _pickVibe();
-      case 'mood':
-        _askMood(correcting: ref.read(moodProvider).current != null);
+      case 'background':
+        _pickBackdrop();
       case 'toc':
         _openContents(book);
       case 'page':
@@ -704,38 +828,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     }
   }
 
-  /// On opening the book (and coming back to it): ask how you feel while
-  /// Cloro is learning, or use the mood it predicted for this part of the day.
-  Future<void> _checkMood() async {
-    if (!mounted || !_mood.active) return;
-    if (_mood.shouldAsk()) return _askMood();
-    await _mood.refreshPrediction();
-    if (!mounted) return;
-    final picked = _mood.applyPrediction();
-    if (picked != null) _showMoodChip(picked);
-  }
-
-  Future<void> _askMood({bool correcting = false}) async {
-    final picked = await showMoodSheet(_ui, current: ref.read(moodProvider).current);
-    if (!mounted) return;
-    if (picked == null) {
-      if (!correcting) _mood.skip();
-      return;
-    }
-    HapticFeedback.selectionClick();
-    _mood.answer(picked, corrected: correcting);
-    setState(() => _moodChipShown = false);
-  }
-
-  void _showMoodChip(Mood mood) {
-    _moodChipTimer?.cancel();
-    setState(() {
-      _moodChip = mood;
-      _moodChipShown = true;
-    });
-    _moodChipTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) setState(() => _moodChipShown = false);
-    });
+  /// Every picture to read on, larger than in the strip.
+  Future<void> _pickBackdrop() async {
+    final all = ref.read(backdropsProvider).value;
+    if (all == null) return;
+    final paper = ReadingTheme.of(effectiveReadingTheme(ref.read(settingsProvider), MediaQuery.platformBrightnessOf(context)));
+    final picked = await showKitSheet<Backdrop>(
+      _ui,
+      title: 'Background',
+      subtitle: 'A different one each time you open a book',
+      builder: (context) => BackdropGrid(
+        backdrops: all,
+        selected: _backdrop ?? Backdrop.paper,
+        paperColor: paper.background,
+        onPick: (b) => Navigator.of(context).pop(b),
+      ),
+    );
+    if (picked != null && mounted) await _setBackdrop(picked);
   }
 
   /// The note box: an empty page for your own thoughts on this reel, kept in
@@ -759,8 +868,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final settings = ref.watch(settingsProvider);
     final paperTheme = ReadingTheme.of(effectiveReadingTheme(settings, MediaQuery.platformBrightnessOf(context)));
     _segments = ref.watch(segmentsProvider((bookId: widget.bookId, length: settings.cardLength))).value ?? _segments;
-    final scene = _sceneFor(settings);
-    final readingTheme = readingThemeForVibe(scene, paperTheme);
+    // A random picture for this book (never the one shown last).
+    final backdrops = ref.watch(backdropsProvider).value;
+    if (backdrops != null && _backdrop == null) {
+      final first = _backdrop = pickBackdrop(backdrops, lastId: settings.lastBackdrop, random: backdropRandom);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(settingsProvider.notifier).update((x) => x.copyWith(lastBackdrop: first.id));
+      });
+    }
+    // A picture shows once its colours are measured; one that can't be read gives way to the plain page.
+    final lookAsync = _backdrop?.asset == null ? null : ref.watch(pictureLookProvider(pictureLookKey(_backdrop!.asset!, MediaQuery.sizeOf(context))));
+    final look = lookAsync?.value;
+    final backdrop = lookAsync != null && lookAsync.hasError ? Backdrop.paper : (_backdrop ?? Backdrop.paper);
+    final readingTheme = readingThemeForPalette(paletteFor(backdrop, look), paperTheme);
+    final backdropReady = _backdrop != null && (lookAsync == null || look != null || lookAsync.hasError);
     final meta = ref.watch(libraryProvider).where((b) => b.id == widget.bookId).firstOrNull;
     _meta = meta;
     final contentAsync = ref.watch(bookContentProvider(widget.bookId));
@@ -771,7 +892,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final error = contentAsync.error ?? segmentsAsync.error;
     if (error != null) {
       body = Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Could not open this book.\n$error', style: TextStyle(color: readingTheme.text))));
-    } else if (contentAsync.value == null || segmentsAsync.value == null) {
+    } else if (contentAsync.value == null || segmentsAsync.value == null || !backdropReady) {
       body = const Center(child: KitSpinner());
     } else {
       final book = contentAsync.value!;
@@ -783,15 +904,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         WidgetsBinding.instance.addPostFrameCallback((_) => ref.read(bookVoiceProvider).ensure(widget.bookId, book));
       }
       final type = BookType(voiceByName(meta?.voice), settings);
-      body = _buildReader(book, meta, settings, readingTheme, type, lexicon);
+      body = _buildReader(book, meta, settings, readingTheme, type, lexicon, backdrops ?? const [], backdrop, paperTheme);
     }
 
-    // The reader wears the scene on screen (Auto scenes included): its sheets,
-    // menus and controls take the scene's colours, whatever the app's
-    // light or dark theme is.
+    // The reader wears the picture on screen: its sheets, menus and controls
+    // follow its light or dark text, whatever the app's own theme is.
     final theme = cachedAppTheme(
-      ('reader', scene, paperTheme, settings.animatedBackground),
-      () => Kit.forScene(scene, paperTheme, motion: settings.animatedBackground),
+      ('reader', backdrop.id, look?.palette, paperTheme, settings.animatedBackground),
+      () => Kit.forBackdrop(backdrop, paperTheme, look: look, motion: settings.animatedBackground),
     );
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: readingTheme.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
@@ -799,28 +919,29 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         data: theme,
         child: Builder(builder: (context) {
           _themed = context;
-          return _scaffold(scene, settings, paperTheme, readingTheme, body);
+          return _scaffold(backdropReady ? backdrop : Backdrop.paper, look, settings, paperTheme, readingTheme, body);
         }),
       ),
     );
   }
 
-  Widget _scaffold(Vibe scene, AppSettings settings, ReadingTheme paperTheme, ReadingTheme readingTheme, Widget body) {
+  Widget _scaffold(Backdrop backdrop, PictureLook? look, AppSettings settings, ReadingTheme paperTheme, ReadingTheme readingTheme, Widget body) {
     return Scaffold(
         backgroundColor: paperTheme.background,
         body: Stack(children: [
-          // AI-picked (or chosen) scene; crossfades when the story moves.
+          // The picture or scene; crossfades when another is picked.
           Positioned.fill(
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 1400),
-              child: Stack(key: ValueKey(scene), fit: StackFit.expand, children: [
-                // Still while reels scroll: only its own slow motion repaints it.
-                VibeBackground(
-                  vibe: scene,
+              duration: const Duration(milliseconds: 700),
+              child: Stack(key: ValueKey(backdrop.id), fit: StackFit.expand, children: [
+                // Still while reels scroll (a scene repaints only its own slow motion).
+                BackdropView(
+                  backdrop: backdrop,
+                  look: look,
                   animate: settings.animatedBackground,
                   paperColor: paperTheme.background,
                 ),
-                // The scene's calibrated shade: stays put while reels move.
+                // The calibrated shade: stays put while reels move.
                 if (readingTheme.scrim != null)
                   IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: readingTheme.scrim))),
               ]),
@@ -831,28 +952,45 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     );
   }
 
-  Widget _buildReader(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, BookType type, Lexicon lexicon) {
+  Widget _buildReader(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, BookType type, Lexicon lexicon,
+      List<Backdrop> backdrops, Backdrop backdrop, ReadingTheme paper) {
     final notebook = ref.watch(notebookProvider);
     final habit = ref.watch(habitProvider);
     final today = habit.today(DateTime.now());
     final goal = s.goal;
     final padding = MediaQuery.paddingOf(context);
-    final scene = _sceneFor(s);
     final chromeColor = t.text;
-    _syncSound(scene, s.sceneSound);
-    if (widget.embedded && !_moodChecked && s.gestureTutorialSeen && _feed.isNotEmpty) {
-      _moodChecked = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_checkMood()));
-    }
 
-    return Stack(children: [
-      PageView.builder(
-        controller: _pager,
-        scrollDirection: Axis.vertical,
-        physics: _selecting ? const NeverScrollableScrollPhysics() : const _ReelPagePhysics(),
-        itemCount: _feed.length,
-        onPageChanged: (i) => _onPageChanged(i, book, meta),
-        itemBuilder: (context, i) => _buildItem(book, meta, s, t, type, lexicon, notebook, _feed[i], i == _page, padding),
+    // A pager rebuilt from scratch (after a spinner, say) starts on the reel the reader is on.
+    if (_pager == null || (!_pager!.hasClients && _pager!.initialPage != _page)) _newPager(_page);
+    // Any touch while the controls show keeps them up a little longer.
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) {
+        if (_chrome) _setChrome(true);
+      },
+      child: Stack(children: [
+      NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          // The page view's own scrolling (not a reel's text scrolling inside it).
+          if (n.depth != 0) return false;
+          if (n is ScrollStartNotification) {
+            _scrolling = true;
+          } else if (n is ScrollEndNotification) {
+            _scrolling = false;
+            _settled(book, meta);
+          }
+          return false;
+        },
+        child: PageView.builder(
+          key: ValueKey(_pagerGeneration),
+          controller: _pager,
+          scrollDirection: Axis.vertical,
+          physics: _selecting ? const NeverScrollableScrollPhysics() : const _ReelPagePhysics(),
+          itemCount: _feed.length,
+          onPageChanged: _onPageChanged,
+          itemBuilder: (context, i) => _buildItem(book, meta, s, t, type, lexicon, notebook, _feed[i], i == _page, padding),
+        ),
       ),
       // Today's goal as one thin line that fills as you read: always there, never in the way.
       Positioned(
@@ -861,33 +999,32 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         right: 16,
         child: _GoalLine(progress: today.progress(goal), color: chromeColor, track: chromeColor.withValues(alpha: 0.22)),
       ),
-      // With the controls: the focus (eye) button and where you are.
+      // With the controls: where you are, the music, and the pictures to read on.
       Positioned(
-        top: padding.top + 14,
-        left: 4,
-        right: 4,
-        child: FadeChrome(
-          visible: _chrome,
-          child: _TopBar(
-            color: chromeColor,
-            shadows: t.textShadows,
-            title: _feed.isEmpty ? book.title : book.chapters[_feed[_page.clamp(0, _feed.length - 1)].chapterIndex].title,
-            onFocus: () => _setChrome(false),
-          ),
-        ),
-      ),
-      // "😌 Calm · change" when the scene was picked from your mood.
-      Positioned(
-        top: padding.top + 58,
+        top: padding.top + 10,
         left: 0,
         right: 0,
-        child: Center(
-          child: MoodChip(
-            mood: _moodChip,
-            visible: _moodChipShown,
-            theme: t,
-            onTap: () => _askMood(correcting: true),
-          ),
+        child: FadeChrome(
+          visible: _chrome,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 16, right: 6),
+              child: _TopBar(
+                color: chromeColor,
+                shadows: t.textShadows,
+                title: _feed.isEmpty ? book.title : book.chapters[_feed[_page.clamp(0, _feed.length - 1)].chapterIndex].title,
+                music: _MusicControls(color: chromeColor, shadows: t.textShadows),
+              ),
+            ),
+            if (backdrops.isNotEmpty)
+              BackdropStrip(
+                backdrops: backdrops,
+                selected: backdrop,
+                ink: chromeColor,
+                paperColor: paper.background,
+                onPick: _setBackdrop,
+              ),
+          ]),
         ),
       ),
       if (!s.gestureTutorialSeen && _feed.isNotEmpty)
@@ -896,28 +1033,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
             onDone: () => ref.read(settingsProvider.notifier).update((x) => x.copyWith(gestureTutorialSeen: true)),
           ),
         ),
-    ]);
-  }
-
-  Future<void> _pickVibe() async {
-    final s = ref.read(settingsProvider);
-    final paid = s.tier.paid;
-    // null = Auto (the AI picks the scene for each part of the book).
-    final picked = await showKitSheet<(Vibe?,)>(
-      _ui,
-      title: 'Pick your vibe',
-      subtitle: paid ? 'Auto lets the AI choose the scene that fits each chapter.' : 'Auto (AI-picked scenes) comes with every paid plan.',
-      builder: (context) => VibePickerRow(
-        selected: s.vibe,
-        autoSelected: paid && s.autoScene && s.vibe != Vibe.paper,
-        onAuto: paid ? () => Navigator.of(context).pop((null,)) : null,
-        onSelected: (v) => Navigator.of(context).pop((v,)),
-      ),
+    ]),
     );
-    if (picked == null) return;
-    HapticFeedback.selectionClick();
-    final vibe = picked.$1;
-    ref.read(settingsProvider.notifier).update((x) => vibe == null ? x.copyWith(autoScene: true) : x.copyWith(vibe: vibe, autoScene: false));
   }
 
   Widget _buildItem(BookContent book, BookMeta? meta, AppSettings s, ReadingTheme t, BookType type, Lexicon lexicon,
@@ -927,7 +1044,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     // Chapter, recap, quiz and other cards: the same empty-space gestures.
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onTap: () => _setChrome(true),
+      onTap: () => _setChrome(!_chrome),
       onLongPress: () => _options(book, s, t),
       child: card,
     );
@@ -954,6 +1071,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           theme: t,
           lexicon: lexicon,
           active: active,
+          animateIn: !identical(item, _steady),
           // Likes and saves belong to the reel on screen (the card, or one part of it).
           liked: notebook.liked.contains('${widget.bookId}|${item.anchorSid}'),
           saved: notebook.isSaved(widget.bookId, item.anchorSid!),
@@ -978,7 +1096,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           onStreak: () => showStreakSheet(_ui),
           onGoal: () => showGoalSheet(_ui),
           onOptions: () => _options(book, s, t),
-          onTapEmpty: () => _setChrome(true),
+          onTapEmpty: () => _setChrome(!_chrome),
           // In the Reading tab the tab bar shows with the controls: keep the rail above it.
           railLift: widget.embedded && _chrome ? KitNavBar.reservedHeight - 10 : 0,
           onLongPressEmpty: () => _options(book, s, t),
@@ -1050,19 +1168,27 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
               ),
         );
       case CardKind.milestone:
+        final finished = meta?.finishedAt != null;
+        final share = finished ? 1.0 : _readShare();
         return MilestoneCardView(
           bookTitle: book.title,
+          readShare: finished || share >= finishedShare ? null : share,
           settings: s,
           theme: t,
           type: type,
-          onShare: () => showShareSheet(
-            _ui,
-            ProgressShare(
-              emoji: '🎉',
-              headline: 'Finished ${book.title}',
-              lines: ['by ${book.author}', '${_feed.where((f) => f.kind == CardKind.text).length} reels'],
-            ),
-          ),
+          onShare: () {
+            final meta = _library.byId(widget.bookId);
+            if (meta == null) return;
+            showShareSheet(
+              _ui,
+              bookShare(
+                book: meta,
+                sessions: ref.read(sessionLogProvider),
+                streak: _habit.displayStreak(),
+                booksFinished: math.max(ref.read(habitProvider).booksFinished, ref.read(libraryProvider).where((b) => b.finishedAt != null).length),
+              ),
+            );
+          },
           onDone: () => context.go('/library'),
         );
     }
@@ -1103,35 +1229,89 @@ class _GoalLine extends StatelessWidget {
       );
 }
 
-/// With the controls showing: the focus (eye) button, which hides them all
-/// again, and the chapter you're in. (No close button: switch tabs to leave.)
+/// With the controls showing: the chapter you're in and the music. (No
+/// close button: switch tabs to leave.)
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.color, required this.shadows, required this.title, required this.onFocus});
+  const _TopBar({required this.color, required this.shadows, required this.title, required this.music});
 
   final Color color;
   final List<Shadow>? shadows;
   final String title;
-  final VoidCallback onFocus;
+  final Widget music;
 
   @override
-  Widget build(BuildContext context) => Row(children: [
-        KitIconButton(
-          icon: Icons.visibility_outlined,
-          semanticLabel: 'Focus: hide the controls',
-          onPressed: onFocus,
+  Widget build(BuildContext context) => SizedBox(
+        height: 52,
+        child: Row(children: [
+          Expanded(
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 15, shadows: shadows)),
+              _TrackName(color: color, shadows: shadows),
+            ]),
+          ),
+          music,
+        ]),
+      );
+}
+
+/// What's playing, under the chapter's name.
+class _TrackName extends ConsumerWidget {
+  const _TrackName({required this.color, required this.shadows});
+
+  final Color color;
+  final List<Shadow>? shadows;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final track = ref.watch(musicProvider.select((m) => m.track));
+    if (track == null) return const SizedBox.shrink();
+    return Row(children: [
+      Icon(Icons.music_note_rounded, size: 13, color: color.withValues(alpha: 0.85), shadows: shadows),
+      const SizedBox(width: 3),
+      Flexible(
+        child: Text(track.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: color.withValues(alpha: 0.85), fontSize: 12.5, fontWeight: FontWeight.w600, shadows: shadows)),
+      ),
+    ]);
+  }
+}
+
+/// Previous, play/pause and next.
+class _MusicControls extends ConsumerWidget {
+  const _MusicControls({required this.color, required this.shadows});
+
+  final Color color;
+  final List<Shadow>? shadows;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final music = ref.watch(musicProvider);
+    final player = ref.read(musicProvider.notifier);
+    final track = music.track;
+    if (track == null) return const SizedBox.shrink();
+    Widget button(IconData icon, String label, VoidCallback onTap, {double size = 24}) => KitIconButton(
+          icon: icon,
+          semanticLabel: label,
+          onPressed: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
           glass: false,
           color: color,
           shadows: shadows,
-          iconSize: 25,
-        ),
-        const SizedBox(width: 2),
-        Expanded(
-          child: Text(title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 15, shadows: shadows)),
-        ),
-      ]);
+          iconSize: size,
+        );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      button(Icons.skip_previous_rounded, 'Previous track', player.previous),
+      button(music.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, music.playing ? 'Pause music' : 'Play music', player.toggle, size: 28),
+      button(Icons.skip_next_rounded, 'Next track', player.next),
+    ]);
+  }
 }
 
 /// One-time overlay that teaches the gestures (can be reopened from ⋯).
@@ -1144,7 +1324,7 @@ class _GestureGuide extends StatelessWidget {
     const rows = [
       (Icons.swipe_up_outlined, 'Swipe up', 'Next reel'),
       (Icons.translate, 'Tap a word', 'Its meaning'),
-      (Icons.touch_app_outlined, 'Tap empty space', 'Show the buttons (the eye hides them)'),
+      (Icons.touch_app_outlined, 'Tap empty space', 'Show the buttons for a few seconds'),
       (Icons.border_color_rounded, 'Long-press a word', 'Highlight it, then drag the handles'),
       (Icons.more_horiz_rounded, 'Long-press empty space', 'Theme, sound, contents and more'),
       (Icons.favorite, 'Double-tap', 'Like'),

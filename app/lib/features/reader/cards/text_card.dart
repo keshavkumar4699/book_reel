@@ -51,6 +51,7 @@ class PostCard extends StatefulWidget {
     required this.type,
     required this.lexicon,
     required this.active,
+    this.animateIn = true,
     required this.liked,
     required this.saved,
     required this.listening,
@@ -103,6 +104,10 @@ class PostCard extends StatefulWidget {
 
   /// True when this card is the one on screen (plays the entrance animation).
   final bool active;
+
+  /// False for a reel that was already on screen before the reader rebuilt
+  /// itself: it shows at once rather than fading in again.
+  final bool animateIn;
   final bool liked;
   final bool saved;
   final bool listening;
@@ -241,7 +246,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
 
   void _startReveal() {
     _revealed = true;
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+    if (!widget.animateIn || (MediaQuery.maybeDisableAnimationsOf(context) ?? false)) {
       _reveal.value = 1;
     } else {
       _reveal.forward(from: 0);
@@ -965,7 +970,7 @@ class _ReelTextState extends State<ReelText> {
     final body = widget.type.body(color: widget.theme.text, scale: scale, shadows: widget.theme.textShadows);
     if (p.level <= 1) return body;
     // Emphasis: same size, a warmer/brighter tone and a heavier weight.
-    return body.copyWith(color: widget.theme.emphasis, fontWeight: _heavier(body.fontWeight ?? FontWeight.w400));
+    return withWeight(body, _heavier(body.fontWeight ?? FontWeight.w400)).copyWith(color: widget.theme.emphasis);
   }
 
   TextAlign _textAlign(int i) => switch (widget.align) {

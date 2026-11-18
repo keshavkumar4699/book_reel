@@ -5,7 +5,12 @@
  */
 export const DEFAULT_WPM = 230;
 export const MIN_WPM = 120;
-export const MAX_WPM = 600;
+/**
+ * The fastest careful reading: a card read faster than this was skimmed,
+ * whatever the reader's own speed. It's also the most a learnt speed reaches.
+ */
+export const READING_MAX_WPM = 500;
+export const MAX_WPM = READING_MAX_WPM;
 export const VERIFY_RATIO = 0.35;
 /** Leaderboards count at most this many verified minutes per day. */
 export const DAILY_MINUTES_CAP = 240;
@@ -21,13 +26,16 @@ export interface DwellResult {
 
 export function evaluateDwell(words: number, dwellMs: number, wpm: number): DwellResult {
   if (words <= 0 || dwellMs <= 0) return { verified: false, minutes: 0, updatedWpm: wpm, implausible: false };
+  wpm = Math.min(MAX_WPM, Math.max(MIN_WPM, wpm));
   const expectedMs = (words / wpm) * 60000;
   const observedWpm = words / (dwellMs / 60000);
   const implausible = observedWpm > IMPLAUSIBLE_WPM && dwellMs >= VERIFY_RATIO * expectedMs;
-  const verified = dwellMs >= VERIFY_RATIO * expectedMs && !implausible;
+  // Long enough for the reader's own speed, and no faster than careful reading.
+  const verified = dwellMs >= VERIFY_RATIO * expectedMs && observedWpm <= READING_MAX_WPM && !implausible;
   const creditedMs = Math.min(dwellMs, expectedMs * 3);
   let updatedWpm = wpm;
-  if (dwellMs >= 0.5 * expectedMs && dwellMs <= 3 * expectedMs) {
+  // Only reads that count teach the speed, so steady skimming can't train it up.
+  if (verified && dwellMs >= 0.5 * expectedMs && dwellMs <= 3 * expectedMs) {
     updatedWpm = Math.min(MAX_WPM, Math.max(MIN_WPM, 0.85 * wpm + 0.15 * observedWpm));
   }
   return { verified, minutes: verified ? creditedMs / 60000 : 0, updatedWpm, implausible };

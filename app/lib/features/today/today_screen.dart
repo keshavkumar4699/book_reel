@@ -9,7 +9,6 @@ import '../../data/library.dart';
 import '../../data/notebook.dart';
 import '../../data/settings_provider.dart';
 import '../../ui/kit.dart';
-import '../../ui/vibes.dart';
 import '../../ui/widgets.dart';
 import '../profile/profile_screen.dart';
 import '../reader/goal_setup_sheet.dart';
@@ -54,7 +53,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final streak = notifier.displayStreak();
     final dueWords = ref.watch(notebookProvider).dueWords(DateTime.now()).length;
     final value = goal.unit == GoalUnit.cards ? '${today.verifiedCards}' : today.minutes.floor().toString();
-    final style = vibeStyles[settings.vibe]!;
     final freezes = notifier.freezesLeft();
 
     final api = ref.watch(apiProvider);
@@ -66,7 +64,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       onRefresh: () => ref.refresh(todayFeedProvider.future),
       leading: const CloroLogo(size: 40),
       title: '${_greeting()}${settings.displayName == 'Reader' ? '' : ','}',
-      subtitle: settings.displayName == 'Reader' ? '${style.emoji} ${style.tagline}' : settings.displayName,
+      subtitle: settings.displayName == 'Reader' ? 'A few calm minutes with a book' : settings.displayName,
       actions: [
         KitIconButton(
           icon: Icons.person_outline_rounded,

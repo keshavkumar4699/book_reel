@@ -4,10 +4,35 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('evaluateDwell', () {
     test('verifies attentive reads and rejects skims', () {
-      // 120 words at 240 wpm = 30 s expected; 35% = 10.5 s.
-      expect(evaluateDwell(words: 120, dwellMs: 12000, wpm: 240).verified, isTrue);
+      // 120 words at 240 wpm = 30 s expected; 35% = 10.5 s, and no faster than 500 wpm = 14.4 s.
+      expect(evaluateDwell(words: 120, dwellMs: 15000, wpm: 240).verified, isTrue);
+      expect(evaluateDwell(words: 120, dwellMs: 12000, wpm: 240).verified, isFalse, reason: '600 wpm is skimming');
       expect(evaluateDwell(words: 120, dwellMs: 5000, wpm: 240).verified, isFalse);
       expect(evaluateDwell(words: 120, dwellMs: 5000, wpm: 240).minutes, 0);
+    });
+
+    test('faster than careful reading is skimming, whatever the learnt speed; skims teach nothing', () {
+      expect(evaluateDwell(words: 120, dwellMs: 12000, wpm: 500).verified, isFalse); // 600 wpm
+      expect(evaluateDwell(words: 120, dwellMs: 15000, wpm: 500).verified, isTrue); // 480 wpm
+      // A speed learnt above the ceiling (older versions allowed 600) is brought under it.
+      expect(evaluateDwell(words: 120, dwellMs: 13000, wpm: 600).verified, isFalse);
+      // Steady skimming at about 730 wpm used to teach the speed up; now it teaches nothing.
+      var wpm = 400.0;
+      for (var i = 0; i < 50; i++) {
+        final r = evaluateDwell(words: 120, dwellMs: (0.55 * 120 / wpm * 60000).round(), wpm: wpm);
+        expect(r.verified, isFalse);
+        wpm = r.updatedWpm;
+      }
+      expect(wpm, 400);
+    });
+
+    test('a day keeps the words of the cards really read', () {
+      var day = const DailyStat();
+      day = day.add(verified: true, minutes: 0.5, words: 120);
+      day = day.add(verified: false, minutes: 0, words: 300);
+      expect((day.verifiedCards, day.skimmedCards, day.words), (1, 1, 120));
+      expect(DailyStat.fromJson(day.toJson()).words, 120);
+      expect(DailyStat.fromJson(const {'v': 3, 's': 0, 'm': 2.0}).words, 0, reason: 'days saved before words were kept');
     });
 
     test('caps credited minutes and learns WPM only from plausible reads', () {

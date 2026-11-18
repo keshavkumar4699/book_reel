@@ -58,6 +58,10 @@ dependencies:
   # On-device AI for the Free plan (LiteRT-LM). Pinned: these packages move fast.
   flutter_edge_ai: 2.6.0
   flutter_edge_ai_litertlm: 1.20.0
+  # The natural voice on the phone (Kokoro, run by sherpa-onnx). Pinned to the
+  # last release with espeak-ng built in: 2.x needs a word list instead, and
+  # books are full of words no list has.
+  sherpa_onnx: 1.13.8
 
 dev_dependencies:
   flutter_test:
@@ -85,11 +89,19 @@ flutter:
     # The logo (made from assets/images/logo.png; Android icons in res/mipmap-*).
     - assets/images/logo_512.png
     - assets/images/logo_mark.png
+    # Your own background pictures (see the README in the folder).
+    - assets/images/backgrounds/
     - assets/books/
     # The privacy policy and terms (also served by the server at /privacy and /terms).
     - assets/legal/
-    # Scene sounds (licences in assets/sounds/CREDITS.md).
+    # Licences of the on-device voice's parts (see the README there).
+    - assets/licences/espeak-ng-GPL-3.0.txt
+    - assets/licences/kokoro-Apache-2.0.txt
+    - assets/licences/onnxruntime-MIT.txt
+    # Ambient loops (licences in assets/sounds/CREDITS.md), and your own music
+    # (see the README in the folder).
     - assets/sounds/
+    - assets/sounds/music/
     - assets/lexicon/zipf.tsv.gz
     - assets/lexicon/wordnet.json.gz
     # Font licences, shown on the app's licences page.
@@ -107,6 +119,15 @@ flutter:
     - assets/fonts/OFL-Outfit.txt
     - assets/fonts/OFL-Nunito.txt
     - assets/fonts/OFL-Fredoka.txt
+    - assets/fonts/OFL-Merriweather.txt
+    - assets/fonts/OFL-SourceSerif4.txt
+    - assets/fonts/OFL-EBGaramond.txt
+    - assets/fonts/OFL-CrimsonPro.txt
+    - assets/fonts/OFL-Newsreader.txt
+    - assets/fonts/OFL-Bitter.txt
+    - assets/fonts/OFL-Inter.txt
+    - assets/fonts/OFL-Lexend.txt
+    - assets/fonts/OFL-OpenDyslexic.txt
 
   fonts:
     - family: Literata
@@ -160,6 +181,47 @@ flutter:
     - family: Fredoka
       fonts:
         - asset: assets/fonts/Fredoka.ttf
+    # More reading fonts (Settings → Text & theme). Unmodified, except Source
+    # Serif 4, EB Garamond and Inter: their regular and bold weights are
+    # instanced from the variable fonts (no Reserved Font Names) to keep the
+    # app small. Variable ones get their weight from the text style.
+    - family: Merriweather
+      fonts:
+        - asset: assets/fonts/Merriweather-Regular.ttf
+        - asset: assets/fonts/Merriweather-Bold.ttf
+          weight: 700
+    - family: SourceSerif4
+      fonts:
+        - asset: assets/fonts/SourceSerif4-Regular.ttf
+        - asset: assets/fonts/SourceSerif4-Bold.ttf
+          weight: 700
+    - family: EBGaramond
+      fonts:
+        - asset: assets/fonts/EBGaramond-Regular.ttf
+        - asset: assets/fonts/EBGaramond-Bold.ttf
+          weight: 700
+    - family: CrimsonPro
+      fonts:
+        - asset: assets/fonts/CrimsonPro.ttf
+    - family: Newsreader
+      fonts:
+        - asset: assets/fonts/Newsreader.ttf
+    - family: Bitter
+      fonts:
+        - asset: assets/fonts/Bitter.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: Lexend
+      fonts:
+        - asset: assets/fonts/Lexend.ttf
+    - family: OpenDyslexic
+      fonts:
+        - asset: assets/fonts/OpenDyslexic-Regular.otf
+        - asset: assets/fonts/OpenDyslexic-Bold.otf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:

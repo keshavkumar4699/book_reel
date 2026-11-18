@@ -14,7 +14,7 @@ import 'package:book_reel/data/store_provider.dart';
 import 'package:book_reel/features/reader/cards/text_card.dart';
 import 'package:book_reel/features/reader/reader_screen.dart';
 import 'package:book_reel/features/share/share_sheet.dart';
-import 'package:book_reel/services/scene_sound.dart';
+import 'package:book_reel/services/music.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/theme.dart';
 import 'package:book_reel/ui/typography.dart';
@@ -23,28 +23,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Records what would be played (tests have no audio plugin).
-class SilentLoop implements LoopPlayer {
-  SilentLoop(this.log);
-  final List<String> log;
-  @override
-  Future<void> load(String asset) async => log.add(asset);
-  @override
-  Future<void> setVolume(double volume) async {}
-  @override
-  Future<void> play() async {}
-  @override
-  Future<void> pause() async {}
-  @override
-  Future<void> dispose() async => log.add('released');
-}
+import '../silent_music.dart';
 
 void main() {
   final sounds = <String>[];
   setUp(() {
     sounds.clear();
-    SceneSoundController.playerFactory = () => SilentLoop(sounds);
-    SceneSoundController.fade = Duration.zero;
+    quietReader(sounds);
   });
 
   testWidgets('reader opens the starter book and swipes from the chapter card to text', (tester) async {
@@ -72,8 +57,9 @@ void main() {
     expect(find.text('Down the Rabbit-Hole'), findsOneWidget);
     expect(find.text('Swipe up to begin'), findsOneWidget);
 
-    // The scene's own sound plays (forest morning: birdsong and wind), for free users too.
-    expect(sounds, ['assets/sounds/birds.ogg', 'assets/sounds/wind.ogg']);
+    // Music plays from the first page, for free users too: until you add your own, a calm loop.
+    expect(sounds, ['load assets/sounds/rain.ogg (loop)', 'play']);
+    expect(container.read(musicProvider).playing, isTrue);
 
     // First run shows the gesture guide once.
     expect(find.text('Read like you scroll'), findsOneWidget);
@@ -85,35 +71,38 @@ void main() {
     expect(container.read(settingsProvider).gestureTutorialSeen, isTrue);
 
     // Focus mode: a book opens with nothing on screen but the reel.
-    expect(find.bySemanticsLabel('Focus: hide the controls'), findsNothing);
+    expect(container.read(readerChromeProvider), isFalse);
 
-    // A long press on empty space opens the options; the scene sound is a switch there.
+    // A long press on empty space opens the options; music is a switch there.
     await tester.longPressAt(const Offset(30, 400));
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
-    for (final o in ['Theme', 'Scene sound', 'Contents', 'Page mode', 'Daily goal', 'Gestures', 'Settings', 'This cut feels wrong']) {
+    for (final o in ['Background', 'Music', 'Contents', 'Page mode', 'Daily goal', 'Gestures', 'Settings', 'This cut feels wrong']) {
       expect(find.text(o), findsOneWidget, reason: o);
     }
-    await tester.tap(find.text('Scene sound'));
+    expect(find.widgetWithText(KitSwitchRow, 'Rain on the window'), findsOneWidget, reason: 'what is playing');
+    await tester.tap(find.text('Music'));
     await tester.pump();
     await tester.pump();
-    expect(container.read(settingsProvider).sceneSound, isFalse);
-    expect(sounds.where((x) => x == 'released'), hasLength(2));
-    await tester.tap(find.text('Scene sound'));
+    expect(container.read(settingsProvider).music, isFalse);
+    expect(container.read(musicProvider).playing, isFalse);
+    expect(sounds.last, 'pause');
+    await tester.tap(find.text('Music'));
     await tester.pump();
     await tester.pump();
-    expect(container.read(settingsProvider).sceneSound, isTrue);
-    expect(sounds.where((x) => x.endsWith('.ogg')), hasLength(4));
+    expect(container.read(settingsProvider).music, isTrue);
+    expect(sounds.last, 'play', reason: 'carries on, no reload');
+    expect(sounds.where((x) => x.startsWith('load')), hasLength(1));
     await tester.tapAt(const Offset(20, 20)); // outside the sheet
     await tester.pump(const Duration(seconds: 4)); // the toasts time out
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(find.text('This cut feels wrong'), findsNothing);
 
-    // A tap on empty space shows the controls; they stay until the eye hides them.
+    // A tap on empty space shows the controls (there's no eye button any more).
     await tester.tapAt(const Offset(30, 400));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
-    expect(find.bySemanticsLabel('Focus: hide the controls'), findsOneWidget);
     expect(container.read(readerChromeProvider), isTrue);
+    expect(find.bySemanticsLabel('Focus: hide the controls'), findsNothing);
 
     await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
@@ -156,10 +145,24 @@ void main() {
     expect(thought.quote, contains('Alice was beginning'));
     await tester.pump(const Duration(seconds: 4));
 
-    // The eye hides everything again.
-await tester.tap(find.bySemanticsLabel('Focus: hide the controls'));
+    // Four seconds after the last touch the controls hide on their own.
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(tester.widgetList<FadeChrome>(find.byType(FadeChrome)).every((c) => !c.visible), isTrue, reason: 'rail, book row and top bar hidden');
+    expect(container.read(readerChromeProvider), isFalse);
+
+    // A tap shows them; another tap on empty space hides them at once.
+    await tester.tapAt(const Offset(30, 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+    expect(container.read(readerChromeProvider), isTrue);
+    // Touching the screen keeps them up: 3 s, a short swipe that springs back, 3 s more.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.drag(find.byType(PageView), const Offset(0, -60));
+    await tester.pump(const Duration(seconds: 3));
+    expect(container.read(readerChromeProvider), isTrue);
+    await tester.tapAt(const Offset(30, 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(container.read(readerChromeProvider), isFalse);
 
     // Double-tap anywhere on the post likes it.
@@ -286,7 +289,8 @@ await tester.tap(find.bySemanticsLabel('Focus: hide the controls'));
       final store = await JsonStore.open(dir);
       container = ProviderContainer(overrides: [storeProvider.overrideWithValue(store)]);
       container.read(settingsProvider.notifier).update((s) => s.copyWith(
-          onboardingDone: true, goalSetupDone: true, gestureTutorialSeen: true, animatedBackground: false, vibe: Vibe.forest));
+          // Books open on the first scene that wasn't shown last: Forest morning.
+          onboardingDone: true, goalSetupDone: true, gestureTutorialSeen: true, animatedBackground: false, lastBackdrop: 'scene:meadow'));
       bookId = (await container.read(libraryProvider.notifier).ensureStarterBook())!.id;
       final book = await container.read(bookContentProvider(bookId).future);
       final segments = await container.read(segmentsProvider((bookId: bookId, length: CardLength.snack)).future);

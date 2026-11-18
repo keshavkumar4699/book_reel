@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../data/settings.dart';
+import 'backdrops.dart';
 import 'theme.dart';
 import 'vibes.dart';
 
@@ -26,7 +27,8 @@ List<FontVariation> _w(double weight) => [FontVariation('wght', weight)];
 @immutable
 class Kit extends ThemeExtension<Kit> {
   const Kit({
-    required this.vibe,
+    this.backdrop,
+    this.look,
     required this.dark,
     required this.ink,
     required this.inkSoft,
@@ -43,15 +45,20 @@ class Kit extends ThemeExtension<Kit> {
     this.motion = true,
   });
 
+  /// The reader's chrome on a painted scene (see [Kit.forBackdrop]).
+  factory Kit.forScene(Vibe vibe, ReadingTheme paper, {bool motion = true}) =>
+      Kit.forBackdrop(Backdrop.scene(vibe), paper, motion: motion);
+
   /// The reader's chrome: the same neutral white or black as the rest of the
-  /// app (by whether the scene is light or dark), keeping the scene itself
-  /// for the backdrop. Sheets and menus no longer take the scene's colour.
-  factory Kit.forScene(Vibe vibe, ReadingTheme paper, {bool motion = true}) {
-    final p = scenePalettes[vibe];
+  /// app (by whether the picture or scene takes light or dark text), keeping
+  /// the backdrop itself behind. Sheets and menus don't take its colours.
+  factory Kit.forBackdrop(Backdrop backdrop, ReadingTheme paper, {PictureLook? look, bool motion = true}) {
+    final p = paletteFor(backdrop, look);
     final dark = p?.lightInk ?? paper.isDark;
     final k = dark ? appDark : appLight;
     return Kit(
-      vibe: vibe,
+      backdrop: backdrop,
+      look: look,
       palette: p,
       dark: dark,
       motion: motion,
@@ -70,14 +77,9 @@ class Kit extends ThemeExtension<Kit> {
     );
   }
 
-  /// The kit for the reader's settings.
-  factory Kit.fromSettings(AppSettings s, Brightness platform) =>
-      Kit.forScene(s.vibe, ReadingTheme.of(effectiveReadingTheme(s, platform)), motion: s.animatedBackground);
-
   /// Light chrome: white, black and greys. The logo red ([accent]) is only
   /// for the streak flame, the liked heart and badges.
   static const appLight = Kit(
-    vibe: Vibe.paper,
     dark: false,
     motion: false,
     ink: Color(0xFF111111),
@@ -96,7 +98,6 @@ class Kit extends ThemeExtension<Kit> {
   /// Dark chrome: black, white and greys; the logo red only for the flame,
   /// the liked heart and badges.
   static const appDark = Kit(
-    vibe: Vibe.paper,
     dark: true,
     motion: false,
     ink: Color(0xFFF2F2F2),
@@ -120,7 +121,9 @@ class Kit extends ThemeExtension<Kit> {
 
   static Kit of(BuildContext context) => Theme.of(context).extension<Kit>() ?? appLight;
 
-  final Vibe vibe;
+  /// The picture or scene behind (the reader and its pages), or none.
+  final Backdrop? backdrop;
+  final PictureLook? look;
   final ScenePalette? palette;
 
   /// Light ink on dark glass.
@@ -252,9 +255,9 @@ class KitPageTransitions extends PageTransitionsBuilder {
 
 // ---------------------------------------------------------------- backdrop
 
-/// The page background: the scene under an even veil when the kit has one
-/// (the reader, its session-end screen), else the kit's plain [Kit.base].
-/// Still unless [animate].
+/// The page background: the reader's picture or scene under an even veil
+/// when the kit has one (the reader, its session-end screen), else the kit's
+/// plain [Kit.base]. Still unless [animate].
 class SceneBackdrop extends StatelessWidget {
   const SceneBackdrop({super.key, this.animate = false, this.veil = 0.28});
 
@@ -267,9 +270,10 @@ class SceneBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
     final p = kit.palette;
-    if (p == null) return ColoredBox(color: kit.base, child: const SizedBox.expand());
+    final backdrop = kit.backdrop;
+    if (p == null || backdrop == null) return ColoredBox(color: kit.base, child: const SizedBox.expand());
     return Stack(fit: StackFit.expand, children: [
-      VibeBackground(vibe: kit.vibe, animate: animate && kit.motion),
+      BackdropView(backdrop: backdrop, look: kit.look, animate: animate && kit.motion),
       IgnorePointer(
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -928,13 +932,16 @@ class KitSegmented<T> extends StatelessWidget {
 
 /// A pill to pick or toggle (replaces Material chips).
 class KitChip extends StatelessWidget {
-  const KitChip({super.key, required this.label, this.selected = false, this.onTap, this.icon, this.emoji});
+  const KitChip({super.key, required this.label, this.selected = false, this.onTap, this.icon, this.emoji, this.fontFamily});
 
   final String label;
   final bool selected;
   final VoidCallback? onTap;
   final IconData? icon;
   final String? emoji;
+
+  /// Draws the label in this font (a font picker shows each face).
+  final String? fontFamily;
 
   @override
   Widget build(BuildContext context) {
@@ -959,7 +966,18 @@ class KitChip extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (emoji != null) ...[Text(emoji!, style: const TextStyle(fontSize: 15)), const SizedBox(width: 6)],
           if (icon != null) ...[Icon(icon, size: 17, color: fg), const SizedBox(width: 6)],
-          Flexible(child: Text(label, style: kit.strong.copyWith(fontSize: 14, color: fg))),
+          Flexible(
+            child: Text(label,
+                style: fontFamily == null
+                    ? kit.strong.copyWith(fontSize: 14, color: fg)
+                    : TextStyle(
+                        fontFamily: fontFamily,
+                        fontSize: 15,
+                        height: 1.2,
+                        fontWeight: FontWeight.w500,
+                        fontVariations: _w(500),
+                        color: fg)),
+          ),
         ]),
       ),
     );
