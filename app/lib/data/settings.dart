@@ -5,7 +5,28 @@ import '../core/text/lexicon.dart';
 enum ReadingThemeId { paper, white, sepia, dark, black }
 
 /// [book] uses each book's own typographic voice (lib/ui/typography.dart).
-enum ReadingFont { book, literata, atkinson, system }
+/// The reader's font: each book's own ([book]), or one for every book. In
+/// the order Settings shows them: serifs, a slab, sans, then faces made for
+/// low vision and dyslexia, and the phone's own.
+enum ReadingFont {
+  book,
+  literata,
+  merriweather,
+  sourceSerif,
+  ebGaramond,
+  crimsonPro,
+  lora,
+  libreBaskerville,
+  alegreya,
+  newsreader,
+  bitter,
+  inter,
+  lexend,
+  nunito,
+  atkinson,
+  openDyslexic,
+  system,
+}
 
 enum KeyPointStyle { off, subtle, bold }
 

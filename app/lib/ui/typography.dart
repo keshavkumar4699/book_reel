@@ -5,9 +5,10 @@ import 'package:flutter/services.dart';
 import '../data/settings.dart';
 import 'theme.dart';
 
-/// Bundled font families and their names. All are unmodified Google Fonts
-/// under the SIL Open Font License; each ships its licence text as
-/// `assets/fonts/OFL-<family>.txt`.
+/// Bundled font families and their names. All are under the SIL Open Font
+/// License and unmodified, except the regular and bold weights instanced
+/// from Source Serif 4, EB Garamond and Inter (pubspec.yaml); each ships its
+/// licence text as `assets/fonts/OFL-<family>.txt`.
 const bundledFonts = <String, String>{
   'Literata': 'Literata',
   'AtkinsonHyperlegible': 'Atkinson Hyperlegible',
@@ -23,7 +24,24 @@ const bundledFonts = <String, String>{
   'Outfit': 'Outfit',
   'Nunito': 'Nunito',
   'Fredoka': 'Fredoka',
+  'Merriweather': 'Merriweather',
+  'SourceSerif4': 'Source Serif 4',
+  'EBGaramond': 'EB Garamond',
+  'CrimsonPro': 'Crimson Pro',
+  'Newsreader': 'Newsreader',
+  'Bitter': 'Bitter',
+  'Inter': 'Inter',
+  'Lexend': 'Lexend',
+  'OpenDyslexic': 'OpenDyslexic',
 };
+
+/// [weight] on a variable font's weight axis. A variable font is drawn at
+/// its default instance unless told otherwise (Bitter's is Thin), and a
+/// static font ignores it, so text styles always carry both.
+List<FontVariation> weightAxis(FontWeight weight) => [FontVariation('wght', weight.value.toDouble())];
+
+/// A style at another [weight], on variable fonts too.
+TextStyle withWeight(TextStyle style, FontWeight weight) => style.copyWith(fontWeight: weight, fontVariations: weightAxis(weight));
 
 /// Adds the font and scene-sound licences to the app's licences page
 /// (Settings → About).
@@ -186,6 +204,7 @@ class BookType {
         fontFamily: bodyFamily,
         fontSize: settings.fontSize * scale * (usesVoice ? style.bodyScale : 1),
         fontWeight: usesVoice ? style.bodyWeight : FontWeight.w400,
+        fontVariations: weightAxis(usesVoice ? style.bodyWeight : FontWeight.w400),
         height: usesVoice ? style.bodyHeight : settings.lineHeight.clamp(1.4, 1.7),
         letterSpacing: settings.letterSpacing,
         wordSpacing: settings.wordSpacing,
@@ -198,6 +217,7 @@ class BookType {
         fontFamily: displayFamily,
         fontSize: size * (usesVoice ? style.displayScale : 1),
         fontWeight: usesVoice ? style.displayWeight : FontWeight.w700,
+        fontVariations: weightAxis(usesVoice ? style.displayWeight : FontWeight.w700),
         fontStyle: usesVoice ? style.displayStyle : FontStyle.normal,
         letterSpacing: usesVoice ? style.displayLetterSpacing : -0.2,
         height: usesVoice ? style.displayHeight : 1.16,

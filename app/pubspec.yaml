@@ -111,6 +111,15 @@ flutter:
     - assets/fonts/OFL-Outfit.txt
     - assets/fonts/OFL-Nunito.txt
     - assets/fonts/OFL-Fredoka.txt
+    - assets/fonts/OFL-Merriweather.txt
+    - assets/fonts/OFL-SourceSerif4.txt
+    - assets/fonts/OFL-EBGaramond.txt
+    - assets/fonts/OFL-CrimsonPro.txt
+    - assets/fonts/OFL-Newsreader.txt
+    - assets/fonts/OFL-Bitter.txt
+    - assets/fonts/OFL-Inter.txt
+    - assets/fonts/OFL-Lexend.txt
+    - assets/fonts/OFL-OpenDyslexic.txt
 
   fonts:
     - family: Literata
@@ -164,6 +173,47 @@ flutter:
     - family: Fredoka
       fonts:
         - asset: assets/fonts/Fredoka.ttf
+    # More reading fonts (Settings → Text & theme). Unmodified, except Source
+    # Serif 4, EB Garamond and Inter: their regular and bold weights are
+    # instanced from the variable fonts (no Reserved Font Names) to keep the
+    # app small. Variable ones get their weight from the text style.
+    - family: Merriweather
+      fonts:
+        - asset: assets/fonts/Merriweather-Regular.ttf
+        - asset: assets/fonts/Merriweather-Bold.ttf
+          weight: 700
+    - family: SourceSerif4
+      fonts:
+        - asset: assets/fonts/SourceSerif4-Regular.ttf
+        - asset: assets/fonts/SourceSerif4-Bold.ttf
+          weight: 700
+    - family: EBGaramond
+      fonts:
+        - asset: assets/fonts/EBGaramond-Regular.ttf
+        - asset: assets/fonts/EBGaramond-Bold.ttf
+          weight: 700
+    - family: CrimsonPro
+      fonts:
+        - asset: assets/fonts/CrimsonPro.ttf
+    - family: Newsreader
+      fonts:
+        - asset: assets/fonts/Newsreader.ttf
+    - family: Bitter
+      fonts:
+        - asset: assets/fonts/Bitter.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: Lexend
+      fonts:
+        - asset: assets/fonts/Lexend.ttf
+    - family: OpenDyslexic
+      fonts:
+        - asset: assets/fonts/OpenDyslexic-Regular.otf
+        - asset: assets/fonts/OpenDyslexic-Bold.otf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:

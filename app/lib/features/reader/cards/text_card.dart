@@ -970,7 +970,7 @@ class _ReelTextState extends State<ReelText> {
     final body = widget.type.body(color: widget.theme.text, scale: scale, shadows: widget.theme.textShadows);
     if (p.level <= 1) return body;
     // Emphasis: same size, a warmer/brighter tone and a heavier weight.
-    return body.copyWith(color: widget.theme.emphasis, fontWeight: _heavier(body.fontWeight ?? FontWeight.w400));
+    return withWeight(body, _heavier(body.fontWeight ?? FontWeight.w400)).copyWith(color: widget.theme.emphasis);
   }
 
   TextAlign _textAlign(int i) => switch (widget.align) {

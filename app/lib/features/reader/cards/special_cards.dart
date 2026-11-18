@@ -9,7 +9,8 @@ import '../../../ui/typography.dart';
 /// Text in the book's own body font (the quiz, recap and reflect cards
 /// belong to the book too).
 TextStyle _serif(BookType type, ReadingTheme t, {double scale = 1, FontWeight? weight, Color? color}) =>
-    type.body(color: color ?? t.text, scale: scale).copyWith(fontWeight: weight, height: 1.3);
+    (weight == null ? type.body(color: color ?? t.text, scale: scale) : withWeight(type.body(color: color ?? t.text, scale: scale), weight))
+        .copyWith(height: 1.3);
 
 class _CardFrame extends StatelessWidget {
   const _CardFrame({required this.child, required this.theme, this.bare = false});

@@ -47,7 +47,10 @@ class ReaderChrome extends Notifier<bool> {
   @override
   bool build() => false;
 
-  void set(bool visible) => state = visible;
+  void set(bool visible) {
+    // Called just after a reader is torn down, when the app may be closing too.
+    if (ref.mounted) state = visible;
+  }
 }
 
 final readerChromeProvider = NotifierProvider<ReaderChrome, bool>(ReaderChrome.new);

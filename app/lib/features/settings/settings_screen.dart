@@ -18,6 +18,7 @@ import '../../services/music.dart';
 import '../../ui/backdrops.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
+import '../../ui/typography.dart';
 import '../reader/goal_setup_sheet.dart';
 import '../social/safety.dart';
 
@@ -348,10 +349,44 @@ class AppearanceSettings extends ConsumerWidget {
   }
 }
 
+/// One line on what a font is good for.
+String _fontNote(ReadingFont f) => switch (f) {
+      ReadingFont.book => '',
+      ReadingFont.literata => 'Made for long reading on screens (Google Play Books).',
+      ReadingFont.merriweather => 'Sturdy and open, designed for reading on screens.',
+      ReadingFont.sourceSerif => 'A crisp modern serif in the old-style tradition.',
+      ReadingFont.ebGaramond => 'The classic book face, after Garamond’s 16th-century type.',
+      ReadingFont.crimsonPro => 'An elegant book serif, light on the page.',
+      ReadingFont.lora => 'A calligraphic serif, warm for stories.',
+      ReadingFont.libreBaskerville => 'Baskerville’s classic, tuned for screens.',
+      ReadingFont.alegreya => 'A lively literary serif with a calligraphic rhythm.',
+      ReadingFont.newsreader => 'Made for long reads on screens, newspaper-style.',
+      ReadingFont.bitter => 'A friendly slab serif, very clear at small sizes.',
+      ReadingFont.inter => 'A clean, neutral sans.',
+      ReadingFont.lexend => 'A sans made to reduce visual stress and help reading fluency.',
+      ReadingFont.nunito => 'A soft, rounded sans.',
+      ReadingFont.atkinson => 'Designed for low vision: every letter easy to tell apart.',
+      ReadingFont.openDyslexic => 'Weighted letters some readers with dyslexia find easier.',
+      ReadingFont.system => 'Your phone’s own font.',
+    };
+
 String _fontName(ReadingFont f) => switch (f) {
       ReadingFont.book => "Book's own fonts",
       ReadingFont.literata => 'Literata',
+      ReadingFont.merriweather => 'Merriweather',
+      ReadingFont.sourceSerif => 'Source Serif',
+      ReadingFont.ebGaramond => 'EB Garamond',
+      ReadingFont.crimsonPro => 'Crimson Pro',
+      ReadingFont.lora => 'Lora',
+      ReadingFont.libreBaskerville => 'Libre Baskerville',
+      ReadingFont.alegreya => 'Alegreya',
+      ReadingFont.newsreader => 'Newsreader',
+      ReadingFont.bitter => 'Bitter',
+      ReadingFont.inter => 'Inter',
+      ReadingFont.lexend => 'Lexend',
+      ReadingFont.nunito => 'Nunito',
       ReadingFont.atkinson => 'Atkinson Hyperlegible',
+      ReadingFont.openDyslexic => 'OpenDyslexic',
       ReadingFont.system => 'System font',
     };
 
@@ -572,6 +607,7 @@ class TextSettings extends ConsumerWidget {
           'The best time to plant a tree was twenty years ago. The second best time is now.',
           style: TextStyle(
             fontFamily: fontFamilyFor(s.font),
+            fontVariations: weightAxis(FontWeight.w400),
             fontSize: s.fontSize,
             height: s.lineHeight,
             letterSpacing: s.letterSpacing,
@@ -583,19 +619,23 @@ class TextSettings extends ConsumerWidget {
       const SizedBox(height: 16),
       Text('FONT', style: kit.label),
       const SizedBox(height: 8),
+      // Each font's name in its own face.
       Wrap(spacing: 8, runSpacing: 8, children: [
         for (final f in ReadingFont.values)
-          KitChip(label: _fontName(f), selected: s.font == f, onTap: () => n.update((x) => x.copyWith(font: f))),
+          KitChip(
+            label: _fontName(f),
+            fontFamily: f == ReadingFont.book || f == ReadingFont.system ? null : fontFamilyFor(f),
+            selected: s.font == f,
+            onTap: () => n.update((x) => x.copyWith(font: f)),
+          ),
       ]),
       const SizedBox(height: 6),
       Text(
-        switch (s.font) {
-          ReadingFont.book => s.tier.paid
-              ? 'Each book gets fonts that fit it, chosen by the AI from its genre and opening pages.'
-              : 'Each book gets fonts that fit its genre (fantasy, mystery, sci-fi, romance, non-fiction…).',
-          ReadingFont.atkinson => 'Designed for low vision; used for every book.',
-          _ => 'Used for every book.',
-        },
+        s.font == ReadingFont.book
+            ? (s.tier.paid
+                ? 'Each book gets fonts that fit it, chosen by the AI from its genre and opening pages.'
+                : 'Each book gets fonts that fit its genre (fantasy, mystery, sci-fi, romance, non-fiction…).')
+            : '${_fontNote(s.font)} Used for every book.',
         style: kit.caption,
       ),
       _SliderField(

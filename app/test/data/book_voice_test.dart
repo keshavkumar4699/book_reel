@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:ui' show Color;
+import 'dart:ui' show Color, FontVariation;
 
 import 'package:book_reel/data/api_client.dart';
 import 'package:book_reel/data/book_voice.dart';
@@ -8,7 +8,9 @@ import 'package:book_reel/data/library.dart';
 import 'package:book_reel/data/settings.dart';
 import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
+import 'package:book_reel/ui/theme.dart';
 import 'package:book_reel/ui/typography.dart';
+import 'package:flutter/painting.dart' show FontWeight;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -129,5 +131,32 @@ void main() {
     // The reader's size always applies (voices only compensate for x-height).
     final big = BookType(BookVoice.classic, own.copyWith(fontSize: 28));
     expect(big.body(color: const Color(0xFF000000)).fontSize, 28);
+  });
+
+  test('every reading font is bundled, with its licence, and drawn at the right weight', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final families = {for (final m in RegExp(r'^\s+- family: (\S+)', multiLine: true).allMatches(pubspec)) m.group(1)!};
+    expect(ReadingFont.values.length, greaterThanOrEqualTo(16), reason: 'plenty to choose from');
+    for (final f in ReadingFont.values) {
+      final family = fontFamilyFor(f);
+      if (f == ReadingFont.system) {
+        expect(family, isNull);
+        continue;
+      }
+      expect(families, contains(family), reason: '${f.name}: $family is declared in pubspec.yaml');
+      expect(bundledFonts.keys, contains(family), reason: '${f.name}: listed on the licences page');
+    }
+    for (final family in bundledFonts.keys) {
+      expect(File('assets/fonts/OFL-$family.txt').existsSync(), isTrue, reason: '$family licence');
+      expect(pubspec, contains('assets/fonts/OFL-$family.txt'), reason: '$family licence is bundled');
+    }
+    for (final m in RegExp(r'- asset: (assets/fonts/\S+)').allMatches(pubspec)) {
+      expect(File(m.group(1)!).existsSync(), isTrue, reason: m.group(1));
+    }
+    // Variable fonts are drawn at the weight asked for (Bitter's default is Thin).
+    final bitter = BookType(BookVoice.classic, const AppSettings(font: ReadingFont.bitter));
+    expect(bitter.body(color: const Color(0xFF000000)).fontVariations, [const FontVariation('wght', 400)]);
+    expect(bitter.display(color: const Color(0xFF000000), size: 30).fontVariations, [const FontVariation('wght', 700)]);
+    expect(withWeight(bitter.body(color: const Color(0xFF000000)), FontWeight.w600).fontVariations, [const FontVariation('wght', 600)]);
   });
 }

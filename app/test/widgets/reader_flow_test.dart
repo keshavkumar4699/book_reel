@@ -186,6 +186,9 @@ void main() {
     var now = DateTime(2026, 11, 17, 9);
     ReaderScreen.clock = () => now;
     final (c, bookId) = await open(tester);
+    // Everything on the same (made-up) day, whatever today's date is.
+    c.read(habitProvider.notifier).clock = () => now;
+    c.read(sessionLogProvider.notifier).clock = () => now;
     await tester.fling(find.byType(PageView), const Offset(0, -500), 1500); // past the chapter card
     await settle(tester);
     final first = c.read(libraryProvider).single.positionSid;

@@ -5,6 +5,7 @@ import '../../core/parsing/block_builder.dart';
 import '../../data/settings.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
+import '../../ui/typography.dart';
 
 /// Classic continuous reading of one chapter (DESIGN.md §2.3). Shares the
 /// sentence-ID position model with the reel feed. Returns the sentence ID to
@@ -67,6 +68,7 @@ class _PageModeViewState extends State<PageModeView> {
     final anchorBlock = _resumeSid == null ? null : parseSid(_resumeSid!);
     final base = TextStyle(
       fontFamily: fontFamilyFor(s.font),
+      fontVariations: weightAxis(FontWeight.w400),
       fontSize: s.fontSize,
       height: s.lineHeight,
       letterSpacing: s.letterSpacing,

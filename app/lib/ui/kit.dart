@@ -932,13 +932,16 @@ class KitSegmented<T> extends StatelessWidget {
 
 /// A pill to pick or toggle (replaces Material chips).
 class KitChip extends StatelessWidget {
-  const KitChip({super.key, required this.label, this.selected = false, this.onTap, this.icon, this.emoji});
+  const KitChip({super.key, required this.label, this.selected = false, this.onTap, this.icon, this.emoji, this.fontFamily});
 
   final String label;
   final bool selected;
   final VoidCallback? onTap;
   final IconData? icon;
   final String? emoji;
+
+  /// Draws the label in this font (a font picker shows each face).
+  final String? fontFamily;
 
   @override
   Widget build(BuildContext context) {
@@ -963,7 +966,18 @@ class KitChip extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (emoji != null) ...[Text(emoji!, style: const TextStyle(fontSize: 15)), const SizedBox(width: 6)],
           if (icon != null) ...[Icon(icon, size: 17, color: fg), const SizedBox(width: 6)],
-          Flexible(child: Text(label, style: kit.strong.copyWith(fontSize: 14, color: fg))),
+          Flexible(
+            child: Text(label,
+                style: fontFamily == null
+                    ? kit.strong.copyWith(fontSize: 14, color: fg)
+                    : TextStyle(
+                        fontFamily: fontFamily,
+                        fontSize: 15,
+                        height: 1.2,
+                        fontWeight: FontWeight.w500,
+                        fontVariations: _w(500),
+                        color: fg)),
+          ),
         ]),
       ),
     );
