@@ -96,7 +96,7 @@
 >
 > Details: `docs/CLORO_PLAN.md` §10.
 
-> **Revision 13 (smooth reels; your own pictures and music; nothing in the way).** Device feedback: reels sometimes stuttered or jumped, popups got in the way of reading, and the reader wanted their own pictures and music instead of being asked about their mood.
+> **Revision 13 (smooth reels; your own pictures and music; real reading only; a free natural voice).** Device feedback: reels sometimes stuttered or jumped, popups got in the way of reading, the reader wanted their own pictures and music instead of being asked about their mood, skimming still counted, shares left out most figures, fonts were few, and without a server Listen sounded robotic.
 > - **Nothing is saved mid-swipe.** The reading time, the place in the book, the goal and the streak are written once the reel comes to rest, between swipes.
 > - **No more freezes when recaps arrive.** New recaps, quick checks or the AI's cut used to make the reader lay out the whole book again. Now only the chapter that changed is laid out again (about 0.2 ms instead of 40 ms on the starter book, and far more on a novel).
 > - **No jumps.** When the feed is rebuilt, the reel on screen stays: the same text reel, recap, quick check or chapter card, never the text before it. It doesn't fade in again either, and a feed that changes mid-swipe waits until the reel comes to rest.
