@@ -13,7 +13,7 @@ Effective [date]. Cloro is run by [your name or company] ("we"). Questions or re
 
 ## What stays on your phone
 
-Your books, notes, highlights, saved cards, word list, reading history, settings and profile photo. The Free plan's on-device AI runs on your phone; nothing it reads is sent anywhere.
+Your books, notes, highlights, saved cards, word list, reading history, settings and profile photo. The Free plan's on-device AI and the natural voice on your phone run on your phone; nothing they read is sent anywhere. Their model files are downloaded when you ask for them (the voice from GitHub, where the speech engine's makers publish it); like any download, that site sees your phone's IP address, and nothing else.
 
 ## What we keep when online features are on
 

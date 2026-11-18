@@ -23,6 +23,7 @@ Five tabs, icons only: **Reading · Library · Notebook · Today · Profile**.
   - Tap a word for its meaning. Long-press a word to highlight it, or long-press empty space for options.
   - Swipe left to save, right to share.
   - The right rail: like, save, note, share, listen, streak, goal, options.
+  - **A natural voice for free.** Listen reads with a neural voice that sounds close to a person (Kokoro). Download it once in Settings → Read aloud (103 MB) and it runs on the phone: unlimited, offline, nothing sent anywhere. It reads a few sentences at a time, so a reel starts as soon as its first sentence is ready. With a server the same voice can come from there; without either, the phone's own voice reads.
   - **17 reading fonts** (Settings → Text & theme), each shown in its own face: each book's own fonts, Literata, Merriweather, Source Serif, EB Garamond, Crimson Pro, Lora, Libre Baskerville, Alegreya, Newsreader, Bitter, Inter, Lexend, Nunito, Atkinson Hyperlegible (low vision), OpenDyslexic and the phone's own.
   - **Share like Strava.** Goal done, a finished book or your profile shares as a card of figures: cards, words, time, streak, pace and how far into the book.
   - **Only real reading counts.** A reel flicked past faster than careful reading (500 words a minute, or too fast for your own learnt speed) moves your place on but adds nothing to cards, minutes, words, your goal and streak, the feed or leagues. A book counts as finished once at least 60% of it was really read.

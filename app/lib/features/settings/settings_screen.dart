@@ -14,6 +14,7 @@ import '../../services/account.dart';
 import '../../services/billing.dart';
 import '../../services/on_device_ai.dart';
 import '../../services/read_aloud.dart';
+import '../../services/local_voice.dart';
 import '../../services/music.dart';
 import '../../ui/backdrops.dart';
 import '../../ui/kit.dart';
@@ -525,6 +526,58 @@ class MusicSettings extends ConsumerWidget {
   }
 }
 
+/// The natural voice on this phone: download it, see it come down, or
+/// remove it.
+class _LocalVoicePanel extends ConsumerWidget {
+  const _LocalVoicePanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final local = ref.watch(localVoiceProvider);
+    final voice = ref.read(localVoiceProvider.notifier);
+    switch (local.phase) {
+      case LocalVoicePhase.checking:
+        return const SizedBox.shrink();
+      case LocalVoicePhase.ready:
+        return Row(children: [
+          Icon(Icons.offline_pin_rounded, size: 20, color: kit.ink),
+          const SizedBox(width: 8),
+          Expanded(child: Text('On this phone · ${formatBytes(LocalVoiceModel.installedBytes)}', style: kit.strong.copyWith(fontSize: 14))),
+          KitButton.ghost(label: 'Remove', compact: true, onPressed: voice.remove),
+        ]);
+      case LocalVoicePhase.downloading:
+      case LocalVoicePhase.unpacking:
+        final unpacking = local.phase == LocalVoicePhase.unpacking;
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(
+              child: Text(unpacking ? 'Getting the voice ready…' : 'Downloading the voice · ${local.progress}%',
+                  style: kit.strong.copyWith(fontSize: 14)),
+            ),
+            if (!unpacking) KitButton.ghost(label: 'Cancel', compact: true, onPressed: voice.cancelDownload),
+          ]),
+          const SizedBox(height: 8),
+          KitProgress(value: unpacking ? 1 : local.progress / 100, height: 4, color: kit.ink, track: kit.field),
+        ]);
+      case LocalVoicePhase.absent:
+      case LocalVoicePhase.failed:
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (local.message != null) ...[
+            Text(local.message!, style: kit.caption.copyWith(color: kit.danger)),
+            const SizedBox(height: 8),
+          ],
+          KitButton(
+            label: 'Download the natural voice ($localVoiceDownloadSize)',
+            icon: Icons.download_rounded,
+            expand: true,
+            onPressed: voice.download,
+          ),
+        ]);
+    }
+  }
+}
+
 /// The read-aloud voice: natural AI voice or the phone's, which voice, speed.
 class VoiceSettings extends ConsumerWidget {
   const VoiceSettings({super.key});
@@ -537,6 +590,7 @@ class VoiceSettings extends ConsumerWidget {
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
     final server = ref.watch(apiProvider).enabled;
+    final local = ref.watch(localVoiceProvider);
     void play() => ref.read(readAloudProvider).speak(sample, onDone: () {});
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       KitSegmented<bool>(
@@ -547,17 +601,22 @@ class VoiceSettings extends ConsumerWidget {
       ),
       const SizedBox(height: 10),
       Text(
-        s.naturalVoice
-            ? server
-                ? 'A neural voice that sounds close to a person reading. Each passage is kept on your phone, so '
-                    'listening again is instant and works offline. Free: about 25 minutes of new listening a day; '
-                    'paid plans: hours.'
-                : 'The natural voice comes from the Cloro server, which this build doesn\'t have yet, so your '
-                    'phone\'s most natural voice reads for now.'
-            : 'Your phone\'s own voice: works offline and costs nothing. We pick the most natural one it has installed.',
+        !s.naturalVoice
+            ? 'Your phone\'s own voice: works offline and costs nothing. We pick the most natural one it has installed.'
+            : local.ready
+                ? 'A neural voice that sounds close to a person reading, running on your phone: free, unlimited and '
+                    'offline. Nothing you read is sent anywhere.'
+                : server
+                    ? 'A neural voice that sounds close to a person reading, from the Cloro server. Free: about 25 '
+                        'minutes of new listening a day; paid plans: hours. Download it to your phone and it\'s '
+                        'unlimited, offline too.'
+                    : 'A neural voice that sounds close to a person reading. Download it once ($localVoiceDownloadSize) '
+                        'and it runs on your phone: free, unlimited and offline. Until then, your phone\'s own voice reads.',
         style: kit.caption,
       ),
       if (s.naturalVoice) ...[
+        const SizedBox(height: 12),
+        const _LocalVoicePanel(),
         const SizedBox(height: 12),
         KitGroup(divided: true, children: [
           for (final v in speechVoices)

@@ -6,8 +6,11 @@ import 'package:book_reel/data/json_store.dart';
 import 'package:book_reel/data/settings.dart';
 import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
+import 'package:book_reel/services/local_voice.dart';
+import 'package:book_reel/services/on_device_ai.dart' show LocalCancel;
 import 'package:book_reel/services/read_aloud.dart';
 import 'package:book_reel/services/tts.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -28,6 +31,30 @@ class FakeSpeechPlayer implements SpeechPlayer {
   Future<void> stop() async => stopped = true;
   @override
   Future<void> dispose() async => _done.close();
+}
+
+/// The voice on the phone, without the model: it "speaks" into a small file.
+class FakeLocalEngine implements LocalSpeechEngine {
+  final spoken = <String>[];
+  Object? failWith;
+
+  @override
+  Future<void> synthesize({required String text, required int speaker, required double speed, required String path}) async {
+    if (failWith != null) throw failWith!;
+    spoken.add(text);
+    File(path).writeAsStringSync('RIFF $speaker $speed $text');
+  }
+
+  @override
+  Future<void> close() async {}
+}
+
+class InstalledVoice implements LocalVoiceInstaller {
+  @override
+  Future<bool> isInstalled(Directory dir) async => true;
+  @override
+  Future<void> install(Directory dir,
+      {required void Function(int percent) onProgress, required VoidCallback onUnpacking, required LocalCancel cancel}) async {}
 }
 
 void main() {
@@ -115,5 +142,71 @@ void main() {
     expect(AppSettings.fromJson(const {'voiceSpeed': 5}).voiceSpeed, 1.4);
     expect(const AppSettings().naturalVoice, isTrue);
     expect(speechVoices.map((v) => v.id), ['af_heart', 'am_michael', 'bf_emma', 'bm_george']);
+  });
+
+  test('a passage is spoken in parts: sentences, short ones joined, long ones split at a comma', () {
+    expect(speechParts('  '), isEmpty);
+    // Whole sentences, one part each.
+    const a = 'Alice was beginning to get very tired of sitting by her sister on the bank.';
+    const b = 'Once or twice she had peeped into the book her sister was reading.';
+    const c2 = 'So she was considering in her own mind what to do.';
+    expect(speechParts('$a $b $c2'), [a, b, c2]);
+    // Short ones join a neighbour: a 4-word opening the next sentence, a fragment the one before.
+    expect(speechParts('Down the rabbit hole. $a “Oh dear!” she said.'), ['Down the rabbit hole. $a “Oh dear!” she said.']);
+    final long = List.generate(30, (i) => 'word$i').join(' ');
+    final parts = speechParts('$long, and then $long; at last the end.');
+    expect(parts.length, greaterThan(1));
+    expect(parts.every((p) => p.split(' ').length <= 40), isTrue);
+    expect(parts.join(' '), '$long, and then $long; at last the end.');
+  });
+
+  test('the voice on the phone reads part by part, makes the next part as one plays, and keeps them', () async {
+    final engine = FakeLocalEngine();
+    LocalVoiceController.installer = InstalledVoice();
+    LocalVoiceController.root = () async => dir;
+    LocalSpeech.factory = (_) => engine;
+    c.read(localVoiceProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    c.read(settingsProvider.notifier).update((s) => s.copyWith(voiceName: 'bm_george', voiceSpeed: 1.1));
+    final read = c.read(readAloudProvider);
+    expect(read.localActive, isTrue);
+    var done = 0;
+    const first = 'Alice was beginning to get very tired of sitting by her sister on the bank.';
+    const second = 'Once or twice she had peeped into the book her sister was reading.';
+    await read.speak('$first $second', next: 'So she was considering in her own mind. And more.', onDone: () => done++);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(player.played, hasLength(1), reason: 'the first part plays as soon as it is ready');
+    expect(File(player.played.single).readAsStringSync(), 'RIFF 9 1.1 $first', reason: 'George, at the chosen speed');
+    expect(engine.spoken, [first, second], reason: 'the second part is made while the first plays');
+    player.finish();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(player.played, hasLength(2));
+    expect(done, 0);
+    expect(engine.spoken.last, 'So she was considering in her own mind. And more.', reason: 'the next reel’s first part, made early');
+    player.finish();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(done, 1);
+    expect(server.speechRequests, isEmpty, reason: 'nothing leaves the phone');
+    // Heard again: from the phone's cache, nothing made again.
+    final made = engine.spoken.length;
+    await read.speak('$first $second', onDone: () {});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(engine.spoken, hasLength(made));
+  });
+
+  test('a voice that won’t load on this phone says so, and the server voice reads instead', () async {
+    final engine = FakeLocalEngine()..failWith = const VoiceLoadFailure('the model did not load');
+    LocalVoiceController.installer = InstalledVoice();
+    LocalVoiceController.root = () async => dir;
+    LocalSpeech.factory = (_) => engine;
+    c.read(localVoiceProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    final read = c.read(readAloudProvider);
+    await read.speak('Down the rabbit hole.', onDone: () {});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(c.read(localVoiceProvider).phase, LocalVoicePhase.failed);
+    expect(c.read(localVoiceProvider).message, contains('did not load'));
+    expect(server.speechRequests.single['text'], 'Down the rabbit hole.');
+    expect(read.localActive, isFalse);
   });
 }

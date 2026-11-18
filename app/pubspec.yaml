@@ -58,6 +58,10 @@ dependencies:
   # On-device AI for the Free plan (LiteRT-LM). Pinned: these packages move fast.
   flutter_edge_ai: 2.6.0
   flutter_edge_ai_litertlm: 1.20.0
+  # The natural voice on the phone (Kokoro, run by sherpa-onnx). Pinned to the
+  # last release with espeak-ng built in: 2.x needs a word list instead, and
+  # books are full of words no list has.
+  sherpa_onnx: 1.13.8
 
 dev_dependencies:
   flutter_test:
@@ -90,6 +94,10 @@ flutter:
     - assets/books/
     # The privacy policy and terms (also served by the server at /privacy and /terms).
     - assets/legal/
+    # Licences of the on-device voice's parts (see the README there).
+    - assets/licences/espeak-ng-GPL-3.0.txt
+    - assets/licences/kokoro-Apache-2.0.txt
+    - assets/licences/onnxruntime-MIT.txt
     # Ambient loops (licences in assets/sounds/CREDITS.md), and your own music
     # (see the README in the folder).
     - assets/sounds/
