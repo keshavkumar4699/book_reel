@@ -7,7 +7,7 @@ Read books as a feed of short "reel" cards: real pages from your EPUBs and PDFs,
 | Document | What it covers |
 |---|---|
 | [`docs/DESIGN.md`](docs/DESIGN.md) | Product & technical design, AI pipeline, cost model, pricing |
-| [`docs/UX_DESIGN.md`](docs/UX_DESIGN.md) | UX/UI guidelines grounded in behavioural research (Revisions 1–12) |
+| [`docs/UX_DESIGN.md`](docs/UX_DESIGN.md) | UX/UI guidelines grounded in behavioural research (Revisions 1–14) |
 | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Phases, status, and the launch checklist |
 | [`docs/CLORO_PLAN.md`](docs/CLORO_PLAN.md) | The Cloro redesign (steps 1–9, all done) |
 | [`docs/PRODUCTION_PLAN.md`](docs/PRODUCTION_PLAN.md) | What's left for a production launch, in order |
@@ -15,26 +15,28 @@ Read books as a feed of short "reel" cards: real pages from your EPUBs and PDFs,
 
 ## The app at a glance
 
-Five tabs, icons only: **Reading · Library · Notebook · Today · Profile**.
+Five tabs, icons only: **Reading · Library · Notebook · Journal · Profile**.
 
 - **Reading.** The reels of the book you're reading, and the app opens here.
   - A book opens at its introduction, not the copyright page.
-  - It opens in **focus mode**: just the picture and the text. Tap empty space to show the controls; they hide on their own 4 seconds after your last touch (or tap empty space again). With TalkBack on they stay until you hide them.
+  - It opens in **focus mode**: the picture, the text and the rail of actions. Tap empty space to show the rest (the chapter and pictures at the top, the music at the bottom, the tab bar); they slide away 6 seconds after your last touch (or tap empty space again), and the rail glides down into the room they leave. With TalkBack on they stay until you hide them.
   - Tap a word for its meaning. Long-press a word to highlight it, or long-press empty space for options.
   - Swipe left to save, right to share.
-  - The right rail: like, save, note, share, listen, streak, goal, options.
-  - **A natural voice for free.** Listen reads with a neural voice that sounds close to a person (Kokoro). Download it once in Settings → Read aloud (103 MB) and it runs on the phone: unlimited, offline, nothing sent anywhere. It reads a few sentences at a time, so a reel starts as soon as its first sentence is ready. With a server the same voice can come from there; without either, the phone's own voice reads.
+  - The right rail, always there: like, save, note, share, listen, streak, goal, options.
+  - **A natural voice for free.** Listen reads with a neural voice that sounds close to a person (Kokoro). Download it once in Settings → Read aloud (103 MB) and it runs on the phone: unlimited, offline, nothing sent anywhere. It reads a few sentences at a time, so a reel starts as soon as its first sentence is ready, and while a reel plays it makes the next two and the one before ready. When a reel isn't ready yet, a bar slides along the top of the screen until it is (*Converting text to audio…*). With a server the same voice can come from there; without either, the phone's own voice reads.
   - **17 reading fonts** (Settings → Text & theme), each shown in its own face: each book's own fonts, Literata, Merriweather, Source Serif, EB Garamond, Crimson Pro, Lora, Libre Baskerville, Alegreya, Newsreader, Bitter, Inter, Lexend, Nunito, Atkinson Hyperlegible (low vision), OpenDyslexic and the phone's own.
   - **Share like Strava.** Goal done, a finished book or your profile shares as a card of figures: cards, words, time, streak, pace and how far into the book.
   - **Only real reading counts.** A reel flicked past faster than careful reading (500 words a minute, or too fast for your own learnt speed) moves your place on but adds nothing to cards, minutes, words, your goal and streak, the feed or leagues. A book counts as finished once at least 60% of it was really read.
-- **Your pictures.** Each book opens on a random picture from `app/assets/images/backgrounds/` (never the one shown last). The row at the top of the reader (with the controls) switches it on the go, as does options → Background. The app measures each picture and shades it just enough for the text to stay readable, with light or dark text, whichever suits it. Until you add pictures, it uses its 8 painted scenes (4 by day, 4 by night).
-- **Your music.** Each book starts a random track from `app/assets/sounds/music/` and plays on through them; previous, pause and next sit at the top with the controls. Until you add music, it plays calm sound loops (rain, café, surf, birdsong…).
-- **Today.** Your goal ring, streak and the book to continue. Below them, the **Activity** feed: your reading sessions and milestones and those of readers you follow, with kudos and comments. Offline it shows your own sessions.
+- **Your pictures.** Each book opens on a random picture from `app/assets/images/` or `app/assets/images/backgrounds/` (the `logo*` files excepted; never the one shown last). Pictures added there are in the next build. The row at the top of the reader (with the controls) switches it on the go, as does options → Background. The app measures each picture and shades it just enough for the text to stay readable, with light or dark text, whichever suits it. Until you add pictures, it uses its 8 painted scenes (4 by day, 4 by night).
+- **Your music.** Each book starts a random track from `app/assets/sounds/` or `app/assets/sounds/music/` and plays on through them; the track, its artist and previous, pause and next sit at the bottom left with the controls. Tracks added there are in the next build; with none, books open in silence.
+- **Journal** (called Today before). Your goal ring (blue as it fills, green once met), streak and the book to continue, its progress drawn as a coloured outline round its cover. Below them, the **Activity** feed: your reading sessions and milestones and those of readers you follow, with kudos and comments. Offline it shows your own sessions.
+- **Notebook.** Opens on **All**: saved cards, highlights, words and reflections together, newest first, each kind on its own very light shade. The chips show one kind at a time.
 - **Profile.**
   - Photo (with a crop step), name · pronouns, public **followers · following**, bio, what you're reading and up to 3 genres.
-  - This week, streak, stats, trophies, books and saved quotes.
+  - **This week** as a blue circle round each day, sized by the minutes read (tap a day for its figures); the **streak** calendar in GitHub's greens; **stats** for this month, this year or all time; trophies, books and saved quotes.
   - Find people by @username.
-- **Look.** Black, white and greys everywhere except the reader's picture. The logo red appears only on the logo, the streak flame, the liked heart and badges. Flat lists, with lines only between groups.
+- **Look.** Black, white and greys everywhere except the reader's picture, with two colours that carry meaning, Google Fit-style: **blue** for how much you read (minutes, progress) and **green** for keeping at it (streaks, goals met, books finished), on headline figures only. The logo red appears only on the logo, the streak flame, the liked heart and badges. Flat lists, with lines only between groups.
+- **Vibration.** A tap you can feel when you choose, like, save, follow or finish something, tuned to what Android phones actually play. Settings → Vibration turns it off.
 
 ## Repository layout
 
@@ -74,7 +76,7 @@ flutter build apk --release --split-per-abi
 With a server configured the app also:
 - syncs your notebook and reading position;
 - uploads reading activity and sessions;
-- turns on following, the Today feed (kudos and comments), the League page (league, board, invite codes) and share links.
+- turns on following, the Journal feed (kudos and comments), the League page (league, board, invite codes) and share links.
 
 How a reel looks (details and sources in `docs/UX_DESIGN.md`, Revision 4):
 
@@ -107,7 +109,7 @@ ANTHROPIC_API_KEY=... npm run dev     # http://localhost:8787
 | `GET /v1/leagues/current`, `GET /v1/leaderboards/friends` | Weekly league and friends board |
 | `POST /v1/social/follow/:userId`, `DELETE /v1/social/follow/:userId`, `POST /v1/social/follow-handle`, `POST /v1/social/follow-code` | Following (one way); an invite code makes both readers follow each other |
 | `GET /v1/users/:id`, `GET /v1/users/:id/followers`, `GET /v1/users/:id/following` | A reader's public profile (`me`, a user id or `@handle`) and their lists |
-| `GET /v1/feed?before=`, `POST /v1/activities/session`, `POST /v1/activities/:id/kudos` | The Today feed (20 at a time), reading sessions, kudos |
+| `GET /v1/feed?before=`, `POST /v1/activities/session`, `POST /v1/activities/:id/kudos` | The Journal feed (20 at a time), reading sessions, kudos |
 | `GET`/`POST /v1/activities/:id/comments`, `DELETE /v1/comments/:id` | Comments on activities |
 | `POST`/`DELETE /v1/social/block/:userId`, `GET /v1/social/blocked`, `POST /v1/reports` | Blocking (both ways: no follows, profiles, feed or comments) and reports |
 | `GET /v1/admin/reports`, `POST /v1/admin/reports/:id` | Report review (only with `ADMIN_TOKEN`) |

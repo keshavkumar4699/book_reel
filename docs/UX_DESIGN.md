@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Companion to** | [`DESIGN.md`](./DESIGN.md) |
-| **Status** | Draft v1.0 (Revision 13) |
+| **Status** | Draft v1.0 (Revision 14) |
 | **Date** | 2026-11-12 |
 | **Lenses** | Behavioural psychology · Interaction & visual design · Flutter engineering |
 
@@ -116,6 +116,26 @@
 >   Only reading that counted is in them. The shared text and the web preview carry the same figures in one line.
 > - **No upload queue without a server.** Builds without a server no longer queue every card for upload (and save the whole queue each time), and they clear any queue left by earlier versions.
 
+> **Revision 14 (colour that means something; vibration; Journal; the reader's controls).** Device feedback: the app was all black and white, so progress and achievements didn't stand out the way they do in Google Fit; the week's bars and grey streak squares said little; taps gave no vibration you could feel; the controls hid too fast; the music sat at the top; Listen paused silently while a reel was being turned into audio; and the Notebook had no way to see everything at once.
+> - **Blue and green, used like Google Fit (§6.2).** Blue is *how much*: minutes, cards, words, how far into a book, the goal on its way. Green is *keeping at it*: the streak, the goal met, a book finished, the days read. Only the headline figure of each part is coloured, never labels or body text; the logo red stays for the flame, the liked heart and badges. Each colour has a light and a dark tone, at least 4.5:1 on the page behind it.
+>   - The goal ring is blue as it fills and turns green with a tick once met (Journal, goal sheet, the reader's goal line and rail); your photo gets a green ring that day.
+>   - Library and the profile's shelf show progress in blue; a finished book is green.
+>   - In the streak sheet, days the goal was met are green circles; today, still to do, is ringed in blue.
+>   - On a picture, an accent is mixed with the text colour (72% accent) so it keeps most of the text's contrast whatever the picture.
+> - **Profile.**
+>   - **This week** is seven circles, one round each day, blue and sized by the minutes read: the area grows in proportion, so the week's best day is the largest (26 to 44 dp across). A day without reading is an empty ring; today is ringed in blue until you read. Tap a day for its minutes, cards and words.
+>   - **Streak** in GitHub's contribution greens: the last 12 weeks, five shades from no reading to the goal met (under a third, two thirds, or nearly the whole goal in between), with GitHub's *Less ■■■■■ More* key. The current streak is the one green figure.
+>   - **Stats** for *This month*, *This year* or *All time*. Reading time is blue; books finished and reading days are green.
+>   - Earned trophies sit on a faint green; the next ones stay plain.
+> - **Vibration you can feel (§6.4).** Flutter's selection and medium haptics map to Android's clock tick and keyboard tap, which many Android phones play faintly or not at all, so choosing, liking or saving felt like nothing. Every haptic now goes through one helper that picks feedback Android plays: a crisp click for a choice or a tap that does something, a firm buzz for a long press, two quick clicks for a success, and the faint tick only for things that come often (the next reel, a highlight handle passing a word). **Settings → Vibration** turns it all off; the phone's own touch-feedback setting still applies.
+> - **Today is now Journal.** The tab (and the page's title) is *Journal*, with a dated-notes icon; the greeting moves under the title. The book to continue shows its progress as a **coloured outline round its cover**, running clockwise from the top centre: blue while you read, green once finished. Your sessions in the feed show the book's progress the same way, and their time in blue. Old links to the Today tab still open it.
+> - **The reader's controls.**
+>   - The **rail** (like, save, note, share, listen, streak, goal, more) is always on screen. When the tab bar hides, the rail glides down into its room.
+>   - Everything else (the chapter, the pictures, the music, the tab bar) shows with a tap and hides **6 seconds** after the last touch, sliding toward its edge as it fades.
+>   - **The music moves to the bottom left**, where a reel's account line would be: a note, the track and its artist, then previous, play/pause and next. The book's name moves to the top, under the chapter's, with your place in the chapter.
+> - **Listen shows its work.** When a reel isn't ready to be read aloud yet, a bar slides along the top of the screen in place of the goal line. It moves over the time the voice should take, learned from how fast earlier passages were made, slows near the end rather than stopping, and is gone once the audio starts. With the controls hidden, a line under it says *Converting text to audio…*; with them showing, the rail's Listen button says *Preparing*. While a reel plays, the **next two reels and the one before** are made ready in the background, nearest first and one at a time, so the reel you move to never waits behind them.
+> - **Notebook: All.** The Notebook opens on *All*: saved cards, highlights, words and reflections together, newest first. Each kind sits on its own very light shade (blue, amber, green, purple) with its name and a dot in its colour, so they tell apart at a glance; the other chips still show one kind each.
+
 ## 0. The answer in one paragraph
 
 The best UI for BookReel is **not** a copy of TikTok or Instagram Reels. Copy the *ease* of reels: one thing on screen, one swipe to move on, no decisions. Do **not** copy their *business model*: endless, variable-reward scrolling built to maximise time spent. We call the right approach a **"calm feed"**:
@@ -187,11 +207,11 @@ Drawn from Dieter Rams ("less, but better"), Don Norman (*The Design of Everyday
 
 ## 4. Information architecture
 
-Bottom navigation (Material 3 `NavigationBar`) with **4 destinations**, kept to the minimum (Hick's law):
+Bottom navigation (Material 3 `NavigationBar`) with **4 destinations**, kept to the minimum (Hick's law). (Cloro has five: Reading, Library, Notebook, Journal and Profile; see Revisions 11–14.)
 
 | Tab | Purpose |
 |---|---|
-| **Today** (home) | One big "Continue reading" button, today's goal ring, streak, and one social update. Opening the app → one tap → reading |
+| **Journal** (home; called Today until Revision 14) | One big "Continue reading" button, today's goal ring, streak, and one social update. Opening the app → one tap → reading |
 | **Library** | Books, shelves, import, starter classics |
 | **Notebook** | Saved cards, highlights, notes, word list, reflections: everything the user *kept* |
 | **Friends** | Activity feed, kudos, league, clubs, challenges |
@@ -204,7 +224,7 @@ Profile and settings sit behind the avatar at the top right of **Today**. The re
 
 ## 5. Screen specifications
 
-### 5.1 Today (home)
+### 5.1 Journal (home; called Today until Revision 14)
 ```
 ┌─────────────────────────────────┐
 │ Good morning, Asha        (👤)  │
@@ -351,6 +371,7 @@ No red badge counts on the app icon. Quiet hours by default from 22:00 to 08:00.
 - **The reading surface uses fixed, carefully chosen themes**: Paper (#FBF8F1 bg / #1F1D1A text), White, Sepia, Dark (#141414 bg / #E6E1D6 text, slightly warm, not pure white, to reduce halation), and AMOLED Black as an option. All body text ≥ 7:1 contrast (WCAG AAA).
 - **App chrome uses Material 3 dynamic colour** (Material You) to feel at home on Android, but the reading surface never takes on wallpaper colours.
 - **One accent colour** (e.g. a warm amber "ember") for primary actions, the streak flame and goal progress. *Refactoring UI*: use colour for meaning, not decoration.
+- **Informational colour, Google Fit-style (Revision 14).** Two accents carry meaning and nothing else: **blue** (#1A73E8 light, #8AB4F8 dark) for *how much* (minutes, cards, words, progress, the goal on its way) and **green** (#188038 light, #81C995 dark) for *keeping at it* (streaks, a goal met, a finished book, days read). Each has a faint tint for tracks and backgrounds. Only a section's headline figure is coloured; labels, body text and buttons stay black, white and grey. Streak calendars use GitHub's five contribution greens. The logo red stays for the flame, the liked heart and badges. Every pairing is at least 4.5:1 against its page; on the reader's pictures, an accent is mixed with the text colour so it keeps that contrast.
 - **No red for losses.** A broken streak shows in neutral grey with a "start again" message; red signals danger and causes stress.
 - Highlights: 4 tints (amber, green, blue, pink) at ≤ 25% opacity, also distinguishable by colour-blind users (tested with deuteranopia and protanopia simulators).
 
@@ -364,7 +385,7 @@ No red badge counts on the app icon. Quiet hours by default from 22:00 to 08:00.
 - Material 3 motion: standard easing; **150–300 ms** for UI changes; card swipe driven by a physics spring.
 - Celebrations (confetti, flame burst) **only** for the daily goal, finishing a chapter or book, and streak milestones (7/30/100/365). Rarity keeps them meaningful.
 - Follow system **"Remove animations"**: celebrations become simple fades.
-- Haptics: `selectionClick` on each card, `mediumImpact` on goal completion, none for errors.
+- Haptics (Revision 14, all through one helper and the **Vibration** setting): a crisp click (`lightImpact`, Android's key click) for a choice (chip, tab, switch, segment, picture, day) and for a tap that acts (like, save, follow, kudos, a button); a firm buzz (`vibrate`, Android's long press) for a long press or a highlight begun; two quick clicks for a success (the goal met, a celebration); the faint `selectionClick` only for what comes often (the next reel, a highlight handle passing a word). On iPhone, choices use `selectionClick` and successes the system's success feedback. None for errors.
 
 ### 6.5 Sound
 Your own music while reading (or, until you add some, calm ambient loops), on by default, with previous, pause and next in the reader and a volume in Settings (see Revisions 5 and 13).
