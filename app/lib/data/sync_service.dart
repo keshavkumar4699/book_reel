@@ -73,11 +73,18 @@ class SyncService {
 
   BookReelApi get _api => ref.read(apiProvider);
 
+  /// How often the app syncs while it's open (and never while it's in the
+  /// background: each sync wakes the server's database, which is billed
+  /// while awake).
+  static const every = Duration(minutes: 5);
+
   void start() {
     if (!_api.enabled || _timer != null) return;
-    _timer = Timer.periodic(const Duration(minutes: 2), (_) => syncNow());
+    _timer = Timer.periodic(every, (_) => syncNow());
     syncNow();
   }
+
+  bool get running => _timer != null;
 
   void stop() {
     _timer?.cancel();

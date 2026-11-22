@@ -11,7 +11,7 @@ Read books as a feed of short "reel" cards: real pages from your EPUBs and PDFs,
 | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Phases, status, and the launch checklist |
 | [`docs/CLORO_PLAN.md`](docs/CLORO_PLAN.md) | The Cloro redesign (steps 1–9, all done) |
 | [`docs/PRODUCTION_PLAN.md`](docs/PRODUCTION_PLAN.md) | What's left for a production launch, in order |
-| [`docs/DEPLOY.md`](docs/DEPLOY.md) | Deploying the server (Cloud Run), release signing, error reporting and alerts |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md) | Deploying the server so it costs nothing until it has users (Cloud Run + Neon), release signing, error reporting and alerts |
 
 ## The app at a glance
 
@@ -91,7 +91,7 @@ What's in the app: library and EPUB/PDF import, a starter public-domain book, th
 
 ## Server
 
-Requires Node 22+.
+Requires Node 22+. In production it runs on Cloud Run with a Neon Postgres database. Both sleep when unused, so it costs nothing until it has users (`docs/DEPLOY.md` §1).
 
 ```bash
 cd server

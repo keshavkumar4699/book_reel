@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { openDb } from "../src/db/db.js";
+import { openDb, poolConfig } from "../src/db/db.js";
 import { ActivityService } from "../src/habit/activity.js";
 
 describe("database", () => {
@@ -21,5 +21,16 @@ describe("database", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("lets a sleeping database stay asleep: idle connections close, a waking one is waited for", () => {
+    const url = "postgres://u:p@ep-quiet-sun.ap-southeast-1.aws.neon.tech/cloro?sslmode=require";
+    const c = poolConfig(url, {});
+    expect(c.connectionString).toBe(url);
+    expect(c.max).toBe(5);
+    expect(c.idleTimeoutMillis).toBe(10_000);
+    expect(c.connectionTimeoutMillis).toBe(15_000);
+    expect(poolConfig(url, { DATABASE_POOL_MAX: "2" }).max).toBe(2);
+    expect(poolConfig(url, { DATABASE_POOL_MAX: "lots" }).max).toBe(5);
   });
 });

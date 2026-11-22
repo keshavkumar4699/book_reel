@@ -19,7 +19,8 @@ jobs:
       id-token: write # keyless sign-in to Google Cloud (Workload Identity Federation)
     env:
       PROJECT: ${{ vars.GCP_PROJECT }}
-      REGION: ${{ vars.GCP_REGION || 'asia-south1' }}
+      # Singapore: next to the database's region (Neon has no Mumbai region).
+      REGION: ${{ vars.GCP_REGION || 'asia-southeast1' }}
       SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'cloro-api' }}
     steps:
       - uses: actions/checkout@v4
@@ -46,12 +47,19 @@ jobs:
           # CLOUD_RUN_SECRETS  e.g. DATABASE_URL=cloro-database-url:latest,ANTHROPIC_API_KEY=cloro-anthropic-key:latest
           EXTRA_ENV: ${{ vars.CLOUD_RUN_ENV }}
           SECRETS: ${{ vars.CLOUD_RUN_SECRETS }}
+          # Only for a Cloud SQL database (an always-on, always-billed server;
+          # docs/DEPLOY.md recommends Neon, which sleeps when unused).
           SQL: ${{ vars.CLOUD_SQL_INSTANCE }}
+          # A ceiling on instances, so a burst of traffic can't run up a bill.
+          MAX_INSTANCES: ${{ vars.CLOUD_RUN_MAX_INSTANCES || '2' }}
           RUNTIME_SA: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
         run: |
+          # Nothing runs (or bills) between requests: no minimum instances,
+          # and CPU only while a request is being served.
           args=(--image "$IMAGE" --region "$REGION" --project "$PROJECT"
                 --allow-unauthenticated --port 8080 --cpu 1 --memory 512Mi
-                --min-instances 0 --max-instances 10 --concurrency 80 --timeout 120)
+                --min-instances 0 --max-instances "$MAX_INSTANCES" --cpu-throttling
+                --concurrency 80 --timeout 120)
           envs="NODE_ENV=production,TRUST_PROXY=1"
           [ -n "$EXTRA_ENV" ] && envs="$envs,$EXTRA_ENV"
           args+=(--set-env-vars "$envs")

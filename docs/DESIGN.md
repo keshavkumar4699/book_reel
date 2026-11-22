@@ -213,7 +213,7 @@ Reading (card length, AI hook titles on/off, key-point highlight style, hard-wor
 │ API service (Cloud Run)  ── REST/JSON                                     │
 │ Segmentation workers (Cloud Run jobs, Pub/Sub queue)                      │
 │      └─► Claude API (Haiku 5.5 / Sonnet 5.5 / Opus 5.5), Batch API        │
-│ Postgres (Cloud SQL): users, books, cards, highlights, social, billing   │
+│ Postgres (Neon): users, books, cards, highlights, social, billing        │
 │ Redis (Memorystore): leaderboards (sorted sets), rate limits, quotas     │
 │ Cloud Storage: processed segment maps, share images, web previews        │
 │ FCM: notifications     Play Billing RTDN → billing service                │
@@ -426,7 +426,7 @@ For comparison, v1 (one pass, ~120-word cards, no art direction) cost ≈ $0.02 
 Planning number: expected ≈ 40% of the worst case. Validate in a pilot with real token counts (`usage` logging is built in: `ai_usage` table).
 
 ### 5.3 Infrastructure cost (rough, at 50k MAU)
-Cloud Run + Cloud SQL + Storage + CDN ≈ $600–1,200/month → **≈ $0.02/MAU**. Scene sounds ship inside the app.
+Cloud Run + Postgres + Storage + CDN ≈ $600–1,200/month → **≈ $0.02/MAU**. Scene sounds ship inside the app.
 
 **Read-aloud voice.** Hosted Kokoro-82M costs about $0.62–0.99 per million characters (OpenRouter / DeepInfra listings, Nov 2026). A whole novel (≈ 550k characters) is ≈ $0.50; a heavy listener (30 min a day) ≈ $0.45 a month. The daily allowance caps it: Free ≤ 20k characters (≈ $0.02/day), paid ≤ 300k (≈ $0.30/day, rarely reached). Audio is cached by text and voice, so popular public-domain books are synthesised once for everyone. (Cached audio sits in Postgres today; move it to Cloud Storage beyond a few GB.)
 

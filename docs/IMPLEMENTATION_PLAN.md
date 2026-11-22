@@ -129,7 +129,7 @@ Guiding rule: **every phase ends with something usable, plus tests.** The app is
 - Push notifications for kudos/friend activity (FCM, same Firebase project). Today the daily reminder is local only.
 - App Links in the app (open `/c/…` and `/i/…` links directly in BookReel) once the domain is live: set `ANDROID_CERT_SHA256` on the server and add an intent filter.
 - Clubs and challenges (DESIGN.md §2.9).
-- Production hosting: Cloud Run + Cloud SQL (Postgres). Redis is not needed at current scale; league tables are computed from Postgres.
+- Production hosting: Cloud Run (scales to zero) + Neon serverless Postgres (sleeps when unused), so the server costs nothing until it has users (`docs/DEPLOY.md` §1). Redis is not needed at current scale; league tables are computed from Postgres.
 
 ## Phase 8 — Monetization & free-tier AI
 - **Done:** tier → model routing, monthly AI-book quotas with regional limits (server).
@@ -142,7 +142,7 @@ _The full road to production, including work that needs no accounts (account del
 
 These steps need your own accounts, keys or decisions, so they can't be done in code. In order:
 
-1. **Server hosting.** Create a Google Cloud project. Deploy `server/` to Cloud Run with a Cloud SQL (Postgres) database: set `DATABASE_URL`, `PUBLIC_BASE_URL` (your domain) and the keys below as **secrets** (Secret Manager), never in code.
+1. **Server hosting.** Create a Google Cloud project. Deploy `server/` to Cloud Run with a Neon Postgres database (free until you have users; `docs/DEPLOY.md` §1): set `DATABASE_URL`, `PUBLIC_BASE_URL` (your domain) and the keys below as **secrets** (Secret Manager), never in code.
 2. **AI keys.** An Anthropic API key (`ANTHROPIC_API_KEY`, with standard 30-day retention so Scholar's Fable model works) and a speech key (`TTS_API_KEY`; default provider DeepInfra running Kokoro-82M, about $1 per million characters; any OpenAI-compatible speech API works via `TTS_BASE_URL`/`TTS_MODEL`). Run a small pilot and compare real `ai_usage` costs with DESIGN.md §5.
 3. **Release signing.** Create an upload key and Play App Signing; replace the debug signing in `app/android/app/build.gradle.kts`, choose the final application ID (`PLAY_PACKAGE_NAME`).
 4. **Play Console** ($25 one-time developer account). Create the app, the store listing, the content rating and the Data safety form, plus a privacy policy page (DPDP/GDPR).

@@ -16,13 +16,35 @@ export interface Db {
 }
 
 /**
+ * Pool settings for a serverless Postgres (Neon, docs/DEPLOY.md) that
+ * sleeps when nobody uses it and bills only while awake:
+ * - idle connections close after 10 s, so an open connection never keeps
+ *   the database awake once requests stop (it sleeps 5 minutes later);
+ * - a first connection may wait while the database wakes (about a second),
+ *   so allow 15 s before giving up;
+ * - few connections per server instance (Cloud Run runs at most a couple),
+ *   well under the free plan's limit. DATABASE_POOL_MAX overrides it.
+ */
+export function poolConfig(url: string, env: NodeJS.ProcessEnv = process.env): pg.PoolConfig {
+  const max = Number(env.DATABASE_POOL_MAX);
+  return {
+    connectionString: url,
+    max: Number.isInteger(max) && max > 0 ? max : 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 15_000,
+    // Let the process exit when only idle connections are left (tests, scripts).
+    allowExitOnIdle: true,
+  };
+}
+
+/**
  * `postgres://…` → node-postgres pool. Anything else is a PGlite data
  * directory; empty/undefined → in-memory PGlite.
  */
 export async function openDb(url?: string): Promise<Db> {
   let db: Db;
   if (url && /^postgres(ql)?:\/\//.test(url)) {
-    const pool = new pg.Pool({ connectionString: url, max: 10 });
+    const pool = new pg.Pool(poolConfig(url));
     db = {
       query: async <T>(sql: string, params: unknown[] = []) => (await pool.query(sql, params)).rows as T[],
       exec: async (sql: string) => {

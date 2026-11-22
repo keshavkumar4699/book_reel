@@ -48,6 +48,28 @@ void main() {
     dirs.clear();
   });
 
+  test('the app syncs every few minutes while open and never in the background, so an idle server can sleep', () async {
+    final server = FakeServer();
+    final c = await device(server, 'acct');
+    final sync = c.read(syncServiceProvider);
+    expect(SyncService.every, const Duration(minutes: 5));
+    sync.start();
+    expect(sync.running, isTrue);
+    await sync.syncNow();
+    sync.stop(); // the app went to the background
+    expect(sync.running, isFalse);
+    // Without a server, nothing runs at all.
+    final dir = await Directory.systemTemp.createTemp('bookreel_sync');
+    dirs.add(dir);
+    final offline = ProviderContainer(overrides: [
+      storeProvider.overrideWithValue(await JsonStore.open(dir)),
+      apiProvider.overrideWithValue(BookReelApi(baseUrl: '', deviceId: 'x')),
+    ]);
+    containers.add(offline);
+    offline.read(syncServiceProvider).start();
+    expect(offline.read(syncServiceProvider).running, isFalse);
+  });
+
   test('notebook changes and deletions reach another device of the same account', () async {
     final server = FakeServer();
     // Two phones signed in to the same account share one server-side user.

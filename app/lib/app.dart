@@ -124,8 +124,15 @@ class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingOb
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed || state == AppLifecycleState.paused) {
-      ref.read(syncServiceProvider).syncNow();
+    // Sync once on the way out and back in; in between the app asks the
+    // server nothing, so a server (and its database) with nobody using it
+    // can sleep and cost nothing (docs/DEPLOY.md).
+    final sync = ref.read(syncServiceProvider);
+    if (state == AppLifecycleState.paused) {
+      sync.syncNow();
+      sync.stop();
+    } else if (state == AppLifecycleState.resumed) {
+      sync.start();
     }
   }
 
