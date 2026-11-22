@@ -63,9 +63,9 @@ void _expectReadable(Uint8List rgba, int w, int h, ScenePalette p, String what) 
 }
 
 void main() {
-  test('your pictures replace the painted scenes; names read as words', () {
+  test('your pictures replace the painted scenes; the study scenes are always there; names read as words', () {
     expect(backdropsFrom(['assets/images/logo_512.png', 'assets/images/backgrounds/README.md']).map((b) => b.vibe),
-        [...dayScenes, ...nightScenes], reason: 'no pictures yet: the scenes');
+        [...studyScenes, ...dayScenes, ...nightScenes], reason: 'no pictures yet: the scenes');
     final mine = backdropsFrom([
       'assets/images/backgrounds/lake_at_dawn.jpg',
       'assets/images/backgrounds/City-Night.WEBP',
@@ -75,13 +75,15 @@ void main() {
       'assets/images/night_calm.jpg',
       'assets/images/icons/elsewhere.png',
     ]);
-    expect(mine.map((b) => b.label), ['City Night', 'Lake at dawn', 'Night calm'], reason: 'both folders, logos left out, by name');
-    expect(mine.every((b) => b.isPicture), isTrue);
+    expect(mine.take(3).map((b) => b.vibe), studyScenes, reason: 'the study scenes first, always');
+    expect(mine.take(3).map((b) => b.label), ['Night desk', 'Café reading', 'Sunny nook']);
+    expect(mine.skip(3).map((b) => b.label), ['City Night', 'Lake at dawn', 'Night calm'], reason: 'both folders, logos left out, by name');
+    expect(mine.skip(3).every((b) => b.isPicture), isTrue);
     expect(Backdrop.paper.label, 'Plain');
     expect(const Backdrop.scene(Vibe.night).label, 'Night');
   });
 
-  test('each book opens on a random picture: never Plain, never the last one again', () {
+  test('each book opens on a random picture or study scene: never Plain, never the last one again', () {
     final all = backdropsFrom(['assets/images/backgrounds/a.jpg', 'assets/images/backgrounds/b.jpg', 'assets/images/backgrounds/c.jpg']);
     final seen = <String>{};
     final random = math.Random(7);
@@ -90,10 +92,10 @@ void main() {
       expect(b.isPaper, isFalse);
       seen.add(b.id);
     }
-    expect(seen, {'assets/images/backgrounds/a.jpg', 'assets/images/backgrounds/c.jpg'});
+    expect(seen, {'assets/images/backgrounds/a.jpg', 'assets/images/backgrounds/c.jpg', for (final v in studyScenes) 'scene:${v.name}'});
     // Only one picture: it's shown again.
     expect(pickBackdrop([all.first], lastId: all.first.id).id, all.first.id);
-    expect(pickBackdrop([...all], random: FirstPick()).id, 'assets/images/backgrounds/a.jpg');
+    expect(pickBackdrop([...all], random: FirstPick()).id, 'scene:studyNight');
   });
 
   test('text stays readable on any picture: bright, dark, half and half, busy', () {
@@ -143,7 +145,7 @@ void main() {
     final onDisk = [
       for (final dir in ['assets/images', 'assets/images/backgrounds'])
         for (final f in Directory(dir).listSync().whereType<File>())
-          if (RegExp(r'\.(jpe?g|png|webp)$', caseSensitive: false).hasMatch(f.path) && !f.path.split('/').last.startsWith('logo'))
+          if (RegExp(r'\.(jpe?g|png|webp|gif)$', caseSensitive: false).hasMatch(f.path) && !f.path.split('/').last.startsWith('logo'))
             f.path.replaceAll('\\', '/'),
     ]..sort();
     expect([for (final b in backdropsFrom(bundled)) if (b.isPicture) b.asset!]..sort(), onDisk);

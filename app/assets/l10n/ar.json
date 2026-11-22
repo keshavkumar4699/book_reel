@@ -875,5 +875,35 @@
  "Couldn’t read this aloud": "تعذّرت القراءة بصوت عالٍ",
  "Nothing to read yet": "لا شيء للقراءة بعد",
  "Pick a book from your Library and it opens here.": "اختر كتابًا من مكتبتك وسيُفتح هنا.",
- "Open Library": "افتح المكتبة"
+ "Open Library": "افتح المكتبة",
+ "Last 7 days": "آخر 7 أيام",
+ "Older days": "أيام أقدم",
+ "Newer days": "أيام أحدث",
+ "Those pictures couldn’t be opened": "تعذّر فتح تلك الصور",
+ "Some pictures couldn’t be opened": "تعذّر فتح بعض الصور",
+ "Remove this picture?": "إزالة هذه الصورة؟",
+ "It’s removed from Cloro, not from your phone.": "ستُزال من Cloro، وليس من هاتفك.",
+ "Pictures and scenes": "صور ومشاهد",
+ "Each book opens on a picture or scene picked at random. While reading, tap the screen and pick another from the row at the top, or tap + there to add pictures from your phone. A long press on one you added removes it.": "يُفتح كل كتاب على صورة أو مشهد يُختار عشوائيًا. أثناء القراءة، انقر على الشاشة واختر غيرها من الصف في الأعلى، أو انقر + هناك لإضافة صور من هاتفك. اضغط مطولًا على صورة أضفتها لإزالتها.",
+ "Add pictures from your phone": "إضافة صور من هاتفك",
+ "{n} pictures added": {
+  "zero": "لم تُضف صور",
+  "one": "أُضيفت صورة",
+  "two": "أُضيفت صورتان",
+  "few": "أُضيفت {n} صور",
+  "many": "أُضيفت {n} صورة",
+  "other": "أُضيفت {n} صورة"
+ },
+ "{n} pictures of yours": {
+  "zero": "لا صور لك",
+  "one": "صورة واحدة لك",
+  "two": "صورتان لك",
+  "few": "{n} صور لك",
+  "many": "{n} صورة لك",
+  "other": "{n} صورة لك"
+ },
+ "Night desk": "مكتب ليلي",
+ "Café reading": "قراءة في المقهى",
+ "Sunny nook": "ركن مشمس",
+ "Add pictures": "إضافة صور"
 }

@@ -276,14 +276,21 @@ class ActivityCard extends ConsumerWidget {
     if (e.type == 'session') {
       final quote = e.data['quote'] as String?;
       final progress = (e.data['progress'] as num?)?.toDouble() ?? 0;
-      // Time read is the one figure in colour (blue: how much), as in the
-      // Profile's week; the cover's outline shows how far into the book.
-      Widget stat(String value, String label, {Color? color}) => Padding(
-            padding: const EdgeInsets.only(right: 22),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(label, style: kit.caption),
-              Text(value, style: kit.strong.copyWith(fontSize: 17, color: color)),
-            ]),
+      // Each figure on the light shade of its kind (blue: how much); time
+      // read is the one in colour, as in the Profile's week; the cover's
+      // outline shows how far into the book.
+      Widget stat(String value, String label, {bool headline = false}) => Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: kit.shade(KitHue.activity), borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 6, 12, 7),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(label, style: kit.caption),
+                  Text(value, style: kit.strong.copyWith(fontSize: 17, color: headline ? kit.hue(KitHue.activity) : null)),
+                ]),
+              ),
+            ),
           );
       body = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -297,15 +304,21 @@ class ActivityCard extends ConsumerWidget {
         ]),
         const SizedBox(height: 12),
         Wrap(runSpacing: 8, children: [
-          stat(tr('{n} min', {'n': _minutes((e.data['minutes'] as num?) ?? 0)}), tr('Time'), color: kit.activity),
+          stat(tr('{n} min', {'n': _minutes((e.data['minutes'] as num?) ?? 0)}), tr('Time'), headline: true),
           stat('${e.data['cards'] ?? 0}', tr('Cards')),
           if (progress > 0) stat('${(progress * 100).round()}%', tr('Book')),
         ]),
         if (quote != null && quote.isNotEmpty) ...[
           const SizedBox(height: 12),
+          // A line kept from the book, on the amber of what you keep.
           Container(
-            padding: const EdgeInsets.only(left: 12),
-            decoration: BoxDecoration(border: Border(left: BorderSide(color: kit.ink.withValues(alpha: 0.35), width: 2))),
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            decoration: BoxDecoration(
+              color: kit.shade(KitHue.notes),
+              borderRadius: BorderRadius.circular(12),
+              border: Border(left: BorderSide(color: kit.hue(KitHue.notes), width: 3)),
+            ),
             child: Text('“$quote”', style: kit.body.copyWith(fontStyle: FontStyle.italic)),
           ),
         ],
@@ -316,11 +329,17 @@ class ActivityCard extends ConsumerWidget {
       var line = e.text.startsWith('${e.name} ') ? e.text.substring(e.name.length + 1) : e.text;
       // …and ends with the same emoji the card shows.
       if (line.endsWith(' $emoji')) line = line.substring(0, line.length - emoji.length - 1);
-      body = Row(children: [
-        Text(emoji, style: const TextStyle(fontSize: 26)),
-        const SizedBox(width: 12),
-        Expanded(child: Text(line.isEmpty ? e.text : '${line[0].toUpperCase()}${line.substring(1)}', style: kit.heading)),
-      ]);
+      // A milestone: on the green of keeping at it.
+      body = KitPanel(
+        color: kit.shade(KitHue.growth),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        radius: 14,
+        child: Row(children: [
+          Text(emoji, style: const TextStyle(fontSize: 26)),
+          const SizedBox(width: 12),
+          Expanded(child: Text(line.isEmpty ? e.text : '${line[0].toUpperCase()}${line.substring(1)}', style: kit.heading)),
+        ]),
+      );
     }
 
     final actions = e.local

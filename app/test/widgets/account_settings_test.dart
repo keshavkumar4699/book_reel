@@ -109,10 +109,13 @@ void main() {
   testWidgets('Settings → About: send feedback to the server, and see the version', (tester) async {
     final server = FakeServer();
     await open(tester, server);
+    await tester.scrollUntilVisible(find.text('Version'), 300, scrollable: find.byType(Scrollable).first);
     expect(find.text('Version'), findsOneWidget);
     expect(appVersionLabel('1.2.0+57'), '1.2.0 (57)');
     expect(appVersionLabel('dev'), 'dev');
-    await tester.ensureVisible(find.text('Send feedback'));
+    // Back up a little: Send feedback is just above, under the top bar.
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 250));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Send feedback'));
     await tester.pumpAndSettle();
     // Nothing written yet: asked for a few words.

@@ -161,15 +161,18 @@ void main() {
   testWidgets('each book opens on a random picture and track; pictures at the top, music at the bottom', (tester) async {
     final (c, _) = await open(tester);
     Kit kit() => Kit.of(tester.element(find.byType(PageView)));
-    expect(kit().backdrop, const Backdrop.scene(Vibe.meadow), reason: 'no pictures added yet: a painted scene');
+    expect(kit().backdrop, const Backdrop.scene(Vibe.studyNight), reason: 'the study scenes come first; no pictures added yet');
     expect(c.read(musicProvider).track!.label, 'First · Artist');
 
     // A tap shows the controls: the chapter and every picture in a row at the top, the music at the bottom.
     await tester.tapAt(const Offset(30, 420));
     await tester.pump(const Duration(milliseconds: 400));
     await settle(tester);
+    expect(find.bySemanticsLabel('Background: Night desk'), findsOneWidget);
     expect(find.bySemanticsLabel('Background: Meadow'), findsOneWidget);
-    expect(find.bySemanticsLabel('Background: Night'), findsOneWidget);
+    expect(find.bySemanticsLabel('Add pictures'), findsOneWidget, reason: 'a + to add your own, at the start');
+    await tester.dragUntilVisible(find.bySemanticsLabel('Background: Night'), find.byType(BackdropStrip), const Offset(-150, 0));
+    await settle(tester);
 
     await tester.tap(find.bySemanticsLabel('Background: Night'));
     await tester.pump(const Duration(milliseconds: 100));
@@ -196,7 +199,7 @@ void main() {
     expect(c.read(musicProvider).track!.label, 'First · Artist');
 
     // Plain, at the end of the row (scroll it along): the reading theme's own page.
-    await tester.drag(find.byType(BackdropStrip), const Offset(-400, 0));
+    await tester.dragUntilVisible(find.byWidgetPredicate((w) => w is BackdropThumb && w.backdrop.isPaper), find.byType(BackdropStrip), const Offset(-200, 0));
     await settle(tester);
     await tester.tap(find.byWidgetPredicate((w) => w is BackdropThumb && w.backdrop.isPaper));
     await tester.pump(const Duration(milliseconds: 100));

@@ -127,8 +127,9 @@ void main() {
 
   testWidgets('the reader keeps its picture even when the app is dark', (tester) async {
     late String bookId;
+    // The sunny nook, a daylight scene (no pictures yet: the study scenes, then the painted ones).
+    backdropRandom = _Pick(2);
     await tester.runAsync(() async {
-      // No pictures added yet: the first painted scene, Meadow, by day.
       c.read(settingsProvider.notifier).update((s) => s.copyWith(gestureTutorialSeen: true, cardLength: CardLength.standard));
       bookId = (await c.read(libraryProvider.notifier).ensureStarterBook())!.id;
     });
@@ -142,10 +143,10 @@ void main() {
     }
     expect(find.byType(VibeBackground), findsWidgets);
     final kit = Kit.of(tester.element(find.text('Swipe up to begin')));
-    expect(kit.backdrop, const Backdrop.scene(Vibe.meadow));
-    expect(c.read(settingsProvider).lastBackdrop, 'scene:meadow', reason: 'the next book opens on another');
+    expect(kit.backdrop, const Backdrop.scene(Vibe.studySun));
+    expect(c.read(settingsProvider).lastBackdrop, 'scene:studySun', reason: 'the next book opens on another');
     expect(kit.palette, isNotNull, reason: 'sheets opened here wear the scene, not the app’s dark theme');
-    expect(kit.dark, isFalse, reason: 'meadow is a daylight scene');
+    expect(kit.dark, isFalse, reason: 'the sunny nook is a daylight scene');
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
@@ -196,4 +197,12 @@ void main() {
     expect(app.read(settingsProvider).language, '');
     expect(find.text('Settings'), findsOneWidget);
   });
+}
+
+/// Always picks the [index]th (of what there is).
+class _Pick extends FirstPick {
+  _Pick(this.index);
+  final int index;
+  @override
+  int nextInt(int max) => index % max;
 }

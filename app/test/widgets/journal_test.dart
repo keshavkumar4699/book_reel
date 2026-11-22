@@ -82,6 +82,8 @@ void main() {
     expect(server.sessions[mine.id], containsPair('cards', 4));
 
     // Kudos: once, shown at once.
+    await tester.ensureVisible(find.text('👏 2'));
+    await tester.pump();
     await tester.tap(find.text('👏 2'));
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
     await tester.pump();

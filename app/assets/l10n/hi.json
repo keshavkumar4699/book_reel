@@ -771,5 +771,27 @@
  "Couldn’t read this aloud": "इसे पढ़कर नहीं सुनाया जा सका",
  "Nothing to read yet": "अभी पढ़ने को कुछ नहीं है",
  "Pick a book from your Library and it opens here.": "अपनी लाइब्रेरी से कोई किताब चुनें, वह यहाँ खुलेगी।",
- "Open Library": "लाइब्रेरी खोलें"
+ "Open Library": "लाइब्रेरी खोलें",
+ "Last 7 days": "पिछले 7 दिन",
+ "Older days": "पुराने दिन",
+ "Newer days": "नए दिन",
+ "Those pictures couldn’t be opened": "ये तस्वीरें नहीं खुल सकीं",
+ "Some pictures couldn’t be opened": "कुछ तस्वीरें नहीं खुल सकीं",
+ "Remove this picture?": "यह तस्वीर हटाएँ?",
+ "It’s removed from Cloro, not from your phone.": "यह Cloro से हटेगी, आपके फ़ोन से नहीं।",
+ "Pictures and scenes": "तस्वीरें और दृश्य",
+ "Each book opens on a picture or scene picked at random. While reading, tap the screen and pick another from the row at the top, or tap + there to add pictures from your phone. A long press on one you added removes it.": "हर किताब किसी बेतरतीब चुनी तस्वीर या दृश्य पर खुलती है। पढ़ते समय स्क्रीन पर टैप करें और ऊपर की पंक्ति से कोई और चुनें, या वहीं + पर टैप करके अपने फ़ोन से तस्वीरें जोड़ें। आपकी जोड़ी तस्वीर को देर तक दबाने पर वह हट जाती है।",
+ "Add pictures from your phone": "अपने फ़ोन से तस्वीरें जोड़ें",
+ "{n} pictures added": {
+  "one": "तस्वीर जोड़ी गई",
+  "other": "{n} तस्वीरें जोड़ी गईं"
+ },
+ "{n} pictures of yours": {
+  "one": "आपकी {n} तस्वीर",
+  "other": "आपकी {n} तस्वीरें"
+ },
+ "Night desk": "रात की मेज़",
+ "Café reading": "कैफ़े में पढ़ाई",
+ "Sunny nook": "धूप वाला कोना",
+ "Add pictures": "तस्वीरें जोड़ें"
 }

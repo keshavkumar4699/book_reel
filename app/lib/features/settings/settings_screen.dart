@@ -16,6 +16,7 @@ import '../../services/on_device_ai.dart';
 import '../../services/read_aloud.dart';
 import '../../services/local_voice.dart';
 import '../../services/music.dart';
+import '../reader/add_pictures.dart';
 import '../../ui/backdrops.dart';
 import '../../l10n/l10n.dart';
 import '../../ui/haptics.dart';
@@ -38,7 +39,7 @@ class SettingsScreen extends ConsumerWidget {
     final n = ref.read(settingsProvider.notifier);
     final ai = ref.watch(onDeviceAiProvider);
     final pictures = ref.watch(backdropsProvider).value;
-    final ownPictures = pictures != null && pictures.any((b) => b.isPicture);
+    final ownPictures = pictures != null && pictures.any((b) => b.isYours);
     final time = MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay(hour: s.reminderHour, minute: s.reminderMinute),
         alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context));
 
@@ -52,6 +53,7 @@ class SettingsScreen extends ConsumerWidget {
               AppAppearance.light => Icons.light_mode_rounded,
               AppAppearance.dark => Icons.dark_mode_rounded,
             },
+            hue: KitHue.neutral,
             title: tr('Appearance'),
             value: s.appearance.label,
             onTap: () => showKitSheet<void>(context,
@@ -59,6 +61,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           KitRow(
             icon: Icons.translate_rounded,
+            hue: KitHue.neutral,
             title: tr('Language'),
             value: s.language.isEmpty ? tr('Phone’s language') : languageFor(s.language).name,
             onTap: () => showKitSheet<void>(context, title: tr('Language'), builder: (_) => const LanguageSettings()),
@@ -67,19 +70,22 @@ class SettingsScreen extends ConsumerWidget {
         KitGroup(label: tr('Reading'), divided: true, children: [
           KitRow(
             icon: Icons.image_outlined,
+            hue: KitHue.activity,
             title: tr('Backgrounds'),
-            value: ownPictures ? tr('Your pictures') : tr('Painted scenes'),
+            value: ownPictures ? tr('Your pictures') : tr('Pictures and scenes'),
             onTap: () => showKitSheet<void>(context,
                 title: tr('Backgrounds'), subtitle: tr('A different one each time you open a book'), builder: (_) => const BackgroundSettings()),
           ),
           KitRow(
             icon: s.music ? Icons.music_note_rounded : Icons.music_off_rounded,
+            hue: KitHue.words,
             title: tr('Music'),
             value: s.music ? tr('On · {percent}%', {'percent': (s.musicVolume * 100).round()}) : tr('Off'),
             onTap: () => showKitSheet<void>(context, title: tr('Music'), builder: (_) => const MusicSettings()),
           ),
           KitRow(
             icon: Icons.record_voice_over_rounded,
+            hue: KitHue.words,
             title: tr('Read aloud'),
             value: s.naturalVoice
                 ? tr('Natural · {voice}', {'voice': speechVoices.where((v) => v.id == s.voiceName).firstOrNull?.label ?? 'Heart'})
@@ -88,12 +94,14 @@ class SettingsScreen extends ConsumerWidget {
           ),
           KitRow(
             icon: Icons.text_fields_rounded,
+            hue: KitHue.activity,
             title: tr('Text & theme'),
             value: '${_fontName(s.font)} · ${s.fontSize.round()}',
             onTap: () => showKitSheet<void>(context, title: tr('Text & theme'), builder: (_) => const TextSettings()),
           ),
           KitRow(
             icon: Icons.view_agenda_rounded,
+            hue: KitHue.activity,
             title: tr('Cards'),
             value: '${_lengthName(s.cardLength)} · ${_levelName(s.readingLevel)}',
             onTap: () => showKitSheet<void>(context, title: tr('Cards'), builder: (_) => const CardSettings()),
@@ -102,7 +110,8 @@ class SettingsScreen extends ConsumerWidget {
           if (!s.tier.paid)
             KitRow(
               icon: Icons.auto_awesome_rounded,
-              title: tr('On-device AI'),
+              hue: KitHue.notes,
+            title: tr('On-device AI'),
               value: switch (ai.phase) {
                 LocalAiPhase.checking => '…',
                 LocalAiPhase.unsupported => tr('Not on this phone'),
@@ -120,6 +129,7 @@ class SettingsScreen extends ConsumerWidget {
         KitGroup(label: tr('Habit'), divided: true, children: [
           KitRow(
             icon: Icons.flag_rounded,
+            hue: KitHue.growth,
             title: tr('Daily goal'),
             value: '${s.goalUnit == GoalUnit.cards ? trn(s.goal.dailyTarget, '{n} card', '{n} cards') : tr('{n} min', {'n': s.goal.dailyTarget})}${s.reminderEnabled ? ' · $time' : ''}',
             onTap: () => showGoalSheet(context),
@@ -128,12 +138,14 @@ class SettingsScreen extends ConsumerWidget {
         KitGroup(label: tr('Comfort & privacy'), divided: true, children: [
           KitSwitchRow(
             icon: Icons.back_hand_rounded,
+            hue: KitHue.neutral,
             title: tr('Left-handed layout'),
             value: s.leftHanded,
             onChanged: (v) => n.update((x) => x.copyWith(leftHanded: v)),
           ),
           KitSwitchRow(
             icon: Icons.vibration_rounded,
+            hue: KitHue.neutral,
             title: tr('Vibration'),
             subtitle: tr('A light tap when you choose, like, save or finish'),
             value: s.haptics,
@@ -141,6 +153,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           KitSwitchRow(
             icon: Icons.visibility_off_rounded,
+            hue: KitHue.people,
             title: tr('Hide leaderboards'),
             subtitle: tr('No rankings or comparisons'),
             value: s.hideLeaderboards,
@@ -149,14 +162,16 @@ class SettingsScreen extends ConsumerWidget {
           if (ref.watch(apiProvider).enabled)
             KitRow(
               icon: Icons.block_rounded,
-              title: tr('Blocked readers'),
+              hue: KitHue.people,
+            title: tr('Blocked readers'),
               onTap: () => showKitSheet<void>(context,
                   title: tr('Blocked readers'), subtitle: tr('They can’t find, follow or comment on you'), builder: (_) => const BlockedReaders()),
             ),
           if (bookreelApi.isNotEmpty)
             KitSwitchRow(
               icon: Icons.bug_report_outlined,
-              title: tr('Send crash reports'),
+              hue: KitHue.neutral,
+            title: tr('Send crash reports'),
               subtitle: tr('What went wrong and where, never your books'),
               value: s.crashReports,
               onChanged: (v) => n.update((x) => x.copyWith(crashReports: v)),
@@ -164,7 +179,8 @@ class SettingsScreen extends ConsumerWidget {
           if (bookreelApi.isNotEmpty)
             KitSwitchRow(
               icon: s.online ? Icons.cloud_rounded : Icons.cloud_off_rounded,
-              title: tr('Online features'),
+              hue: KitHue.people,
+            title: tr('Online features'),
               subtitle: s.online ? tr('Following, the feed, sync, AI cards and share links') : tr('Off: everything stays on this phone'),
               value: s.online,
               onChanged: (v) => n.update((x) => x.copyWith(online: v)),
@@ -173,6 +189,7 @@ class SettingsScreen extends ConsumerWidget {
         KitGroup(label: tr('You'), divided: true, children: [
           KitRow(
             icon: Icons.badge_rounded,
+            hue: KitHue.people,
             title: tr('Display name'),
             value: s.displayName,
             onTap: () async {
@@ -183,12 +200,14 @@ class SettingsScreen extends ConsumerWidget {
           ),
           KitRow(
             icon: Icons.workspace_premium_rounded,
+            hue: KitHue.notes,
             title: tr('Plan'),
             value: s.tier.paid ? '${s.tier.label} · ${s.tier.model}' : tr('Free'),
             onTap: () => showKitSheet<void>(context, title: tr('Plan'), subtitle: tr('Each plan reads your books with a stronger model'), builder: (_) => const PlanPicker()),
           ),
           KitRow(
             icon: Icons.download_rounded,
+            hue: KitHue.neutral,
             title: tr('Download my data'),
             subtitle: tr('Everything Cloro keeps about you, as one file'),
             chevron: false,
@@ -206,19 +225,21 @@ class SettingsScreen extends ConsumerWidget {
         KitGroup(label: tr('About'), divided: true, children: [
           KitRow(
             icon: Icons.mail_outline_rounded,
+            hue: KitHue.people,
             title: tr('Send feedback'),
             subtitle: tr('An idea, a problem, anything'),
             onTap: () => showFeedbackSheet(context),
           ),
-          KitRow(icon: Icons.privacy_tip_outlined, title: tr('Privacy policy'), onTap: () => context.push('/legal/privacy')),
-          KitRow(icon: Icons.gavel_rounded, title: tr('Terms of use'), onTap: () => context.push('/legal/terms')),
+          KitRow(icon: Icons.privacy_tip_outlined, hue: KitHue.neutral, title: tr('Privacy policy'), onTap: () => context.push('/legal/privacy')),
+          KitRow(icon: Icons.gavel_rounded, hue: KitHue.neutral, title: tr('Terms of use'), onTap: () => context.push('/legal/terms')),
           KitRow(
             icon: Icons.description_rounded,
+            hue: KitHue.neutral,
             title: tr('Licences'),
             subtitle: tr('Fonts (OFL), music, WordNet, wordfreq'),
             onTap: () => context.push('/licenses'),
           ),
-          KitRow(icon: Icons.info_outline_rounded, title: tr('Version'), value: appVersionLabel()),
+          KitRow(icon: Icons.info_outline_rounded, hue: KitHue.neutral, title: tr('Version'), value: appVersionLabel()),
         ]),
       ],
     );
@@ -478,28 +499,39 @@ class BackgroundSettings extends ConsumerWidget {
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
     final all = ref.watch(backdropsProvider).value ?? const <Backdrop>[];
-    final own = all.where((b) => b.isPicture).length;
+    final yours = all.where((b) => b.isYours).length;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Text(
-        own > 0
-            ? trn(own, 'Each book opens on your picture. While reading, tap the screen to pick a scene from the row at the top.',
-                'Each book opens on one of your {n} pictures, picked at random. While reading, tap the screen and pick another from the row at the top.')
-            : tr('Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. '
-                'Pictures added to the app’s backgrounds folder replace the scenes.'),
+        tr('Each book opens on a picture or scene picked at random. While reading, tap the screen and pick another from the row at the top, '
+            'or tap + there to add pictures from your phone. A long press on one you added removes it.'),
         style: kit.caption,
       ),
-      if (own == 0) ...[
-        const SizedBox(height: 14),
-        KitGroup(divided: true, children: [
-          KitSwitchRow(
-            icon: Icons.animation_rounded,
-            title: tr('Moving scenes'),
-            subtitle: tr('Gentle motion. Off when the phone’s “Remove animations” is on.'),
-            value: s.animatedBackground,
-            onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
-          ),
-        ]),
+      const SizedBox(height: 14),
+      KitButton.secondary(
+        label: tr('Add pictures from your phone'),
+        icon: Icons.add_photo_alternate_outlined,
+        expand: true,
+        onPressed: () async {
+          final added = await addPicturesFromPhone(context, ref);
+          if (added != null && added.isNotEmpty && context.mounted) {
+            showKitToast(context, trn(added.length, 'Picture added', '{n} pictures added'), icon: Icons.image_outlined);
+          }
+        },
+      ),
+      if (yours > 0) ...[
+        const SizedBox(height: 6),
+        Text(trn(yours, '{n} picture of yours', '{n} pictures of yours'), textAlign: TextAlign.center, style: kit.caption),
       ],
+      const SizedBox(height: 14),
+      KitGroup(divided: true, children: [
+        KitSwitchRow(
+          icon: Icons.animation_rounded,
+          title: tr('Moving scenes'),
+          subtitle: tr('Gentle motion. Off when the phone’s “Remove animations” is on.'),
+          value: s.animatedBackground,
+          onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
+        ),
+      ]),
     ]);
   }
 }

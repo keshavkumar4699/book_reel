@@ -73,10 +73,13 @@ void main() {
     });
   }
 
-  test('four day scenes with dark text, four night scenes with light text', () {
+  test('four day scenes with dark text, four night scenes with light text, and three study scenes', () {
     expect(dayScenes, hasLength(4));
     expect(nightScenes, hasLength(4));
-    expect({...dayScenes, ...nightScenes}, {for (final v in Vibe.values) if (v != Vibe.paper) v});
+    expect(studyScenes, hasLength(3));
+    expect({...dayScenes, ...nightScenes, ...studyScenes}, {for (final v in Vibe.values) if (v != Vibe.paper) v});
+    expect(scenePalettes[Vibe.studySun]!.lightInk, isFalse, reason: 'the sunny nook: dark text');
+    expect(scenePalettes[Vibe.studyNight]!.lightInk && scenePalettes[Vibe.studyCafe]!.lightInk, isTrue);
     for (final v in dayScenes) {
       expect(scenePalettes[v]!.lightInk, isFalse, reason: '${v.name} is a day scene');
     }

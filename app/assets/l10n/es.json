@@ -771,5 +771,27 @@
  "Couldn’t read this aloud": "No se pudo leer en voz alta",
  "Nothing to read yet": "Aún no hay nada que leer",
  "Pick a book from your Library and it opens here.": "Elige un libro de tu Biblioteca y se abrirá aquí.",
- "Open Library": "Abrir la Biblioteca"
+ "Open Library": "Abrir la Biblioteca",
+ "Last 7 days": "Últimos 7 días",
+ "Older days": "Días anteriores",
+ "Newer days": "Días siguientes",
+ "Those pictures couldn’t be opened": "No se pudieron abrir esas imágenes",
+ "Some pictures couldn’t be opened": "Algunas imágenes no se pudieron abrir",
+ "Remove this picture?": "¿Quitar esta imagen?",
+ "It’s removed from Cloro, not from your phone.": "Se quita de Cloro, no de tu teléfono.",
+ "Pictures and scenes": "Imágenes y escenas",
+ "Each book opens on a picture or scene picked at random. While reading, tap the screen and pick another from the row at the top, or tap + there to add pictures from your phone. A long press on one you added removes it.": "Cada libro se abre con una imagen o escena elegida al azar. Mientras lees, toca la pantalla y elige otra de la fila de arriba, o toca + allí para añadir imágenes de tu teléfono. Mantén pulsada una que hayas añadido para quitarla.",
+ "Add pictures from your phone": "Añadir imágenes de tu teléfono",
+ "{n} pictures added": {
+  "one": "Imagen añadida",
+  "other": "{n} imágenes añadidas"
+ },
+ "{n} pictures of yours": {
+  "one": "{n} imagen tuya",
+  "other": "{n} imágenes tuyas"
+ },
+ "Night desk": "Escritorio de noche",
+ "Café reading": "Lectura en el café",
+ "Sunny nook": "Rincón soleado",
+ "Add pictures": "Añadir imágenes"
 }

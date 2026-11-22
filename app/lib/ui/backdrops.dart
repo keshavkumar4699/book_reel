@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -8,18 +9,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/app_assets.dart';
 import '../data/settings.dart';
+import '../data/user_pictures.dart';
 import 'kit.dart';
 import 'vibes.dart';
 import '../l10n/l10n.dart';
 
-/// Background pictures (JPG, PNG or WebP) are every picture in these folders
-/// (both listed in pubspec.yaml), the app's logo files excepted. A picture
-/// added to either is in the next build; until there are any, the painted
-/// scenes are used.
+/// Background pictures (JPG, PNG, WebP or GIF; an animated one plays on a
+/// loop) are every picture in these folders (both listed in pubspec.yaml),
+/// the app's logo files excepted, and the pictures you add from your phone
+/// ([UserPictures]). A picture added to either folder is in the next build;
+/// until there are any, the painted scenes are used.
 const pictureDirs = ['assets/images/', 'assets/images/backgrounds/'];
 const backgroundsDir = 'assets/images/backgrounds/';
 
-final _pictureFile = RegExp(r'\.(jpe?g|png|webp)$', caseSensitive: false);
+final _pictureFile = RegExp(r'\.(jpe?g|png|webp|gif)$', caseSensitive: false);
 
 /// The pictures among [assets], by file name.
 List<String> picturesIn(Iterable<String> assets) => [
@@ -29,28 +32,53 @@ List<String> picturesIn(Iterable<String> assets) => [
 
 bool _isLogo(String asset) => asset.split('/').last.toLowerCase().startsWith('logo');
 
-/// What the reels sit on: one of your own pictures, a painted scene (until
-/// you add pictures), or Paper, the plain page.
+/// What the reels sit on: a picture that came with the app, one you added
+/// from your phone, a painted scene, or Paper, the plain page.
 @immutable
 class Backdrop {
-  const Backdrop.picture(String this.asset) : vibe = null;
-  const Backdrop.scene(Vibe this.vibe) : asset = null;
+  const Backdrop.picture(String this.asset)
+      : vibe = null,
+        file = null;
+  const Backdrop.file(String this.file)
+      : asset = null,
+        vibe = null;
+  const Backdrop.scene(Vibe this.vibe)
+      : asset = null,
+        file = null;
 
   /// The plain page (follows the reading theme: paper, sepia, dark…).
   static const paper = Backdrop.scene(Vibe.paper);
 
+  /// A picture that came with the app.
   final String? asset;
+
+  /// A picture you added (its path in the app's storage).
+  final String? file;
   final Vibe? vibe;
 
-  bool get isPicture => asset != null;
+  bool get isPicture => asset != null || file != null;
   bool get isPaper => vibe == Vibe.paper;
 
-  /// Kept as the last one shown, so the next book opens on another.
-  String get id => asset ?? 'scene:${vibe!.name}';
+  /// One you added from your phone (and can remove).
+  bool get isYours => file != null;
+
+  /// Kept as the last one shown, so the next book opens on another. (Your
+  /// pictures by file name: the app's storage can move between updates.)
+  String get id => asset ?? (file != null ? 'file:${file!.split('/').last}' : 'scene:${vibe!.name}');
+
+  /// Where a picture's colours are measured from ([pictureLookProvider]).
+  String? get source => asset ?? (file == null ? null : 'file:$file');
+
+  /// The picture itself (none for a scene or Paper).
+  ImageProvider? get image => asset != null ? AssetImage(asset!) : (file != null ? FileImage(File(file!)) : null);
 
   /// The picture's file name as words ("lake_at_dawn.jpg" → "Lake at dawn"),
   /// or the scene's name.
   String get label {
+    if (file != null) {
+      final name = UserPictures.labelOf(file!);
+      return name.isEmpty ? tr('Picture') : name;
+    }
     final a = asset;
     if (a == null) return isPaper ? tr('Plain') : tr(vibeStyles[vibe]!.label);
     final name = a.split('/').last.replaceFirst(_pictureFile, '').replaceAll(RegExp(r'[_\-]+'), ' ').trim();
@@ -67,15 +95,24 @@ class Backdrop {
   String toString() => 'Backdrop($id)';
 }
 
-/// Your pictures, or until there are any the painted scenes (day, then night).
-List<Backdrop> backdropsFrom(Iterable<String> assets) {
+/// The study scenes (always), the pictures you added ([yours], newest
+/// first), then the app's; until there are any, the painted scenes (day,
+/// then night).
+List<Backdrop> backdropsFrom(Iterable<String> assets, {List<String> yours = const []}) {
   final pictures = picturesIn(assets);
-  return pictures.isNotEmpty
-      ? [for (final p in pictures) Backdrop.picture(p)]
-      : [for (final v in [...dayScenes, ...nightScenes]) Backdrop.scene(v)];
+  return [
+    for (final v in studyScenes) Backdrop.scene(v),
+    for (final f in yours) Backdrop.file(f),
+    if (pictures.isNotEmpty || yours.isNotEmpty)
+      for (final p in pictures) Backdrop.picture(p)
+    else
+      for (final v in [...dayScenes, ...nightScenes]) Backdrop.scene(v),
+  ];
 }
 
-final backdropsProvider = FutureProvider<List<Backdrop>>((ref) async => backdropsFrom(await AppAssets.list()));
+final backdropsProvider = FutureProvider<List<Backdrop>>(
+  (ref) async => backdropsFrom(await AppAssets.list(), yours: await UserPictures.list()),
+);
 
 /// Picks each book's first picture (tests make it predictable).
 math.Random backdropRandom = math.Random();
@@ -248,12 +285,19 @@ ScenePalette paletteForPixels(Uint8List rgba, int width, int height) {
   );
 }
 
-/// [asset]'s look on a screen of [aspect] (width ÷ height): the picture is
-/// decoded small, cropped to what the screen shows (it covers the screen,
-/// centred) and measured.
-Future<PictureLook> lookForPicture(AssetBundle bundle, String asset, double aspect) async {
-  final data = await bundle.load(asset);
-  final buffer = await ui.ImmutableBuffer.fromUint8List(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+/// A picture's look on a screen of [aspect] (width ÷ height): the picture
+/// ([source]: an asset in [bundle], or "file:" and a path) is decoded small,
+/// cropped to what the screen shows (it covers the screen, centred) and
+/// measured. An animated picture is measured on its first frame.
+Future<PictureLook> lookForPicture(AssetBundle bundle, String source, double aspect) async {
+  final Uint8List encoded;
+  if (source.startsWith('file:')) {
+    encoded = await File(source.substring(5)).readAsBytes();
+  } else {
+    final data = await bundle.load(source);
+    encoded = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+  }
+  final buffer = await ui.ImmutableBuffer.fromUint8List(encoded);
   final descriptor = await ui.ImageDescriptor.encoded(buffer);
   final size = Size(descriptor.width.toDouble(), descriptor.height.toDouble());
   final codec = await descriptor.instantiateCodec(targetWidth: math.min(pictureMeasureWidth, descriptor.width));
@@ -286,9 +330,10 @@ final pictureLookProvider = FutureProvider.family<PictureLook, (String, double)>
   (ref, key) => lookForPicture(rootBundle, key.$1, key.$2),
 );
 
-/// The key for [asset] on a screen of [size] (shapes within a hundredth share a look).
-(String, double) pictureLookKey(String asset, Size size) =>
-    (asset, size.height <= 0 ? 0.46 : ((size.width / size.height) * 100).round() / 100);
+/// The key for a picture ([Backdrop.source]) on a screen of [size] (shapes
+/// within a hundredth share a look).
+(String, double) pictureLookKey(String source, Size size) =>
+    (source, size.height <= 0 ? 0.46 : ((size.width / size.height) * 100).round() / 100);
 
 /// The text colours for [backdrop]: a scene's tested palette, a picture's
 /// measured one, or none for Paper (the reading theme's own colours).
@@ -319,13 +364,13 @@ class BackdropView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final asset = backdrop.asset;
-    if (asset == null) return VibeBackground(vibe: backdrop.vibe!, animate: animate, paperColor: paperColor);
+    final picture = backdrop.image;
+    if (picture == null) return VibeBackground(vibe: backdrop.vibe!, animate: animate, paperColor: paperColor);
     return LayoutBuilder(builder: (context, c) {
       final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
       return RepaintBoundary(
         child: Image(
-          image: sizedForScreen(AssetImage(asset), look?.size, Size(c.maxWidth * dpr, c.maxHeight * dpr)),
+          image: sizedForScreen(picture, look?.size, Size(c.maxWidth * dpr, c.maxHeight * dpr)),
           fit: BoxFit.cover,
           width: double.infinity,
           height: double.infinity,
@@ -350,11 +395,15 @@ class BackdropThumb extends StatelessWidget {
     this.width = 44,
     this.height = 60,
     this.paperColor,
+    this.onLongPress,
   });
 
   final Backdrop backdrop;
   final bool selected;
   final VoidCallback onTap;
+
+  /// One of your pictures: removing it.
+  final VoidCallback? onLongPress;
 
   /// The selection ring's colour.
   final Color ink;
@@ -365,10 +414,10 @@ class BackdropThumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2;
-    final asset = backdrop.asset;
-    final Widget art = asset != null
+    final picture = backdrop.image;
+    final Widget art = picture != null
         ? Image(
-            image: ResizeImage(AssetImage(asset), width: (width * dpr).round(), allowUpscaling: false),
+            image: ResizeImage(picture, width: (width * dpr).round(), allowUpscaling: false),
             fit: BoxFit.cover,
             excludeFromSemantics: true,
             errorBuilder: (_, _, _) => const ColoredBox(color: Color(0xFF2A2A2A)),
@@ -389,8 +438,10 @@ class BackdropThumb extends StatelessWidget {
       button: true,
       selected: selected,
       label: tr('Background: {name}', {'name': backdrop.label}),
+      onLongPressHint: onLongPress == null ? null : tr('Remove'),
       child: GestureDetector(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           width: width,
@@ -407,16 +458,61 @@ class BackdropThumb extends StatelessWidget {
   }
 }
 
+/// A tile to add pictures from your phone, the size of a thumbnail.
+class AddPictureTile extends StatelessWidget {
+  const AddPictureTile({super.key, required this.onTap, required this.ink, this.width = 44, this.height = 60});
+
+  final VoidCallback onTap;
+  final Color ink;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: tr('Add pictures'),
+        excludeSemantics: true,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ink.withValues(alpha: 0.5), width: 1.5),
+              color: ink.withValues(alpha: 0.08),
+            ),
+            child: Icon(Icons.add_photo_alternate_outlined, color: ink, size: width * 0.5),
+          ),
+        ),
+      );
+}
+
 /// Every backdrop in a row, Plain last: the reader's top, with the controls.
 /// Opens scrolled to the one on screen.
 class BackdropStrip extends StatefulWidget {
-  const BackdropStrip({super.key, required this.backdrops, required this.selected, required this.onPick, required this.ink, this.paperColor});
+  const BackdropStrip({
+    super.key,
+    required this.backdrops,
+    required this.selected,
+    required this.onPick,
+    required this.ink,
+    this.paperColor,
+    this.onAdd,
+    this.onRemove,
+  });
 
   final List<Backdrop> backdrops;
   final Backdrop selected;
   final ValueChanged<Backdrop> onPick;
   final Color ink;
   final Color? paperColor;
+
+  /// Adding pictures from your phone (a + tile first in the row).
+  final VoidCallback? onAdd;
+
+  /// Removing one of yours (a long press on it).
+  final ValueChanged<Backdrop>? onRemove;
 
   static const thumbWidth = 44.0;
   static const gap = 8.0;
@@ -446,45 +542,84 @@ class _BackdropStripState extends State<BackdropStrip> {
   @override
   Widget build(BuildContext context) {
     final all = _all;
+    final add = widget.onAdd;
+    final remove = widget.onRemove;
+    final row = ListView.separated(
+      controller: _scroll,
+      scrollDirection: Axis.horizontal,
+      padding: EdgeInsetsDirectional.fromSTEB(add != null ? 0 : 16, 2, 16, 2),
+      itemCount: all.length,
+      separatorBuilder: (_, _) => const SizedBox(width: BackdropStrip.gap),
+      itemBuilder: (context, i) => BackdropThumb(
+        backdrop: all[i],
+        selected: all[i] == widget.selected,
+        ink: widget.ink,
+        paperColor: widget.paperColor,
+        onTap: () => widget.onPick(all[i]),
+        onLongPress: all[i].isYours && remove != null ? () => remove(all[i]) : null,
+      ),
+    );
     return SizedBox(
       height: 64,
-      child: ListView.separated(
-        controller: _scroll,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-        itemCount: all.length,
-        separatorBuilder: (_, _) => const SizedBox(width: BackdropStrip.gap),
-        itemBuilder: (context, i) => BackdropThumb(
-          backdrop: all[i],
-          selected: all[i] == widget.selected,
-          ink: widget.ink,
-          paperColor: widget.paperColor,
-          onTap: () => widget.onPick(all[i]),
-        ),
-      ),
+      // The + to add pictures stays put at the start; the pictures scroll.
+      child: add == null
+          ? row
+          : Row(children: [
+              const SizedBox(width: 16),
+              AddPictureTile(onTap: add, ink: widget.ink),
+              const SizedBox(width: BackdropStrip.gap),
+              Expanded(child: row),
+            ]),
     );
   }
 }
 
 /// The backdrops as a grid, Plain last (the reader's options → Background).
 class BackdropGrid extends StatelessWidget {
-  const BackdropGrid({super.key, required this.backdrops, required this.selected, required this.onPick, this.paperColor});
+  const BackdropGrid({super.key, required this.backdrops, required this.selected, required this.onPick, this.paperColor, this.onAdd, this.onRemove});
 
   final List<Backdrop> backdrops;
   final Backdrop selected;
   final ValueChanged<Backdrop> onPick;
   final Color? paperColor;
 
+  /// Adding pictures from your phone (a + tile first).
+  final VoidCallback? onAdd;
+
+  /// Removing one of yours (a long press on it).
+  final ValueChanged<Backdrop>? onRemove;
+
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
     final all = [...backdrops, Backdrop.paper];
+    final add = onAdd, remove = onRemove;
     return Wrap(spacing: 10, runSpacing: 12, children: [
+      if (add != null)
+        SizedBox(
+          width: 76,
+          child: Column(children: [
+            AddPictureTile(onTap: add, ink: kit.ink, width: 76, height: 104),
+            const SizedBox(height: 4),
+            ExcludeSemantics(
+              child: Text(tr('Add'), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: kit.caption.copyWith(fontSize: 12)),
+            ),
+          ]),
+        ),
       for (final b in all)
         SizedBox(
           width: 76,
           child: Column(children: [
-            BackdropThumb(backdrop: b, selected: b == selected, ink: kit.ink, paperColor: paperColor, width: 76, height: 104, onTap: () => onPick(b)),
+            BackdropThumb(
+              backdrop: b,
+              selected: b == selected,
+              ink: kit.ink,
+              paperColor: paperColor,
+              width: 76,
+              height: 104,
+              onTap: () => onPick(b),
+              onLongPress: b.isYours && remove != null ? () => remove(b) : null,
+            ),
             const SizedBox(height: 4),
             Text(b.label,
                 maxLines: 1,

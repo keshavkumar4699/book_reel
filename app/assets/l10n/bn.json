@@ -771,5 +771,27 @@
  "Couldn’t read this aloud": "এটি জোরে পড়া গেল না",
  "Nothing to read yet": "এখনও পড়ার মতো কিছু নেই",
  "Pick a book from your Library and it opens here.": "আপনার লাইব্রেরি থেকে একটি বই বেছে নিন, সেটি এখানে খুলবে।",
- "Open Library": "লাইব্রেরি খুলুন"
+ "Open Library": "লাইব্রেরি খুলুন",
+ "Last 7 days": "গত 7 দিন",
+ "Older days": "আগের দিনগুলো",
+ "Newer days": "পরের দিনগুলো",
+ "Those pictures couldn’t be opened": "ছবিগুলো খোলা গেল না",
+ "Some pictures couldn’t be opened": "কিছু ছবি খোলা গেল না",
+ "Remove this picture?": "এই ছবিটি সরাবেন?",
+ "It’s removed from Cloro, not from your phone.": "এটি Cloro থেকে সরানো হবে, আপনার ফোন থেকে নয়।",
+ "Pictures and scenes": "ছবি ও দৃশ্য",
+ "Each book opens on a picture or scene picked at random. While reading, tap the screen and pick another from the row at the top, or tap + there to add pictures from your phone. A long press on one you added removes it.": "প্রতিটি বই এলোমেলোভাবে বাছাই করা একটি ছবি বা দৃশ্যে খোলে। পড়ার সময় স্ক্রিনে ট্যাপ করে উপরের সারি থেকে অন্যটি বেছে নিন, অথবা সেখানে + ট্যাপ করে ফোন থেকে ছবি যোগ করুন। আপনার যোগ করা ছবিতে দীর্ঘক্ষণ চাপলে সেটি সরে যায়।",
+ "Add pictures from your phone": "ফোন থেকে ছবি যোগ করুন",
+ "{n} pictures added": {
+  "one": "ছবি যোগ হয়েছে",
+  "other": "{n}টি ছবি যোগ হয়েছে"
+ },
+ "{n} pictures of yours": {
+  "one": "আপনার {n}টি ছবি",
+  "other": "আপনার {n}টি ছবি"
+ },
+ "Night desk": "রাতের ডেস্ক",
+ "Café reading": "ক্যাফেতে পড়া",
+ "Sunny nook": "রোদেলা কোণ",
+ "Add pictures": "ছবি যোগ করুন"
 }

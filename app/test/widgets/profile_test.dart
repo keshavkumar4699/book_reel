@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show Tristate;
 
 import 'package:book_reel/core/habit/habit_engine.dart';
 import 'package:book_reel/data/api_client.dart';
@@ -9,6 +10,7 @@ import 'package:book_reel/data/settings.dart';
 import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
 import 'package:book_reel/features/profile/profile_screen.dart';
+import 'package:book_reel/l10n/l10n.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/theme.dart';
 import 'package:flutter/material.dart';
@@ -117,26 +119,26 @@ void main() {
     final kit = Kit.of(tester.element(find.byType(ProfileScreen)));
     Color? colour(String value, String label) =>
         tester.widget<Text>(find.descendant(of: figure(value, label).first, matching: find.text(value))).style?.color;
-    // This week: today's reading only; minutes, the headline, in blue.
+    // The last 7 days, up to today: today's reading only; minutes, the headline, in blue.
+    expect(find.text('Last 7 days'), findsOneWidget);
     expect(figure('30', 'minutes'), findsOneWidget);
     expect(colour('30', 'minutes'), kit.activity);
     expect(figure('12', 'cards'), findsNWidgets(2), reason: 'this week, and this month in Stats');
     expect(colour('12', 'cards'), isNot(kit.activity), reason: 'one figure in colour, not all');
-    // A circle round each day: today's, the week's best, is the largest; days without reading are empty rings.
-    final today = DateTime.now().weekday - 1;
+    // A circle round each day, today last: today's, the best of the seven, is the largest; days without reading are empty rings.
     expect(find.byType(DayCircle), findsNWidgets(7));
     expect(find.bySemanticsLabel(RegExp(r', today: 30 minutes, 12 cards$')), findsOneWidget);
     double width(int i) => tester.getSize(find.descendant(of: find.byType(DayCircle).at(i), matching: find.byType(AnimatedContainer))).width;
-    expect(width(today), DayCircle.largest);
-    expect(width((today + 1) % 7), DayCircle.smallest);
+    expect(width(6), DayCircle.largest);
+    expect(width(5), DayCircle.smallest);
     expect(find.textContaining('Today  ·  30 min', findRichText: true), findsOneWidget);
     // Tap another day: its figures, with a tap you can feel.
     final haptics = recordHaptics(tester);
-    final other = (today + 1) % 7;
-    const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    await tester.tap(find.byType(DayCircle).at(other));
+    final now = DateTime.now();
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    await tester.tap(find.byType(DayCircle).at(5));
     await tester.pumpAndSettle();
-    expect(find.textContaining('${names[other]}  ·  0 min', findRichText: true), findsOneWidget);
+    expect(find.textContaining('${localDate('EEEE').format(yesterday)} ${localDate('MMMd').format(yesterday)}  ·  0 min', findRichText: true), findsOneWidget);
     expect(haptics, ['HapticFeedbackType.lightImpact']);
     // Streak: the current streak in green, and the calendar in GitHub's greens.
     await scrollTo(find.text('Last 12 weeks'));
@@ -200,6 +202,42 @@ void main() {
     expect(StatsPeriod.month.covers('2026-10-31', DateTime(2026, 11, 22)), isFalse);
     expect(StatsPeriod.year.covers('2026-01-01', DateTime(2026, 11, 22)), isTrue);
     expect(StatsPeriod.year.covers('2025-12-31', DateTime(2026, 11, 22)), isFalse);
+  });
+
+  testWidgets('older weeks: back a week at a time with the arrows or a swipe, as far as the first day read', (tester) async {
+    final now = DateTime.now();
+    DateTime ago(int days) => DateTime(now.year, now.month, now.day - days);
+    store.saveDoc(
+      'habit',
+      HabitState(stats: {
+        dateKey(now): const DailyStat(verifiedCards: 12, minutes: 30, words: 1450),
+        dateKey(ago(9)): const DailyStat(verifiedCards: 8, minutes: 20, words: 900),
+      }).toJson(),
+    );
+    await open(tester);
+    final short = localDate('MMMd');
+    Finder button(String label) => find.bySemanticsLabel(label);
+    bool enabled(String label) => tester.getSemantics(button(label)).flagsCollection.isEnabled == Tristate.isTrue;
+    expect(find.text('Last 7 days'), findsOneWidget);
+    expect(enabled('Newer days'), isFalse, reason: 'nothing after today');
+    expect(enabled('Older days'), isTrue);
+
+    await tester.tap(button('Older days'));
+    await tester.pumpAndSettle();
+    expect(find.text('${short.format(ago(13))} – ${short.format(ago(7))}'), findsOneWidget);
+    expect(figure('20', 'minutes'), findsOneWidget, reason: 'that week’s reading');
+    expect(enabled('Older days'), isFalse, reason: 'the first day read is in this week');
+    expect(find.bySemanticsLabel(RegExp(r', today')), findsNothing);
+
+    // A swipe across the days goes back to the newer week.
+    await tester.fling(find.byType(DayCircle).at(3), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('Last 7 days'), findsOneWidget);
+    expect(figure('30', 'minutes'), findsOneWidget);
+    // And the other way, to the older one.
+    await tester.fling(find.byType(DayCircle).at(3), const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(figure('20', 'minutes'), findsOneWidget);
   });
 
   testWidgets('pronouns: he/him, she/her, they/them, or your own', (tester) async {

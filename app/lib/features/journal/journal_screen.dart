@@ -80,45 +80,52 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
         KitIconButton(icon: Icons.settings_rounded, semanticLabel: tr('Settings'), onPressed: () => context.push('/settings')),
       ],
       children: [
-        // Today's goal and streak, straight on the scene.
+        // Today's goal (blue as it fills, green once met) and the streak
+        // (green), each on the light shade of its colour.
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            KitPressable(
-              onTap: () => showGoalSheet(context),
-              semanticLabel: tr('Daily goal: {done} of {goal}. Change goal', {'done': value, 'goal': goal.dailyTarget}),
-              excludeSemantics: true,
-              child: GoalRing(
-                progress: today.progress(goal),
-                label: '$value / ${goal.dailyTarget}',
-                sublabel: goal.unit == GoalUnit.cards ? tr('cards today') : tr('min today'),
-                size: 132,
-              ),
-            ),
-            Flexible(
-              child: KitPressable(
-                onTap: () => showStreakSheet(context),
-                semanticLabel: weekly ? tr('{n} week streak. Details', {'n': streak}) : tr('{n} day streak. Details', {'n': streak}),
-                excludeSemantics: true,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  StreakBadge(days: streak, weekly: weekly),
-                  const SizedBox(height: 6),
-                  Text(
-                    weekly
-                        ? tr('{done} of {days} days this week', {'done': notifier.activeDaysThisWeek(), 'days': goal.weeklyDays})
-                        : trn(freezes, '{n} streak freeze left', '{n} streak freezes left'),
-                    style: kit.caption,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: _GoalAndStreak(children: [
+              KitPanel(
+                color: kit.shade(today.meets(goal) ? KitHue.growth : KitHue.activity),
+                padding: const EdgeInsets.all(12),
+                onTap: () => showGoalSheet(context),
+                semanticLabel: tr('Daily goal: {done} of {goal}. Change goal', {'done': value, 'goal': goal.dailyTarget}),
+                child: ExcludeSemantics(
+                  child: GoalRing(
+                    progress: today.progress(goal),
+                    label: '$value / ${goal.dailyTarget}',
+                    sublabel: goal.unit == GoalUnit.cards ? tr('cards today') : tr('min today'),
+                    size: 124,
                   ),
-                  const SizedBox(height: 8),
-                  Text(today.meets(goal) ? tr('Goal done ✓') : tr('Tap to see your week'),
-                      style: kit.strong.copyWith(fontSize: 14, color: today.meets(goal) ? kit.growth : kit.ink)),
-                ]),
+                ),
               ),
-            ),
+              KitPanel(
+                  color: kit.shade(KitHue.growth),
+                  padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+                  onTap: () => showStreakSheet(context),
+                  semanticLabel: weekly ? tr('{n} week streak. Details', {'n': streak}) : tr('{n} day streak. Details', {'n': streak}),
+                  child: ExcludeSemantics(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                      StreakBadge(days: streak, weekly: weekly),
+                      const SizedBox(height: 6),
+                      Text(
+                        weekly
+                            ? tr('{done} of {days} days this week', {'done': notifier.activeDaysThisWeek(), 'days': goal.weeklyDays})
+                            : trn(freezes, '{n} streak freeze left', '{n} streak freezes left'),
+                        style: kit.caption,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(today.meets(goal) ? tr('Goal done ✓') : tr('Tap to see your week'),
+                          style: kit.strong.copyWith(fontSize: 14, color: today.meets(goal) ? kit.hue(KitHue.growth) : kit.ink)),
+                    ]),
+                  ),
+                ),
           ]),
         ),
         if (current != null)
           KitPanel(
+            color: kit.shade(KitHue.activity),
+            padding: const EdgeInsets.all(14),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // How far you are, drawn round the cover.
               ProgressCover(book: current, width: 76),
@@ -131,7 +138,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                     TextSpan(children: [
                       TextSpan(
                         text: '${(current.progress * 100).round()}%',
-                        style: TextStyle(color: kit.activity, fontWeight: FontWeight.w800),
+                        style: TextStyle(color: kit.hue(KitHue.activity), fontWeight: FontWeight.w800),
                       ),
                       TextSpan(text: tr(' read · ~{n} min left', {'n': _minutesLeft(current.wordCount, current.progress, habit.wpm)})),
                     ]),
@@ -153,6 +160,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             padding: EdgeInsets.zero,
             child: KitRow(
               icon: Icons.auto_stories_rounded,
+              hue: KitHue.activity,
               title: tr('Pick a book to start'),
               subtitle: tr('Import an EPUB or PDF, or try a classic.'),
               onTap: () => context.go('/library'),
@@ -164,6 +172,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             padding: EdgeInsets.zero,
             child: KitRow(
               icon: Icons.style_rounded,
+              hue: KitHue.words,
               title: trn(dueWords, '{n} word to review', '{n} words to review'),
               subtitle: tr('A quick review helps new words stick'),
               onTap: () => context.push('/review'),
@@ -176,6 +185,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             padding: EdgeInsets.zero,
             child: KitRow(
               icon: Icons.emoji_events_outlined,
+              hue: KitHue.people,
               title: tr('This week’s league'),
               subtitle: tr('Read alongside readers like you'),
               onTap: () => context.push('/friends'),
@@ -238,4 +248,32 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
   }
 
   int _minutesLeft(int words, double progress, double wpm) => ((words * (1 - progress)) / wpm).ceil();
+}
+
+/// Today's goal and the streak: side by side, or one above the other when
+/// the text is large.
+class _GoalAndStreak extends StatelessWidget {
+  const _GoalAndStreak({required this.children});
+
+  /// The goal, then the streak.
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final large = MediaQuery.textScalerOf(context).scale(10) > 13;
+    if (large) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Center(child: children[0]),
+        const SizedBox(height: 10),
+        children[1],
+      ]);
+    }
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        children[0],
+        const SizedBox(width: 10),
+        Expanded(child: children[1]),
+      ]),
+    );
+  }
 }

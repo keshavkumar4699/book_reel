@@ -683,32 +683,6 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       onHorizontalDragUpdate: editing ? null : _onDragUpdate,
       onHorizontalDragEnd: editing ? null : _onDragEnd,
       child: Stack(children: [
-        ValueListenableBuilder<double>(
-          valueListenable: _dx,
-          builder: (context, dx, _) {
-            if (dx.abs() < 0.5) return const SizedBox.shrink();
-            final reveal = (dx.abs() / _swipeTrigger).clamp(0.0, 1.0);
-            return Positioned.fill(
-              child: Align(
-                alignment: dx < 0 ? Alignment.centerRight : Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 22),
-                  child: Opacity(
-                    opacity: Curves.easeOut.transform(reveal),
-                    child: _SwipeHint(
-                      saving: dx < 0,
-                      saved: widget.saved,
-                      reveal: reveal,
-                      ink: t.text,
-                      fill: t.highlightInk,
-                      shadows: t.textShadows,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
         // The text sits in a calm column well inside the screen.
         Positioned(
           top: zone.top,
@@ -741,35 +715,74 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
           left: leftHanded ? 4 : null,
           bottom: padding.bottom + 16 + widget.railLift,
           width: railWidth - 8,
-          child: _ActionRail(
-            ink: t.text,
-            accent: t.accent,
-            // On a picture or scene, a red that keeps 3:1 against it.
-            likedRed: t.scrim == null ? ember : railTone(t.text, ember),
-            shadows: t.textShadows,
-            liked: widget.liked,
-            saved: widget.saved,
-            listening: widget.listening,
-            preparing: widget.preparing,
-            streak: widget.streak,
-            goalLabel: widget.goalLabel,
-            goalDone: widget.goalDone,
-            goalColor: widget.goalDone ? railTone(t.text, Kit.growthTone(dark: t.isDark)) : null,
-            onStreak: widget.onStreak,
-            onGoal: widget.onGoal,
-            onOptions: widget.onOptions,
-            onLike: () {
-              Haptics.tap();
-              widget.onLike();
+          // While the reel is swiped sideways, the rail steps aside for the
+          // save or share badge.
+          child: ValueListenableBuilder<double>(
+            valueListenable: _dx,
+            builder: (context, dx, rail) {
+              final away = (dx.abs() / (_swipeTrigger * 0.6)).clamp(0.0, 1.0);
+              return IgnorePointer(ignoring: away > 0, child: Opacity(opacity: 1 - away, child: rail));
             },
-            onSave: () {
-              Haptics.tap();
-              widget.onSave();
-            },
-            onNote: widget.onNote,
-            onShare: widget.onShare,
-            onListen: widget.onListen,
+            child: _ActionRail(
+              ink: t.text,
+              accent: t.accent,
+              // On a picture or scene, a red that keeps 3:1 against it.
+              likedRed: t.scrim == null ? ember : railTone(t.text, ember),
+              shadows: t.textShadows,
+              liked: widget.liked,
+              saved: widget.saved,
+              listening: widget.listening,
+              preparing: widget.preparing,
+              streak: widget.streak,
+              goalLabel: widget.goalLabel,
+              goalDone: widget.goalDone,
+              goalColor: widget.goalDone ? railTone(t.text, Kit.growthTone(dark: t.isDark)) : null,
+              onStreak: widget.onStreak,
+              onGoal: widget.onGoal,
+              onOptions: widget.onOptions,
+              onLike: () {
+                Haptics.tap();
+                widget.onLike();
+              },
+              onSave: () {
+                Haptics.tap();
+                widget.onSave();
+              },
+              onNote: widget.onNote,
+              onShare: widget.onShare,
+              onListen: widget.onListen,
+            ),
           ),
+        ),
+        // What letting go will do: save (swiping left) or share (right), at
+        // the edge the reel leaves, over everything else.
+        ValueListenableBuilder<double>(
+          valueListenable: _dx,
+          builder: (context, dx, _) {
+            if (dx.abs() < 0.5) return const SizedBox.shrink();
+            final reveal = (dx.abs() / _swipeTrigger).clamp(0.0, 1.0);
+            return Positioned.fill(
+              child: IgnorePointer(
+                child: Align(
+                  alignment: dx < 0 ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    child: Opacity(
+                      opacity: Curves.easeOut.transform(reveal),
+                      child: _SwipeHint(
+                        saving: dx < 0,
+                        saved: widget.saved,
+                        reveal: reveal,
+                        ink: t.text,
+                        fill: t.highlightInk,
+                        shadows: t.textShadows,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
         for (final b in _bursts) _HeartBurstView(burst: b, color: ember),
         if (editing && toolbarTop != null)

@@ -187,6 +187,23 @@ void main() {
     expect(container.read(notebookProvider).isSaved(bookId, card.card.startSid), isFalse);
     expect(find.text('Save').evaluate().length, 1, reason: 'only the rail label: no swipe badge left over');
 
+    // Mid-swipe, the rail steps aside and the badge shows on top, where it was.
+    double railOpacity() => tester.widget<Opacity>(find.ancestor(of: find.text('Note'), matching: find.byType(Opacity)).first).opacity;
+    final g = await tester.startGesture(tester.getCenter(post));
+    await g.moveBy(const Offset(-30, 0));
+    await tester.pump();
+    await g.moveBy(const Offset(-150, 0));
+    await tester.pump();
+    expect(railOpacity(), 0, reason: 'the rail steps aside');
+    final saves = find.text('Save');
+    expect(saves, findsNWidgets(2), reason: 'the rail’s label and the badge');
+    expect(find.ancestor(of: saves.last, matching: find.byType(AnimatedScale)), findsOneWidget, reason: 'the badge comes last: drawn on top');
+    await g.moveBy(const Offset(180, 0));
+    await g.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(railOpacity(), closeTo(1, 0.01), reason: 'back once let go');
+
     // Swipe left past 30% of the screen saves (after a short flick out).
     await tester.drag(post, const Offset(-320, 0));
     await tester.pump(); // the flick starts on this frame
@@ -294,7 +311,7 @@ void main() {
       final store = await JsonStore.open(dir);
       container = ProviderContainer(overrides: [storeProvider.overrideWithValue(store)]);
       container.read(settingsProvider.notifier).update((s) => s.copyWith(
-          // Books open on the first scene that wasn't shown last: Forest morning.
+          // Books open on the first scene that wasn't shown last: the night desk.
           onboardingDone: true, goalSetupDone: true, gestureTutorialSeen: true, animatedBackground: false, lastBackdrop: 'scene:meadow'));
       bookId = (await container.read(libraryProvider.notifier).ensureStarterBook())!.id;
       final book = await container.read(bookContentProvider(bookId).future);
@@ -306,12 +323,12 @@ void main() {
         feed[i].spotlight && i > 0 && identical(feed[i - 1].card, feed[i].card) && identical(feed[i + 1].card, feed[i].card));
     final settings = container.read(settingsProvider);
     final voice = voiceStyles[voiceByName(container.read(libraryProvider).single.voice)]!;
-    final palette = scenePalettes[Vibe.forest]!;
+    final palette = scenePalettes[Vibe.studyNight]!;
 
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
-        theme: buildAppTheme(Kit.forScene(Vibe.forest, ReadingTheme.of(ReadingThemeId.paper))),
+        theme: buildAppTheme(Kit.forScene(Vibe.studyNight, ReadingTheme.of(ReadingThemeId.paper))),
         home: ReaderScreen(bookId: bookId, startSid: feed[spotAt - 1].anchorSid),
       ),
     ));

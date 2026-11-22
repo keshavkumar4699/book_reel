@@ -14,6 +14,7 @@ import '../../data/api_client.dart';
 import '../../data/habit.dart';
 import '../../data/library.dart';
 import '../../data/notebook.dart';
+import '../../data/sessions.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../data/sync_service.dart';
@@ -113,7 +114,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ],
         ),
-        _Section(title: tr('This week'), child: _ThisWeek(habit: habit, books: books, now: now)),
+        _LastSevenDays(habit: habit, sessions: ref.watch(sessionLogProvider), now: now),
         _Section(
           title: tr('Streak'),
           child: _StreakSection(
@@ -170,13 +171,15 @@ class _Section extends StatelessWidget {
   }
 }
 
-/// A number and what it counts; the headline number of a section in its
-/// accent colour.
+/// A number and what it counts, on the very light shade of its kind
+/// ([hue]: time and amounts blue, keeping at it green, words purple…); the
+/// headline number of a section in its kind's colour.
 class _Figure extends StatelessWidget {
-  const _Figure(this.value, this.label, {this.color});
+  const _Figure(this.value, this.label, {this.hue = KitHue.neutral, this.headline = false});
   final String value;
   final String label;
-  final Color? color;
+  final KitHue hue;
+  final bool headline;
 
   @override
   Widget build(BuildContext context) {
@@ -185,97 +188,159 @@ class _Figure extends StatelessWidget {
       container: true,
       label: '$value $label',
       excludeSemantics: true,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(value, style: kit.title.copyWith(fontSize: 22, color: color)),
-        Text(label, style: kit.caption.copyWith(fontSize: 12.5)),
-      ]),
+      child: Padding(
+        padding: const EdgeInsets.all(3),
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: kit.shade(hue), borderRadius: BorderRadius.circular(14)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 8, 9),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(value, style: kit.title.copyWith(fontSize: 22, color: headline ? kit.hue(hue) : null)),
+              Text(label, style: kit.caption.copyWith(fontSize: 12.5)),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 }
 
-/// This week, Strava-style: a blue circle round each day whose area grows
-/// with the minutes read that day (the week's best day is the largest), the
-/// week's totals above, and the figures of the day you tap below.
-class _ThisWeek extends StatefulWidget {
-  const _ThisWeek({required this.habit, required this.books, required this.now});
+/// The last seven days, Strava-style: a blue circle round each day whose
+/// area grows with the minutes read that day (the best of the seven is the
+/// largest), their totals above, and the figures of the day you tap below.
+/// The arrows by the title (or a swipe across the days) go back a week at a
+/// time, as far as the first day read.
+class _LastSevenDays extends StatefulWidget {
+  const _LastSevenDays({required this.habit, required this.sessions, required this.now});
   final HabitState habit;
-  final List<BookMeta> books;
+  final List<ReadingSession> sessions;
   final DateTime now;
 
   @override
-  State<_ThisWeek> createState() => _ThisWeekState();
+  State<_LastSevenDays> createState() => _LastSevenDaysState();
 }
 
-class _ThisWeekState extends State<_ThisWeek> {
-  /// The day tapped (0 is Monday); today until then.
+class _LastSevenDaysState extends State<_LastSevenDays> {
+  /// How many weeks back: 0 is the seven days up to today.
+  int _back = 0;
+
+  /// The day tapped (0 is the first of the seven); the last until then.
   int? _picked;
 
-  /// Monday to Sunday in the app's language: one letter, and the full name.
-  static List<String> _days(String pattern) {
-    final monday = DateTime(2024, 1, 1);
-    final f = localDate(pattern);
-    return [for (var d = 0; d < 7; d++) f.format(monday.add(Duration(days: d)))];
+  DateTime get _today => DateTime(widget.now.year, widget.now.month, widget.now.day);
+
+  /// The furthest back there's anything to show: the week holding the first
+  /// day read.
+  int get _oldest {
+    DateTime? first;
+    for (final k in widget.habit.stats.keys) {
+      final d = parseDateKey(k);
+      if (first == null || d.isBefore(first)) first = d;
+    }
+    if (first == null) return 0;
+    return math.max(0, _today.difference(first).inDays ~/ 7);
   }
 
-  List<String> get _letters => _days('EEEEE');
-  List<String> get _names => _days('EEEE');
+  void _go(int back) {
+    final next = back.clamp(0, _oldest);
+    if (next == _back) return;
+    Haptics.select();
+    setState(() {
+      _back = next;
+      _picked = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
-    final now = widget.now;
-    final monday = parseDateKey(weekKey(now));
-    final days = [for (var d = 0; d < 7; d++) DateTime(monday.year, monday.month, monday.day + d)];
+    final today = _today;
+    final end = DateTime(today.year, today.month, today.day - 7 * _back);
+    final days = [for (var d = 6; d >= 0; d--) DateTime(end.year, end.month, end.day - d)];
     final stats = [for (final d in days) widget.habit.stats[dateKey(d)] ?? const DailyStat()];
     final minutes = stats.fold(0.0, (s, d) => s + d.minutes);
     final cards = stats.fold(0, (s, d) => s + d.verifiedCards);
     final words = stats.fold(0, (s, d) => s + d.words);
-    final read = widget.books.where((b) => b.lastReadAt != null && !b.lastReadAt!.isBefore(monday)).length;
+    final after = DateTime(end.year, end.month, end.day + 1);
+    final read = {
+      for (final s in widget.sessions)
+        if (!s.startedAt.isBefore(days.first) && s.startedAt.isBefore(after)) s.bookId,
+    }.length;
     final top = stats.fold(0.0, (m, d) => math.max(m, d.minutes));
-    final today = now.weekday - 1;
-    final picked = _picked ?? today;
+    final latest = _back == 0;
+    final picked = _picked ?? 6;
     final day = stats[picked];
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
-        Expanded(child: _Figure('${minutes.round()}', trn(minutes.round(), 'minute', 'minutes'), color: kit.activity)),
-        Expanded(child: _Figure('$cards', trn(cards, 'card', 'cards'))),
-        Expanded(child: _Figure(compactCount(words), 'words')),
-        Expanded(child: _Figure('$read', trn(read, 'book', 'books'))),
+    final letter = localDate('EEEEE'), name = localDate('EEEE'), short = localDate('MMMd');
+    String dayName(int i) => latest && i == 6 ? tr('Today') : name.format(days[i]);
+    final title = latest ? tr('Last 7 days') : '${short.format(days.first)} – ${short.format(end)}';
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    return _Section(
+      title: title,
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        KitIconButton(
+          icon: Icons.chevron_left_rounded,
+          semanticLabel: tr('Older days'),
+          glass: false,
+          onPressed: _back < _oldest ? () => _go(_back + 1) : null,
+        ),
+        KitIconButton(
+          icon: Icons.chevron_right_rounded,
+          semanticLabel: tr('Newer days'),
+          glass: false,
+          onPressed: latest ? null : () => _go(_back - 1),
+        ),
       ]),
-      const SizedBox(height: 14),
-      Row(children: [
-        for (var i = 0; i < 7; i++)
-          Expanded(
-            child: DayCircle(
-              letter: _letters[i],
-              minutes: stats[i].minutes,
-              most: top,
-              today: i == today,
-              future: i > today,
-              picked: i == picked,
-              semanticLabel: '${i == today ? tr('{day}, today', {'day': _names[i]}) : _names[i]}: ${trn(stats[i].minutes.round(), '{n} minute', '{n} minutes')}, ${trn(stats[i].verifiedCards, '{n} card', '{n} cards')}',
-              onTap: () {
-                Haptics.select();
-                setState(() => _picked = i);
-              },
+      child: GestureDetector(
+        // A swipe across the days: towards the past, or back again.
+        onHorizontalDragEnd: (d) {
+          final v = d.primaryVelocity ?? 0;
+          if (v.abs() < 200) return;
+          _go((v > 0) != rtl ? _back + 1 : _back - 1);
+        },
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(child: _Figure('${minutes.round()}', trn(minutes.round(), 'minute', 'minutes'), hue: KitHue.activity, headline: true)),
+            Expanded(child: _Figure('$cards', trn(cards, 'card', 'cards'), hue: KitHue.activity)),
+            Expanded(child: _Figure(compactCount(words), tr('words'), hue: KitHue.activity)),
+            Expanded(child: _Figure('$read', trn(read, 'book', 'books'), hue: KitHue.growth)),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            for (var i = 0; i < 7; i++)
+              Expanded(
+                child: DayCircle(
+                  letter: letter.format(days[i]),
+                  minutes: stats[i].minutes,
+                  most: top,
+                  today: latest && i == 6,
+                  picked: i == picked,
+                  semanticLabel: '${latest && i == 6 ? tr('{day}, today', {'day': name.format(days[i])}) : '${name.format(days[i])} ${short.format(days[i])}'}: '
+                      '${trn(stats[i].minutes.round(), '{n} minute', '{n} minutes')}, ${trn(stats[i].verifiedCards, '{n} card', '{n} cards')}',
+                  onTap: () {
+                    Haptics.select();
+                    setState(() => _picked = i);
+                  },
+                ),
+              ),
+          ]),
+          const SizedBox(height: 8),
+          ExcludeSemantics(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: dayName(picked), style: TextStyle(color: kit.ink, fontWeight: FontWeight.w700)),
+                if (!(latest && picked == 6)) TextSpan(text: ' ${short.format(days[picked])}', style: TextStyle(color: kit.ink, fontWeight: FontWeight.w700)),
+                const TextSpan(text: '  ·  '),
+                TextSpan(text: tr('{n} min', {'n': day.minutes.round()}), style: TextStyle(color: kit.activity, fontWeight: FontWeight.w800)),
+                TextSpan(text: '  ·  ${trn(day.verifiedCards, '{n} card', '{n} cards')}'),
+                if (day.words > 0) TextSpan(text: '  ·  ${tr('{count} words', {'count': compactCount(day.words)})}'),
+              ]),
+              textAlign: TextAlign.center,
+              style: kit.caption.copyWith(fontSize: 13),
             ),
           ),
-      ]),
-      const SizedBox(height: 8),
-      ExcludeSemantics(
-        child: Text.rich(
-          TextSpan(children: [
-            TextSpan(text: picked == today ? tr('Today') : _names[picked], style: TextStyle(color: kit.ink, fontWeight: FontWeight.w700)),
-            const TextSpan(text: '  ·  '),
-            TextSpan(text: tr('{n} min', {'n': day.minutes.round()}), style: TextStyle(color: kit.activity, fontWeight: FontWeight.w800)),
-            TextSpan(text: '  ·  ${trn(day.verifiedCards, '{n} card', '{n} cards')}'),
-            if (day.words > 0) TextSpan(text: '  ·  ${tr('{count} words', {'count': compactCount(day.words)})}'),
-          ]),
-          textAlign: TextAlign.center,
-          style: kit.caption.copyWith(fontSize: 13),
-        ),
+        ]),
       ),
-    ]);
+    );
   }
 }
 
@@ -380,9 +445,9 @@ class _StreakSection extends StatelessWidget {
     final weekly = settings.goalMode == GoalMode.weekly;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
-        Expanded(child: _Figure('$streak', weekly ? tr('week streak') : tr('day streak'), color: streak > 0 ? kit.growth : null)),
-        Expanded(child: _Figure('${habit.streak.best}', tr('best'))),
-        Expanded(child: _Figure('$freezes', trn(freezes, 'freeze left', 'freezes left'))),
+        Expanded(child: _Figure('$streak', weekly ? tr('week streak') : tr('day streak'), hue: KitHue.growth, headline: streak > 0)),
+        Expanded(child: _Figure('${habit.streak.best}', tr('best'), hue: KitHue.growth)),
+        Expanded(child: _Figure('$freezes', trn(freezes, 'freeze left', 'freezes left'), hue: KitHue.activity)),
       ]),
       const SizedBox(height: 16),
       StreakCalendar(stats: habit.stats, goal: settings.goal, now: DateTime.now()),
@@ -451,7 +516,6 @@ class _StatsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final kit = Kit.of(context);
     final days = [
       for (final e in habit.stats.entries)
         if (period.covers(e.key, now)) e.value,
@@ -465,18 +529,18 @@ class _StatsSection extends StatelessWidget {
         ? math.max(habit.booksFinished, books.where((b) => b.finishedAt != null).length)
         : books.where((b) => b.finishedAt != null && period.covers(dateKey(b.finishedAt!), now)).length;
     final figures = [
-      _Figure(_duration(minutes), tr('reading time'), color: kit.activity),
-      _Figure('$cards', trn(cards, 'card', 'cards')),
-      _Figure(compactCount(words), tr('words read')),
+      _Figure(_duration(minutes), tr('reading time'), hue: KitHue.activity, headline: true),
+      _Figure('$cards', trn(cards, 'card', 'cards'), hue: KitHue.activity),
+      _Figure(compactCount(words), tr('words read'), hue: KitHue.activity),
       // Honest about it: reels flicked past too fast to read count toward nothing.
       _Figure('$skimmed', trn(skimmed, 'reel skimmed (not counted)', 'reels skimmed (not counted)')),
-      _Figure('$finished', trn(finished, 'book finished', 'books finished'), color: finished > 0 ? kit.growth : null),
-      _Figure('$readingDays', trn(readingDays, 'reading day', 'reading days'), color: readingDays > 0 ? kit.growth : null),
-      _Figure(readingDays == 0 ? '0' : '${(minutes / readingDays).round()}', tr('minutes a reading day')),
+      _Figure('$finished', trn(finished, 'book finished', 'books finished'), hue: KitHue.growth, headline: finished > 0),
+      _Figure('$readingDays', trn(readingDays, 'reading day', 'reading days'), hue: KitHue.growth, headline: readingDays > 0),
+      _Figure(readingDays == 0 ? '0' : '${(minutes / readingDays).round()}', tr('minutes a reading day'), hue: KitHue.activity),
       if (period == StatsPeriod.all)
-        _Figure('${notebook.words.length}', tr('words learned'))
+        _Figure('${notebook.words.length}', tr('words learned'), hue: KitHue.words)
       else
-        _Figure('${habit.wpm.round()}', tr('words a minute')),
+        _Figure('${habit.wpm.round()}', tr('words a minute'), hue: KitHue.activity),
     ];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       KitSegmented<StatsPeriod>(values: StatsPeriod.values, selected: period, label: (p) => p.label, onChanged: onChanged),

@@ -26,10 +26,12 @@ import '../../data/segments.dart';
 import '../../data/settings.dart';
 import '../../data/sessions.dart';
 import '../../data/settings_provider.dart';
+import '../../data/user_pictures.dart';
 import '../../services/notifications.dart';
 import '../../services/on_device_ai.dart';
 import '../../services/music.dart';
 import '../../services/read_aloud.dart';
+import 'add_pictures.dart';
 import '../../ui/backdrops.dart';
 import '../../ui/haptics.dart';
 import '../../ui/kit.dart';
@@ -244,10 +246,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   Future<void> _setBackdrop(Backdrop b) async {
     if (b == _backdrop) return;
     Haptics.select();
-    final asset = b.asset;
-    if (asset != null) {
+    final source = b.source;
+    if (source != null) {
       try {
-        await ref.read(pictureLookProvider(pictureLookKey(asset, MediaQuery.sizeOf(context))).future);
+        await ref.read(pictureLookProvider(pictureLookKey(source, MediaQuery.sizeOf(context))).future);
       } catch (_) {
         if (mounted) showKitToast(_ui, tr('Couldn’t open that picture'), icon: Icons.broken_image_outlined);
         return;
@@ -267,7 +269,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _looksWarmed = true;
     final size = MediaQuery.sizeOf(context);
     for (final b in all) {
-      if (b.asset != null) ref.read(pictureLookProvider(pictureLookKey(b.asset!, size)).future).ignore();
+      if (b.source != null) ref.read(pictureLookProvider(pictureLookKey(b.source!, size)).future).ignore();
     }
   }
 
@@ -925,9 +927,46 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         selected: _backdrop ?? Backdrop.paper,
         paperColor: paper.background,
         onPick: (b) => Navigator.of(context).pop(b),
+        onAdd: () {
+          Navigator.of(context).pop();
+          unawaited(_addPictures());
+        },
+        onRemove: (b) {
+          Navigator.of(context).pop();
+          unawaited(_removePicture(b));
+        },
       ),
     );
     if (picked != null && mounted) await _setBackdrop(picked);
+  }
+
+  /// Pictures from your phone to read on (several at once): kept by the app,
+  /// in the row from now on, and the first one on screen now.
+  Future<void> _addPictures() async {
+    final added = await addPicturesFromPhone(_ui, ref);
+    if (added == null || added.isEmpty || !mounted) return;
+    await ref.read(backdropsProvider.future);
+    if (mounted) await _setBackdrop(Backdrop.file(added.first));
+  }
+
+  /// One of your pictures, taken out of the app (not off the phone).
+  Future<void> _removePicture(Backdrop b) async {
+    final file = b.file;
+    if (file == null) return;
+    Haptics.press();
+    final ok = await showKitConfirm(
+      _ui,
+      title: tr('Remove this picture?'),
+      message: tr('It’s removed from Cloro, not from your phone.'),
+      confirm: tr('Remove'),
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    await UserPictures.remove(file);
+    if (!mounted) return;
+    ref.invalidate(backdropsProvider);
+    final all = await ref.read(backdropsProvider.future);
+    if (mounted && b == _backdrop) await _setBackdrop(pickBackdrop(all, lastId: b.id, random: backdropRandom));
   }
 
   /// The note box: an empty page for your own thoughts on this reel, kept in
@@ -960,7 +999,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       });
     }
     // A picture shows once its colours are measured; one that can't be read gives way to the plain page.
-    final lookAsync = _backdrop?.asset == null ? null : ref.watch(pictureLookProvider(pictureLookKey(_backdrop!.asset!, MediaQuery.sizeOf(context))));
+    final lookAsync = _backdrop?.source == null ? null : ref.watch(pictureLookProvider(pictureLookKey(_backdrop!.source!, MediaQuery.sizeOf(context))));
     final look = lookAsync?.value;
     final backdrop = lookAsync != null && lookAsync.hasError ? Backdrop.paper : (_backdrop ?? Backdrop.paper);
     final readingTheme = readingThemeForPalette(paletteFor(backdrop, look), paperTheme);
@@ -1133,6 +1172,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
                 ink: chromeColor,
                 paperColor: paper.background,
                 onPick: _setBackdrop,
+                onAdd: _addPictures,
+                onRemove: _removePicture,
               ),
           ]),
         ),

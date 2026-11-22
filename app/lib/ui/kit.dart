@@ -25,6 +25,29 @@ export 'kit_overlays.dart';
 /// Weight on the variable UI fonts (Outfit, Nunito).
 List<FontVariation> _w(double weight) => [FontVariation('wght', weight)];
 
+/// Kinds of information the app tells apart by colour, each a tone for its
+/// figures and icons ([Kit.hue]) and a very light shade behind it
+/// ([Kit.shade]).
+enum KitHue {
+  /// How much you read: time, cards, words, progress.
+  activity,
+
+  /// Keeping at it: streaks, goals met, books finished, days read.
+  growth,
+
+  /// What you kept: saved reels, highlights, notes, quotes.
+  notes,
+
+  /// Words: looked up, learnt, to review.
+  words,
+
+  /// Other readers: following, kudos, comments.
+  people,
+
+  /// Everything else: a quiet grey.
+  neutral,
+}
+
 /// Colours and type for app chrome, derived from the reader's scene.
 @immutable
 class Kit extends ThemeExtension<Kit> {
@@ -199,6 +222,32 @@ class Kit extends ThemeExtension<Kit> {
 
   /// The green, likewise.
   static Color growthTone({required bool dark}) => dark ? const Color(0xFF81C995) : const Color(0xFF188038);
+
+  /// A kind of information's own colour, for its figures and icons: at
+  /// least 4.5:1 on its [shade] (and on the page).
+  Color hue(KitHue h) => switch (h) {
+        KitHue.activity => dark ? const Color(0xFF8AB4F8) : const Color(0xFF1967D2),
+        KitHue.growth => dark ? const Color(0xFF81C995) : const Color(0xFF137333),
+        KitHue.notes => dark ? const Color(0xFFFDD663) : const Color(0xFF985100),
+        KitHue.words => dark ? const Color(0xFFD7AEFB) : const Color(0xFF8430CE),
+        KitHue.people => dark ? const Color(0xFF78D9EC) : const Color(0xFF00727A),
+        KitHue.neutral => inkSoft,
+      };
+
+  /// The very light shade behind a kind of information (a stat, a card, an
+  /// icon), so kinds tell apart at a glance.
+  Color shade(KitHue h) => Color.alphaBlend(
+        switch (h) {
+          KitHue.activity => const Color(0xFF1A73E8),
+          KitHue.growth => const Color(0xFF188038),
+          KitHue.notes => const Color(0xFFE8A200),
+          KitHue.words => const Color(0xFF9334E6),
+          KitHue.people => const Color(0xFF12B5CB),
+          KitHue.neutral => const Color(0xFF80868B),
+        }
+            .withValues(alpha: dark ? 0.16 : 0.075),
+        base,
+      );
 
   /// Streak days from none to most, in GitHub's contribution greens.
   List<Color> get streakScale => dark ? _streakDark : _streakLight;
@@ -775,6 +824,7 @@ class KitRow extends StatelessWidget {
     this.destructive = false,
     this.selected = false,
     this.iconColor,
+    this.hue,
     this.maxSubtitleLines = 3,
   });
 
@@ -792,6 +842,10 @@ class KitRow extends StatelessWidget {
   /// Shows a check mark (single choice lists).
   final bool selected;
   final Color? iconColor;
+
+  /// The kind of setting or information: the icon sits on its shade, in
+  /// its colour.
+  final KitHue? hue;
   final int maxSubtitleLines;
 
   @override
@@ -802,7 +856,15 @@ class KitRow extends StatelessWidget {
         (emoji != null
             ? SizedBox(width: 26, child: Text(emoji!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 21)))
             : icon != null
-                ? Icon(icon, size: 24, color: destructive ? kit.danger : (iconColor ?? kit.ink))
+                ? (hue != null && !destructive
+                    ? Container(
+                        width: 32,
+                        height: 32,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(color: kit.shade(hue!), shape: BoxShape.circle),
+                        child: Icon(icon, size: 19, color: kit.hue(hue!)),
+                      )
+                    : Icon(icon, size: 24, color: destructive ? kit.danger : (iconColor ?? kit.ink)))
                 : null);
     final showChevron = chevron ?? (onTap != null && trailing == null && !selected);
     final row = Padding(
@@ -897,13 +959,16 @@ class KitSwitch extends StatelessWidget {
 
 /// A row with a switch; tapping anywhere on it toggles.
 class KitSwitchRow extends StatelessWidget {
-  const KitSwitchRow({super.key, required this.title, this.subtitle, required this.value, required this.onChanged, this.icon, this.emoji});
+  const KitSwitchRow({super.key, required this.title, this.subtitle, required this.value, required this.onChanged, this.icon, this.emoji, this.hue});
 
   final String title;
   final String? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
   final IconData? icon;
+
+  /// The kind of setting: its icon on its shade, in its colour.
+  final KitHue? hue;
   final String? emoji;
 
   @override
@@ -913,6 +978,7 @@ class KitSwitchRow extends StatelessWidget {
         title: title,
         subtitle: subtitle,
         icon: icon,
+        hue: hue,
         emoji: emoji,
         chevron: false,
         trailing: KitSwitch(value: value, onChanged: onChanged),

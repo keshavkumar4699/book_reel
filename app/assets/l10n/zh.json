@@ -745,5 +745,25 @@
  "Couldn’t read this aloud": "无法朗读这一段",
  "Nothing to read yet": "还没有可读的书",
  "Pick a book from your Library and it opens here.": "从书库里选一本书，它会在这里打开。",
- "Open Library": "打开书库"
+ "Open Library": "打开书库",
+ "Last 7 days": "最近 7 天",
+ "Older days": "更早的日子",
+ "Newer days": "更近的日子",
+ "Those pictures couldn’t be opened": "无法打开这些图片",
+ "Some pictures couldn’t be opened": "有些图片无法打开",
+ "Remove this picture?": "移除这张图片？",
+ "It’s removed from Cloro, not from your phone.": "只会从 Cloro 中移除，不会从你的手机中删除。",
+ "Pictures and scenes": "图片和场景",
+ "Each book opens on a picture or scene picked at random. While reading, tap the screen and pick another from the row at the top, or tap + there to add pictures from your phone. A long press on one you added removes it.": "每本书打开时会随机选一张图片或一个场景。阅读时轻点屏幕，可从顶部那一排里换一个，或点那里的 + 从手机添加图片。长按你添加的图片即可移除。",
+ "Add pictures from your phone": "从手机添加图片",
+ "{n} pictures added": {
+  "other": "已添加 {n} 张图片"
+ },
+ "{n} pictures of yours": {
+  "other": "你的图片：{n} 张"
+ },
+ "Night desk": "夜晚书桌",
+ "Café reading": "咖啡馆阅读",
+ "Sunny nook": "阳光角落",
+ "Add pictures": "添加图片"
 }

@@ -140,6 +140,35 @@ const scenePalettes = <Vibe, ScenePalette>{
     shade: [0.08, 0.08, 0.08, 0.08, 0.08, 0.10, 0.14, 0.43, 0.43, 0.43, 0.16],
     lightInk: false,
   ),
+  // Studying by a rainy window at night: warm lamplight emphasis. (Shades
+  // measured on the painted scene, moving, as pictures are.)
+  Vibe.studyNight: ScenePalette(
+    ink: Color(0xFFF6F2EA),
+    emphasis: Color(0xFFFFD49A),
+    spot: Color(0xFFFFE2B8),
+    accent: Color(0xFFF6F2EA),
+    tint: Color(0xFF0F0F15),
+    shade: [0.18, 0.18, 0.18, 0.18, 0.38, 0.40, 0.60, 0.60, 0.60, 0.42, 0.18],
+  ),
+  // Reading at a café window in the evening: caramel emphasis.
+  Vibe.studyCafe: ScenePalette(
+    ink: Color(0xFFF6F2EA),
+    emphasis: Color(0xFFF7C089),
+    spot: Color(0xFFFFF2E2),
+    accent: Color(0xFFF6F2EA),
+    tint: Color(0xFF160F0E),
+    shade: [0.21, 0.21, 0.43, 0.53, 0.53, 0.53, 0.56, 0.56, 0.56, 0.53, 0.18],
+  ),
+  // Reading in the sun: deep ink on a light veil, warm brown emphasis.
+  Vibe.studySun: ScenePalette(
+    ink: Color(0xFF1C1A17),
+    emphasis: Color(0xFF6B3A0B),
+    spot: Color(0xFF241B12),
+    accent: Color(0xFF1C1A17),
+    tint: Color(0xFFF5F5F0),
+    shade: [0.42, 0.42, 0.42, 0.42, 0.44, 0.44, 0.49, 0.50, 0.50, 0.50, 0.31],
+    lightInk: false,
+  ),
   // Pale neon on night violet; soft neon-rose emphasis.
   Vibe.city: ScenePalette(
     ink: Color(0xFFF2ECF7),
@@ -156,6 +185,10 @@ const scenePalettes = <Vibe, ScenePalette>{
 /// follows the app's light or dark.
 const dayScenes = [Vibe.meadow, Vibe.forest, Vibe.ocean, Vibe.snow];
 const nightScenes = [Vibe.night, Vibe.rain, Vibe.city, Vibe.cafe];
+
+/// A girl reading or studying, each in her own place: always among the
+/// backgrounds, whatever pictures there are.
+const studyScenes = [Vibe.studyNight, Vibe.studyCafe, Vibe.studySun];
 
 /// Visual style for each calm "study vibe".
 class VibeStyle {
@@ -190,6 +223,9 @@ const vibeStyles = <Vibe, VibeStyle>{
   Vibe.meadow: VibeStyle(label: 'Meadow', emoji: '🌼', tagline: 'Sunny meadow, drifting clouds', accent: Color(0xFF224D1F), dark: false),
   Vibe.snow: VibeStyle(label: 'Snow day', emoji: '❄️', tagline: 'White hills, soft snowfall', accent: Color(0xFF18233A), dark: false),
   Vibe.city: VibeStyle(label: 'City', emoji: '🌃', tagline: 'Skyline lights at night', accent: Color(0xFFFF8FC7)),
+  Vibe.studyNight: VibeStyle(label: 'Night desk', emoji: '🌧️', tagline: 'Studying by a rainy window', accent: Color(0xFFFFD9A0)),
+  Vibe.studyCafe: VibeStyle(label: 'Café reading', emoji: '☕', tagline: 'A book at the café window', accent: Color(0xFFFFD9A0)),
+  Vibe.studySun: VibeStyle(label: 'Sunny nook', emoji: '🌤️', tagline: 'Reading in the sun, the cat asleep', accent: Color(0xFF6B3A0B), dark: false),
   Vibe.paper: VibeStyle(label: 'Paper', emoji: '📄', tagline: 'Plain and focused', accent: Color(0xFF111111), dark: false),
 };
 

@@ -37,6 +37,9 @@ const l10nExtraKeys = <String>[
   'Meadow',
   'Snow day',
   'City',
+  'Night desk',
+  'Café reading',
+  'Sunny nook',
   'Paper',
   // League divisions (from the server).
   'Bronze',

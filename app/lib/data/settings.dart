@@ -33,7 +33,7 @@ enum KeyPointStyle { off, subtle, bold }
 
 /// The painted scenes: behind the reels until you add pictures of your own
 /// (see `lib/ui/backdrops.dart`), and Paper, the plain page.
-enum Vibe { forest, cafe, rain, ocean, night, meadow, snow, city, paper }
+enum Vibe { forest, cafe, rain, ocean, night, meadow, snow, city, studyNight, studyCafe, studySun, paper }
 
 /// Light or dark for every screen except the reader (which wears its scene).
 enum AppAppearance {

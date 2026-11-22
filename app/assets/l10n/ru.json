@@ -823,5 +823,31 @@
  "Couldn’t read this aloud": "Не удалось прочитать вслух",
  "Nothing to read yet": "Пока нечего читать",
  "Pick a book from your Library and it opens here.": "Выберите книгу в Библиотеке, и она откроется здесь.",
- "Open Library": "Открыть Библиотеку"
+ "Open Library": "Открыть Библиотеку",
+ "Last 7 days": "Последние 7 дней",
+ "Older days": "Более ранние дни",
+ "Newer days": "Более поздние дни",
+ "Those pictures couldn’t be opened": "Не удалось открыть эти изображения",
+ "Some pictures couldn’t be opened": "Некоторые изображения не удалось открыть",
+ "Remove this picture?": "Убрать это изображение?",
+ "It’s removed from Cloro, not from your phone.": "Оно будет удалено из Cloro, но не с телефона.",
+ "Pictures and scenes": "Картинки и сцены",
+ "Each book opens on a picture or scene picked at random. While reading, tap the screen and pick another from the row at the top, or tap + there to add pictures from your phone. A long press on one you added removes it.": "Каждая книга открывается на случайной картинке или сцене. Во время чтения коснитесь экрана и выберите другую в ряду сверху или нажмите там +, чтобы добавить картинки с телефона. Долгое нажатие на добавленную вами картинку убирает её.",
+ "Add pictures from your phone": "Добавить картинки с телефона",
+ "{n} pictures added": {
+  "one": "{n} картинка добавлена",
+  "few": "{n} картинки добавлены",
+  "many": "{n} картинок добавлено",
+  "other": "{n} картинки добавлено"
+ },
+ "{n} pictures of yours": {
+  "one": "{n} ваша картинка",
+  "few": "{n} ваши картинки",
+  "many": "{n} ваших картинок",
+  "other": "{n} ваших картинки"
+ },
+ "Night desk": "Ночной стол",
+ "Café reading": "Чтение в кафе",
+ "Sunny nook": "Солнечный уголок",
+ "Add pictures": "Добавить картинки"
 }

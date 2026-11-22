@@ -7,6 +7,8 @@ import 'package:flutter/widgets.dart';
 
 import '../data/settings.dart';
 
+part 'study_scenes.dart';
+
 // Scenes are painted in two parts so they stay smooth on modest phones:
 // * a still base (sky, hills, buildings, lamps), rendered once per scene and
 //   screen size into an image ([SceneBases]) and blitted each frame;
@@ -228,6 +230,12 @@ void paintSceneBase(Vibe vibe, Canvas c, Size size) {
       _snowBase(c, size);
     case Vibe.city:
       _cityBase(c, size);
+    case Vibe.studyNight:
+      _studyNightBase(c, size);
+    case Vibe.studyCafe:
+      _studyCafeBase(c, size);
+    case Vibe.studySun:
+      _studySunBase(c, size);
     case Vibe.paper:
       c.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFFBF8F1));
   }
@@ -251,6 +259,12 @@ void paintSceneMotion(Vibe vibe, Canvas c, Size size, double t) {
       _snowMotion(c, size, t);
     case Vibe.city:
       _cityMotion(c, size, t);
+    case Vibe.studyNight:
+      _studyNightMotion(c, size, t);
+    case Vibe.studyCafe:
+      _studyCafeMotion(c, size, t);
+    case Vibe.studySun:
+      _studySunMotion(c, size, t);
     case Vibe.paper:
       break;
   }

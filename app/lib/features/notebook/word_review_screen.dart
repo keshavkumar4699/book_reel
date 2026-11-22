@@ -45,6 +45,7 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
         else ...[
           SizedBox(height: height * 0.06),
           KitPanel(
+            color: kit.shade(KitHue.words),
             padding: const EdgeInsets.fromLTRB(22, 32, 22, 28),
             child: Column(children: [
               Text(_queue[_index].word, textAlign: TextAlign.center, style: kit.display),
