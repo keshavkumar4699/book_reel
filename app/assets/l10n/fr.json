@@ -767,5 +767,9 @@
  "{count} streak": "Série de {count}",
  "{title} by {author}": "{title}, de {author}",
  "finished": "terminé",
- "{percent}% read": "lu à {percent} %"
+ "{percent}% read": "lu à {percent} %",
+ "Couldn’t read this aloud": "Impossible de lire ce passage à voix haute",
+ "Nothing to read yet": "Rien à lire pour l’instant",
+ "Pick a book from your Library and it opens here.": "Choisissez un livre dans votre Bibliothèque : il s’ouvrira ici.",
+ "Open Library": "Ouvrir la Bibliothèque"
 }

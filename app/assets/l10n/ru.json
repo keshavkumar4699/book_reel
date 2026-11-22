@@ -819,5 +819,9 @@
  "{count} streak": "Серия: {count}",
  "{title} by {author}": "«{title}», {author}",
  "finished": "прочитано",
- "{percent}% read": "прочитано {percent}%"
+ "{percent}% read": "прочитано {percent}%",
+ "Couldn’t read this aloud": "Не удалось прочитать вслух",
+ "Nothing to read yet": "Пока нечего читать",
+ "Pick a book from your Library and it opens here.": "Выберите книгу в Библиотеке, и она откроется здесь.",
+ "Open Library": "Открыть Библиотеку"
 }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/models/book.dart';
 import '../../data/library.dart';
+import '../../l10n/l10n.dart';
 import '../../ui/kit.dart';
 import 'reader_screen.dart';
 
@@ -20,7 +21,10 @@ class ReadingTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final books = ref.watch(libraryProvider);
-    final id = bookId ?? _lastRead(books)?.id;
+    // A book removed from the Library (or a link to one that isn't there)
+    // gives way to the one read last.
+    final asked = bookId != null && books.any((b) => b.id == bookId) ? bookId : null;
+    final id = asked ?? _lastRead(books)?.id;
     if (id == null) {
       final kit = Kit.of(context);
       return Scaffold(
@@ -28,15 +32,16 @@ class ReadingTab extends ConsumerWidget {
         body: Center(
           child: KitEmpty(
             emoji: '📖',
-            title: 'Nothing to read yet',
-            message: 'Pick a book from your Library and it opens here.',
-            action: KitButton(label: 'Open Library', onPressed: () => context.go('/library')),
+            title: tr('Nothing to read yet'),
+            message: tr('Pick a book from your Library and it opens here.'),
+            action: KitButton(label: tr('Open Library'), onPressed: () => context.go('/library')),
           ),
         ),
       );
     }
     // A new book (or a jump to a passage) starts a fresh reader.
-    return ReaderScreen(key: ValueKey('$id|${startSid ?? ''}'), bookId: id, startSid: startSid, embedded: true);
+    final start = asked != null ? startSid : null;
+    return ReaderScreen(key: ValueKey('$id|${start ?? ''}'), bookId: id, startSid: start, embedded: true);
   }
 
   static BookMeta? _lastRead(List<BookMeta> books) {

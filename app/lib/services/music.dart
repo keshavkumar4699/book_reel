@@ -78,6 +78,9 @@ abstract class TrackPlayer {
 
   /// Called when a track that doesn't loop reaches its end.
   set onComplete(VoidCallback? callback);
+
+  /// Called when the track stops on an error (the player can't go on with it).
+  set onError(VoidCallback? callback);
 }
 
 class JustAudioTrackPlayer implements TrackPlayer {
@@ -85,16 +88,25 @@ class JustAudioTrackPlayer implements TrackPlayer {
     _states = _player.processingStateStream.listen((s) {
       if (s == ProcessingState.completed) _onComplete?.call();
     });
+    _errors = _player.errorStream.listen((e) {
+      debugPrint('Music stopped: $e');
+      _onError?.call();
+    });
   }
 
   // No audio-session activation: the music mixes with read-aloud and other
   // apps instead of pausing them, and nothing else can silence it for good.
   final AudioPlayer _player = AudioPlayer(handleAudioSessionActivation: false);
   late final StreamSubscription<ProcessingState> _states;
+  late final StreamSubscription<PlayerException> _errors;
   VoidCallback? _onComplete;
+  VoidCallback? _onError;
 
   @override
   set onComplete(VoidCallback? callback) => _onComplete = callback;
+
+  @override
+  set onError(VoidCallback? callback) => _onError = callback;
 
   @override
   Future<void> load(String asset, {required bool loop}) async {
@@ -115,6 +127,7 @@ class JustAudioTrackPlayer implements TrackPlayer {
   @override
   Future<void> dispose() async {
     await _states.cancel();
+    await _errors.cancel();
     await _player.dispose();
   }
 }
@@ -166,25 +179,44 @@ class MusicPlayer extends Notifier<MusicState> {
       _fadeTimer?.cancel();
       unawaited(_player?.dispose());
     });
+    // "Play music while reading" switched (in Settings or the reader's
+    // options): the open book's music follows.
+    ref.listen<bool>(settingsProvider.select((s) => s.music), (before, on) {
+      if (before != on && _owner != null && state.track != null && on != state.playing) unawaited(toggle());
+    });
     return const MusicState();
   }
 
   AppSettings get _settings => ref.read(settingsProvider);
   double get _level => _settings.musicVolume * (_ducked ? 0.3 : 1);
 
-  /// A book opened: a random track, playing if music is on (else ready to play).
-  Future<void> start(Object owner) async {
+  /// A book opened: a random track, playing if music is on (else ready to
+  /// play). [visible]: its reader is on screen (a book can open behind
+  /// another tab or page; it plays once [release]d).
+  Future<void> start(Object owner, {bool visible = true}) async {
     _owner = owner;
+    // Nothing carries over from the last book: not being out of sight, not
+    // being quieter under its voice, not its track.
+    _held = !visible;
+    _ducked = false;
+    _failures = 0;
+    _generation++;
+    _fadeTimer?.cancel();
+    _loaded = null;
+    unawaited(_player?.pause());
     final tracks = await ref.read(tracksProvider.future);
-    if (!identical(_owner, owner) || tracks.isEmpty) return;
+    if (!ref.mounted || !identical(_owner, owner) || tracks.isEmpty) return;
     state = MusicState(tracks: tracks, index: random.nextInt(tracks.length));
     await _load(play: _settings.music);
   }
 
   /// The book closed (only its own reader stops the music).
   Future<void> stop(Object owner) async {
-    if (!identical(_owner, owner)) return;
+    // (Once the app's providers are gone, so is the player.)
+    if (!ref.mounted || !identical(_owner, owner)) return;
     _owner = null;
+    _held = false;
+    _ducked = false;
     _generation++;
     _fadeTimer?.cancel();
     final player = _player;
@@ -204,6 +236,7 @@ class MusicPlayer extends Notifier<MusicState> {
   Future<void> _skip(int by) async {
     final n = state.tracks.length;
     if (n == 0 || _owner == null) return;
+    _failures = 0;
     state = state.copyWith(index: ((state.index + by) % n + n) % n);
     await _load(play: true);
   }
@@ -211,6 +244,7 @@ class MusicPlayer extends Notifier<MusicState> {
   /// The play/pause button.
   Future<void> toggle() async {
     if (_owner == null || state.track == null) return;
+    _failures = 0;
     if (state.playing) {
       _generation++;
       _fadeTimer?.cancel();
@@ -227,21 +261,31 @@ class MusicPlayer extends Notifier<MusicState> {
   /// The reader went out of sight (another tab, the app in the background):
   /// silent until [release], which carries on where it was.
   Future<void> hold() async {
+    if (!ref.mounted) return;
     _held = true;
     _fadeTimer?.cancel();
     await _player?.pause();
   }
 
   Future<void> release() async {
+    // Not held (nothing went out of sight): it plays on, without fading in again.
+    if (!ref.mounted || !_held) return;
     _held = false;
     final player = _player;
-    if (player != null && state.playing && _owner != null) await _begin(player, _generation);
+    if (player != null && _shouldSound) await _begin(player, _generation);
   }
 
-  /// Quieter while the book is read aloud.
+  /// The track should be heard: playing, loaded, in sight.
+  bool get _shouldSound => state.playing && _owner != null && !_held && _loaded != null && _loaded == state.track?.asset;
+
+  /// Quieter while the book is read aloud. Back to full volume afterwards,
+  /// and playing (whatever paused it meanwhile).
   Future<void> duck(bool on) async {
+    if (!ref.mounted) return;
     _ducked = on;
     await applyVolume();
+    final player = _player;
+    if (!on && player != null && _shouldSound) await player.play();
   }
 
   /// The volume setting changed.
@@ -255,18 +299,20 @@ class MusicPlayer extends Notifier<MusicState> {
     if (track == null) return;
     final generation = ++_generation;
     _fadeTimer?.cancel();
-    final player = _player ??= playerFactory()..onComplete = _completed;
+    final player = _player ??= playerFactory()
+      ..onComplete = _completed
+      ..onError = _failed;
     state = state.copyWith(playing: play);
     try {
       await player.pause();
       await player.setVolume(0);
       await player.load(track.asset, loop: track.loop);
-      if (generation != _generation || !identical(player, _player)) return;
+      if (!ref.mounted || generation != _generation || !identical(player, _player)) return;
       _loaded = track.asset;
       if (play && !_held) await _begin(player, generation);
     } catch (e) {
       debugPrint('Music unavailable: $e');
-      if (generation == _generation) state = state.copyWith(playing: false);
+      if (ref.mounted && generation == _generation) state = state.copyWith(playing: false);
     }
   }
 
@@ -290,7 +336,31 @@ class MusicPlayer extends Notifier<MusicState> {
   }
 
   void _completed() {
+    if (!ref.mounted) return;
+    _failures = 0;
     if (_owner != null && state.playing && !(state.track?.loop ?? true)) unawaited(next());
+  }
+
+  /// Tracks that stopped on an error in a row.
+  int _failures = 0;
+
+  /// The track stopped on an error (the sound device changed, say): it's
+  /// loaded again where it plays from the start, or the next one is tried;
+  /// after a few, the music shows paused.
+  void _failed() {
+    if (!ref.mounted || _owner == null || !state.playing) return;
+    _failures++;
+    if (_failures > 3) {
+      _generation++;
+      _fadeTimer?.cancel();
+      state = state.copyWith(playing: false);
+      return;
+    }
+    _loaded = null;
+    if (_failures > 1 && state.tracks.length > 1) {
+      state = state.copyWith(index: (state.index + 1) % state.tracks.length);
+    }
+    unawaited(_load(play: true));
   }
 }
 

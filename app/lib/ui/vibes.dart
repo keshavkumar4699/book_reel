@@ -17,6 +17,12 @@ export 'scenes.dart';
 ///   middle 60 % of the screen) and every text colour and control keeps
 ///   ≥ 4.5:1 (AA) everywhere, while dark parts of the scene stay untouched
 ///   (test/ui/scene_palette_test.dart checks this on the rendered scenes).
+/// How opaque softer text is over a scene or picture (the chapter, a
+/// track's artist, labels): the ink at this opacity, over light text's shade
+/// or dark text's veil. A picture's shade keeps it at 4.5:1.
+const lightSoftText = 0.74;
+const darkSoftText = 0.8;
+
 class ScenePalette {
   const ScenePalette({
     required this.ink,
@@ -49,7 +55,7 @@ class ScenePalette {
   /// Light text on a darkened scene (false: dark text on a light veil).
   final bool lightInk;
 
-  Color get muted => ink.withValues(alpha: lightInk ? 0.74 : 0.8);
+  Color get muted => ink.withValues(alpha: lightInk ? lightSoftText : darkSoftText);
 
   LinearGradient get scrim => LinearGradient(
         begin: Alignment.topCenter,
@@ -62,7 +68,7 @@ class ScenePalette {
   /// gives the contrast; a wide or double shadow would be re-blurred on every
   /// frame the scene moves.)
   List<Shadow> get textShadows => lightInk
-      ? [Shadow(color: tint.withValues(alpha: 0.6), blurRadius: 5, offset: const Offset(0, 1))]
+      ? [Shadow(color: tint.withValues(alpha: 0.75), blurRadius: 5, offset: const Offset(0, 1))]
       : [Shadow(color: tint.withValues(alpha: 0.85), blurRadius: 6)];
 }
 
@@ -74,7 +80,7 @@ const scenePalettes = <Vibe, ScenePalette>{
     spot: Color(0xFF142019),
     accent: Color(0xFF1B2A20),
     tint: Color(0xFFF8FAF0),
-    shade: [0.08, 0.08, 0.08, 0.08, 0.10, 0.20, 0.22, 0.22, 0.20, 0.14, 0.12],
+    shade: [0.08, 0.08, 0.08, 0.08, 0.10, 0.20, 0.22, 0.40, 0.40, 0.40, 0.40],
     lightInk: false,
   ),
   // Latte foam on espresso; caramel emphasis.
@@ -84,7 +90,7 @@ const scenePalettes = <Vibe, ScenePalette>{
     spot: Color(0xFFFFEBD2),
     accent: Color(0xFFF7EADB),
     tint: Color(0xFF170D07),
-    shade: [0.14, 0.20, 0.32, 0.44, 0.44, 0.33, 0.33, 0.28, 0.28, 0.28, 0.30],
+    shade: [0.14, 0.20, 0.32, 0.44, 0.44, 0.33, 0.33, 0.46, 0.46, 0.46, 0.30],
   ),
   // Cool mist on rain-night navy; rain-sky blue emphasis.
   Vibe.rain: ScenePalette(
@@ -121,7 +127,7 @@ const scenePalettes = <Vibe, ScenePalette>{
     spot: Color(0xFF1C2618),
     accent: Color(0xFF24301F),
     tint: Color(0xFFFFFAEC),
-    shade: [0.08, 0.08, 0.08, 0.08, 0.09, 0.21, 0.33, 0.45, 0.45, 0.33, 0.21],
+    shade: [0.08, 0.08, 0.08, 0.08, 0.09, 0.21, 0.33, 0.45, 0.45, 0.38, 0.37],
     lightInk: false,
   ),
   // A snow day: slate ink on a frosty veil, deep winter-blue emphasis.
@@ -131,7 +137,7 @@ const scenePalettes = <Vibe, ScenePalette>{
     spot: Color(0xFF111A2D),
     accent: Color(0xFF18233A),
     tint: Color(0xFFF6F9FD),
-    shade: [0.08, 0.08, 0.08, 0.08, 0.08, 0.10, 0.14, 0.26, 0.32, 0.30, 0.16],
+    shade: [0.08, 0.08, 0.08, 0.08, 0.08, 0.10, 0.14, 0.43, 0.43, 0.43, 0.16],
     lightInk: false,
   ),
   // Pale neon on night violet; soft neon-rose emphasis.

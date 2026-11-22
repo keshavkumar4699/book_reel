@@ -111,11 +111,14 @@ class FeedEntry {
 }
 
 class FeedPage {
-  const FeedPage(this.items, {this.more = false});
+  const FeedPage(this.items, {this.more = false, this.offline = false});
   final List<FeedEntry> items;
 
   /// The server may have older items.
   final bool more;
+
+  /// The server couldn't be reached: these are your own sessions, from the phone.
+  final bool offline;
 }
 
 /// The Journal feed: from the server (your sessions and milestones and those of
@@ -131,8 +134,15 @@ class JournalFeed extends AsyncNotifier<FeedPage> {
     if (!api.enabled) return FeedPage(_local());
     // Upload your latest sessions first, so the feed has them.
     await ref.read(syncServiceProvider).syncNow();
-    final items = await api.feed();
-    return FeedPage([for (final j in items) if (j['type'] != 'goal_met') FeedEntry.fromServer(j)], more: items.length >= pageSize);
+    try {
+      final items = await api.feed();
+      return FeedPage([for (final j in items) if (j['type'] != 'goal_met') FeedEntry.fromServer(j)], more: items.length >= pageSize);
+    } catch (_) {
+      // Offline, or the server not answering: your own reading, from the phone.
+      final local = _local();
+      if (local.isEmpty) rethrow;
+      return FeedPage(local, offline: true);
+    }
   }
 
   List<FeedEntry> _local() {

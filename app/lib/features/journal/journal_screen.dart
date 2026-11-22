@@ -219,6 +219,13 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                   ),
                 ]
               : [
+                  if (page.offline)
+                    KitRow(
+                      icon: Icons.cloud_off_rounded,
+                      title: tr('Can’t reach Cloro right now'),
+                      subtitle: tr('Your reading is saved and will sync later.'),
+                      trailing: KitIconButton(icon: Icons.refresh_rounded, semanticLabel: tr('Try again'), glass: false, onPressed: () => ref.invalidate(journalFeedProvider)),
+                    ),
                   for (final (i, e) in page.items.indexed) ...[
                     if (i > 0) const KitDivider(),
                     ActivityCard(key: ValueKey(e.id), entry: e),

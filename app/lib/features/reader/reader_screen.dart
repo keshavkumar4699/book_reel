@@ -72,6 +72,9 @@ class ReaderScreen extends ConsumerStatefulWidget {
   @visibleForTesting
   static DateTime Function() clock = DateTime.now;
 
+  /// While listening, a chapter's title card moves on by itself after this.
+  static const passTitleAfter = Duration(milliseconds: 1600);
+
   @override
   ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
 }
@@ -110,6 +113,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   int _page = 0;
   DateTime _shownAt = ReaderScreen.clock();
   bool _tts = false;
+
+  Timer? _passTitle;
 
   /// The reel being read aloud is still being turned into audio.
   bool _preparing = false;
@@ -190,19 +195,29 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _music = ref.read(musicProvider.notifier);
     _readAloud = ref.read(readAloudProvider);
     _readAloud.waiting.addListener(_onWaiting);
-    // A random track for this book (providers can change once the frame is built).
+    // A random track for this book (providers can change once the frame is
+    // built), heard once the reader is in sight: a book can open while
+    // another tab or page is on screen.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_music.start(this));
+      if (mounted) unawaited(_music.start(this, visible: _visible));
     });
   }
 
-  /// The Reading tab is on screen (another tab hides it but keeps it alive).
+  /// The Reading tab is on screen (another tab or a page on top hides it but
+  /// keeps it alive).
   bool _visible = true;
+  bool _visibilityKnown = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final visible = TickerMode.valuesOf(context).enabled;
+    if (!_visibilityKnown) {
+      // As it opens: the music starts knowing (nothing to hold or release yet).
+      _visibilityKnown = true;
+      _visible = visible;
+      return;
+    }
     if (visible == _visible) return;
     _visible = visible;
     if (!visible) {
@@ -217,12 +232,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     }
   }
 
-  /// Music on or off (options sheet): the setting, and the player with it.
+  /// Music on or off (options sheet): the setting, which the player follows.
   void _toggleMusic() {
     final on = !ref.read(settingsProvider).music;
     Haptics.select();
     ref.read(settingsProvider.notifier).update((x) => x.copyWith(music: on));
-    if (on != ref.read(musicProvider).playing) unawaited(_music.toggle());
   }
 
   /// Reads on [b] from now on: its colours are measured first, so it never
@@ -269,15 +283,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     scheduleMicrotask(() => music.stop(me));
     WidgetsBinding.instance.removeObserver(this);
     _chromeTimer?.cancel();
+    _passTitle?.cancel();
     _pager?.dispose();
     _readAloud.waiting.removeListener(_onWaiting);
     unawaited(_readAloud.stop());
     super.dispose();
   }
 
+  /// The app went to the background (not just behind the notification
+  /// shade or a system dialog, which leave the reel and its music alone).
+  bool _backgrounded = false;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
+      _backgrounded = true;
       // No music while the app is in the background.
       unawaited(_music.hold());
       _recordCurrent();
@@ -286,7 +306,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       if (!habit.today(DateTime.now()).meets(ref.read(settingsProvider).goal)) {
         ReminderService.instance.scheduleStreakNudge(streak: notifier.displayStreak(), freezesLeft: notifier.freezesLeft());
       }
-    } else if (state == AppLifecycleState.resumed && _visible) {
+    } else if (state == AppLifecycleState.resumed && _backgrounded) {
+      _backgrounded = false;
+      if (!_visible) return;
+      // The time away isn't reading (the reel's time so far was counted as
+      // the app left).
       _shownAt = ReaderScreen.clock();
       unawaited(_music.release());
     }
@@ -576,6 +600,25 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         showGoalSetup(_ui);
       }
       if (_tts && !identical(_spoken, item)) _speak(item);
+    } else if (_tts) {
+      // A reel without words to read aloud (a chapter's title, a recap, a
+      // question): the reel before stops being read, and listening carries
+      // on from the next reel with words. A chapter's title is passed after
+      // a moment, so listening hands-free goes on into the chapter.
+      if (_spoken != null) {
+        _spoken = null;
+        unawaited(_readAloud.stop());
+        _music.duck(false);
+      }
+      _passTitle?.cancel();
+      if (item.kind == CardKind.chapterTitle) {
+        final page = _page;
+        _passTitle = Timer(ReaderScreen.passTitleAfter, () {
+          if (mounted && _tts && _page == page && _pager != null && _page < _feed.length - 1) {
+            _pager!.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+          }
+        });
+      }
     }
     _maybeRequestAi(book);
     // The end: it counts as finished only when most of it was really read.
@@ -675,12 +718,26 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final text = _reelText(item);
     _music.duck(true);
     // The next two reels and the one before are made ready while this one plays.
-    _readAloud.speak(text, ahead: _reelTextsAhead(_page), behind: _reelTextBehind(_page), onDone: () {
-      _music.duck(false);
-      if (mounted && _tts && _pager != null && _page < _feed.length - 1) {
-        _pager!.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-      }
-    });
+    _readAloud.speak(
+      text,
+      ahead: _reelTextsAhead(_page),
+      behind: _reelTextBehind(_page),
+      onDone: () {
+        _music.duck(false);
+        if (mounted && _tts && _pager != null && _page < _feed.length - 1) {
+          _pager!.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+        }
+      },
+      // A word pronounced over it, or audio that won't play: listening stops
+      // (the music comes back up), rather than hanging on silently.
+      onStopped: (why) {
+        _music.duck(false);
+        if (!mounted || !_tts) return;
+        _spoken = null;
+        setState(() => _tts = false);
+        if (why == SpeechStopped.failed) showKitToast(_ui, tr('Couldn’t read this aloud'), icon: Icons.volume_off_rounded);
+      },
+    );
   }
 
   // ---------------------------------------------------------------- actions
@@ -749,6 +806,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       _speak(_feed[_page]);
     } else {
       _spoken = null;
+      _passTitle?.cancel();
       unawaited(_readAloud.stop());
       _music.duck(false);
     }

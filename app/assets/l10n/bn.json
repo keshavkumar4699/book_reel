@@ -767,5 +767,9 @@
  "{count} streak": "{count}-এর স্ট্রিক",
  "{title} by {author}": "{title}, {author}-এর লেখা",
  "finished": "শেষ হয়েছে",
- "{percent}% read": "{percent}% পড়া"
+ "{percent}% read": "{percent}% পড়া",
+ "Couldn’t read this aloud": "এটি জোরে পড়া গেল না",
+ "Nothing to read yet": "এখনও পড়ার মতো কিছু নেই",
+ "Pick a book from your Library and it opens here.": "আপনার লাইব্রেরি থেকে একটি বই বেছে নিন, সেটি এখানে খুলবে।",
+ "Open Library": "লাইব্রেরি খুলুন"
 }

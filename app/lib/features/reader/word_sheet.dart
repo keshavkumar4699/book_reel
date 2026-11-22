@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/text/lexicon.dart';
 import '../../data/notebook.dart';
-import '../../services/tts.dart';
+import '../../services/read_aloud.dart';
 import '../../ui/kit.dart';
 import '../../l10n/l10n.dart';
 
@@ -25,7 +25,7 @@ Future<void> showWordSheet(
     context,
     title: entry?.lemma ?? word.toLowerCase(),
     maxHeight: 0.8,
-    trailing: KitIconButton(icon: Icons.volume_up_rounded, semanticLabel: tr('Pronounce'), onPressed: () => Tts.instance.speak(word)),
+    trailing: KitIconButton(icon: Icons.volume_up_rounded, semanticLabel: tr('Pronounce'), onPressed: () => ProviderScope.containerOf(context, listen: false).read(readAloudProvider).sayWord(word)),
     builder: (context) => _WordSheet(
       word: word,
       sentence: sentence,

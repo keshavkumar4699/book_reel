@@ -118,6 +118,26 @@ void main() {
     expect(find.text('Goal done · 1-day streak'), findsNothing, reason: 'it leaves on its own');
   });
 
+  testWidgets('a glance at the notification shade loses none of the reel’s reading time', (tester) async {
+    var now = DateTime(2026, 11, 17, 9);
+    ReaderScreen.clock = () => now;
+    final (c, _) = await open(tester, settings: (s) => s.copyWith(dailyGoal: 1));
+    int verified() => c.read(habitProvider).totalVerifiedCards;
+    await tester.fling(find.byType(PageView), const Offset(0, -500), 1500); // past the chapter card
+    await settle(tester);
+    // A minute on each reel, with the shade pulled down and back near the end
+    // of it: the reels still count as read.
+    for (var i = 0; i < 8 && verified() == 0; i++) {
+      now = now.add(const Duration(seconds: 59));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      now = now.add(const Duration(seconds: 1));
+      await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
+      await settle(tester);
+    }
+    expect(verified(), 1);
+  });
+
   testWidgets('a feed rebuilt under the reader keeps the same reel on screen', (tester) async {
     // Card 12 of chapter 1: past the quick check after card 10.
     final (c, _) = await open(tester, startAt: (c, id) {

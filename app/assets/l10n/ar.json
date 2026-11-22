@@ -871,5 +871,9 @@
  "{count} streak": "سلسلة {count}",
  "{title} by {author}": "{title} بقلم {author}",
  "finished": "منتهٍ",
- "{percent}% read": "مقروء {percent}%"
+ "{percent}% read": "مقروء {percent}%",
+ "Couldn’t read this aloud": "تعذّرت القراءة بصوت عالٍ",
+ "Nothing to read yet": "لا شيء للقراءة بعد",
+ "Pick a book from your Library and it opens here.": "اختر كتابًا من مكتبتك وسيُفتح هنا.",
+ "Open Library": "افتح المكتبة"
 }

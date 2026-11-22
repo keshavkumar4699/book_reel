@@ -32,6 +32,9 @@ class FakeServer {
   /// Comments answer 429 while set (too many too fast).
   bool commentsRateLimited = false;
 
+  /// The feed answers with this (anything but 200: the server is down).
+  int feedStatus = 200;
+
   /// The Today feed, newest first (GET /v1/feed pages through it 20 at a time).
   late final List<Map<String, dynamic>> feed = [
     {
@@ -246,6 +249,7 @@ class FakeServer {
           ]});
         }
         if (path == '/v1/feed') {
+          if (feedStatus != 200) return http.Response('{"error":"down"}', feedStatus);
           final before = DateTime.tryParse(req.url.queryParameters['before'] ?? '');
           final list = [
             for (final f in feed)

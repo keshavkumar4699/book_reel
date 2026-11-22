@@ -41,20 +41,35 @@ class SpeechWait {
   final Duration expected;
 }
 
-/// Plays one audio file at a time and says when it finished.
+/// Why a passage stopped before its end.
+enum SpeechStopped {
+  /// Something else was said over it (a word's pronunciation, a voice sample).
+  interrupted,
+
+  /// Its audio couldn't be played.
+  failed,
+}
+
+/// Plays one audio file at a time and says when it finished, or failed.
 abstract class SpeechPlayer {
   Future<void> playFile(String path);
   Future<void> stop();
   Stream<void> get completed;
+  Stream<void> get failed;
   Future<void> dispose();
 }
 
 class JustAudioSpeechPlayer implements SpeechPlayer {
-  // Mixes with the scene sound and other apps (the scene sound ducks under it).
+  // Mixes with the music and other apps (the music is quieter under it).
   final AudioPlayer _player = AudioPlayer(handleAudioSessionActivation: false);
 
   @override
   Stream<void> get completed => _player.processingStateStream.where((s) => s == ProcessingState.completed).map((_) {});
+
+  @override
+  Stream<void> get failed => _player.errorStream.map((e) {
+        debugPrint('Read-aloud audio failed: $e');
+      });
 
   @override
   Future<void> playFile(String path) async {
@@ -105,7 +120,15 @@ class ReadAloud {
 
   SpeechPlayer? _playerInstance;
   StreamSubscription<void>? _done;
+  StreamSubscription<void>? _failed;
   VoidCallback? _onDone;
+
+  /// The passage being read: what it does if it stops before its end.
+  void Function(SpeechStopped why)? _onStopped;
+
+  /// The file playing, and whether the voice on the phone made it.
+  String? _playing;
+  bool _playingLocal = false;
   int _turn = 0;
   DateTime? _naturalPausedUntil;
   DateTime? _localPausedUntil;
@@ -120,7 +143,48 @@ class ReadAloud {
       _onDone = null;
       cb?.call();
     });
+    _failed = created.failed.listen((_) => _playbackFailed());
     return _playerInstance = created;
+  }
+
+  /// A file wouldn't play: it's dropped (made again next time), that voice
+  /// rests a while, and the passage's listener is told.
+  void _playbackFailed() {
+    final path = _playing;
+    _playing = null;
+    if (path != null) {
+      try {
+        File(path).deleteSync();
+      } catch (_) {}
+      if (_playingLocal) {
+        _localPausedUntil = DateTime.now().add(const Duration(minutes: 5));
+      } else {
+        _naturalPausedUntil = DateTime.now().add(const Duration(minutes: 2));
+      }
+    }
+    _onDone = null;
+    _interrupt(SpeechStopped.failed);
+  }
+
+  /// Ends the passage being read and tells its listener why.
+  void _interrupt(SpeechStopped why) {
+    final cb = _onStopped;
+    _onStopped = null;
+    _turn++;
+    _setWaiting(null);
+    cb?.call(why);
+  }
+
+  bool _disposed = false;
+
+  void _setWaiting(SpeechWait? w) {
+    if (!_disposed) waiting.value = w;
+  }
+
+  Future<void> _play(String path, {required bool local}) {
+    _playing = path;
+    _playingLocal = local;
+    return _player.playFile(path);
   }
 
   /// The natural voice on the phone is in use (downloaded, and not paused
@@ -140,9 +204,19 @@ class ReadAloud {
 
   /// Reads [text]. Meanwhile the reels around it are made ready, nearest
   /// first: [ahead] (the next ones, in order), then [behind] (the one before).
-  Future<void> speak(String text, {List<String> ahead = const [], String? behind, required VoidCallback onDone}) async {
+  /// [onDone] when it's read to the end; [onStopped] if it stops before (not
+  /// when [stop] or the next [speak] ends it).
+  Future<void> speak(
+    String text, {
+    List<String> ahead = const [],
+    String? behind,
+    required VoidCallback onDone,
+    void Function(SpeechStopped why)? onStopped,
+  }) async {
+    if (_disposed) return;
     final turn = ++_turn;
-    waiting.value = null;
+    _onStopped = onStopped;
+    _setWaiting(null);
     await _stopPlayback();
     final s = _ref.read(settingsProvider);
     final around = [
@@ -166,7 +240,7 @@ class ReadAloud {
         final file = await _waitFor(turn, _audioFor(text, s), text.length, local: false);
         if (turn != _turn) return;
         _onDone = onDone;
-        await _player.playFile(file.path);
+        await _play(file.path, local: false);
         // The reels around, one at a time while this one plays.
         unawaited(() async {
           for (final t in around) {
@@ -184,18 +258,41 @@ class ReadAloud {
       }
       if (turn != _turn) return;
     }
-    await Tts.instance.speak(text, rate: 0.5 * s.voiceSpeed, onDone: onDone);
+    await Tts.instance.speak(text, rate: 0.5 * s.voiceSpeed, onDone: onDone, onError: () => _failedTurn(turn));
+  }
+
+  /// The phone's voice couldn't go on with the passage of [turn].
+  void _failedTurn(int turn) {
+    if (turn == _turn) _interrupt(SpeechStopped.failed);
+  }
+
+  /// A word said with the phone's voice (quick, nothing to make first), over
+  /// whatever is being read: that passage stops, and its listener is told.
+  Future<void> sayWord(String word) async {
+    _interrupt(SpeechStopped.interrupted);
+    await _stopPlayback();
+    await Tts.instance.speak(word);
+  }
+
+  /// A voice's sample, over whatever is being read (which stops, and its
+  /// listener is told).
+  Future<void> sample(String text) {
+    _interrupt(SpeechStopped.interrupted);
+    return speak(text, onDone: () {});
   }
 
   Future<void> stop() async {
     _turn++;
-    waiting.value = null;
+    _onStopped = null;
+    if (_disposed) return;
+    _setWaiting(null);
     await _stopPlayback();
     await Tts.instance.stop();
   }
 
   Future<void> _stopPlayback() async {
     _onDone = null;
+    _playing = null;
     final p = _playerInstance;
     if (p != null) await p.stop();
   }
@@ -232,12 +329,14 @@ class ReadAloud {
         make(i + 1).ignore();
         _onDone = () => unawaited(playFrom(i + 1).catchError((Object e) {
               debugPrint('On-device voice stopped: $e');
-              if (turn == _turn) unawaited(Tts.instance.speak(parts.sublist(i + 1).join(' '), rate: 0.5 * s.voiceSpeed, onDone: onDone));
+              if (turn == _turn) {
+                unawaited(Tts.instance.speak(parts.sublist(i + 1).join(' '), rate: 0.5 * s.voiceSpeed, onDone: onDone, onError: () => _failedTurn(turn)));
+              }
             }));
       } else {
         _onDone = onDone;
       }
-      await _player.playFile(file.path);
+      await _play(file.path, local: true);
     }
 
     await playFrom(0);
@@ -251,14 +350,14 @@ class ReadAloud {
     final show = Timer(showWaitAfter, () {
       if (settled || turn != _turn) return;
       final seconds = chars / (local ? _localRate : _serverRate);
-      waiting.value = SpeechWait(chars: chars, expected: Duration(milliseconds: (seconds * 1000).round().clamp(600, 60000)));
+      _setWaiting(SpeechWait(chars: chars, expected: Duration(milliseconds: (seconds * 1000).round().clamp(600, 60000))));
     });
     try {
       return await work;
     } finally {
       settled = true;
       show.cancel();
-      if (turn == _turn) waiting.value = null;
+      if (turn == _turn) _setWaiting(null);
     }
   }
 
@@ -286,7 +385,11 @@ class ReadAloud {
     if (await file.exists()) return file;
     await dir.create(recursive: true);
     final watch = Stopwatch()..start();
-    await _ref.read(localSpeechProvider).synthesize(text: text, speaker: localSpeakerFor(s.voiceName), speed: s.voiceSpeed, path: file.path);
+    // Made under another name first: a file cut short (the app closed while
+    // it was being made) is never taken for a finished one.
+    final part = File('${file.path}.part');
+    await _ref.read(localSpeechProvider).synthesize(text: text, speaker: localSpeakerFor(s.voiceName), speed: s.voiceSpeed, path: part.path);
+    await part.rename(file.path);
     _learn(local: true, chars: text.length, took: watch.elapsed);
     unawaited(_prune(dir));
     return file;
@@ -341,8 +444,11 @@ class ReadAloud {
 
   Future<void> dispose() async {
     _turn++;
+    _onStopped = null;
+    _disposed = true;
     waiting.dispose();
     await _done?.cancel();
+    await _failed?.cancel();
     await _playerInstance?.dispose();
     _playerInstance = null;
   }

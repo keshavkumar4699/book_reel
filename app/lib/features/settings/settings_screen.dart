@@ -615,7 +615,7 @@ class VoiceSettings extends ConsumerWidget {
     final n = ref.read(settingsProvider.notifier);
     final server = ref.watch(apiProvider).enabled;
     final local = ref.watch(localVoiceProvider);
-    void play() => ref.read(readAloudProvider).speak(sample, onDone: () {});
+    void play() => ref.read(readAloudProvider).sample(sample);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       KitSegmented<bool>(
         values: const [true, false],

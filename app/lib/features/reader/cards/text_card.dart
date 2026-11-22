@@ -744,6 +744,8 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
           child: _ActionRail(
             ink: t.text,
             accent: t.accent,
+            // On a picture or scene, a red that keeps 3:1 against it.
+            likedRed: t.scrim == null ? ember : railTone(t.text, ember),
             shadows: t.textShadows,
             liked: widget.liked,
             saved: widget.saved,
@@ -1305,14 +1307,31 @@ class FadeChrome extends StatelessWidget {
   }
 }
 
-/// An accent on a picture, mixed with the text colour beside it so it keeps
-/// most of that colour's contrast against the picture.
-Color railTone(Color text, Color accent) => Color.lerp(text, accent, 0.72)!;
+/// An accent on a picture (an icon, a line), mixed with the text colour
+/// beside it: as much of the accent as keeps 3:1 against the lightest (for
+/// light text) or darkest (for dark text) background the shade leaves
+/// behind body text, which keeps that text at 7:1.
+Color railTone(Color text, Color accent) {
+  final inkLum = text.computeLuminance();
+  final light = inkLum > 0.18;
+  final bg = light ? (inkLum + 0.05) / 7 - 0.05 : (inkLum + 0.05) * 7 - 0.05;
+  bool clear(Color c) {
+    final l = c.computeLuminance();
+    return (light ? l > bg : l < bg) && (math.max(l, bg) + 0.05) / (math.min(l, bg) + 0.05) >= 3;
+  }
+
+  for (var t = 0.72; t > 0; t -= 0.04) {
+    final c = Color.lerp(text, accent, t)!;
+    if (clear(c)) return c;
+  }
+  return text;
+}
 
 class _ActionRail extends StatelessWidget {
   const _ActionRail({
     required this.ink,
     required this.accent,
+    required this.likedRed,
     required this.shadows,
     required this.liked,
     required this.saved,
@@ -1334,6 +1353,9 @@ class _ActionRail extends StatelessWidget {
 
   final Color ink;
   final Color accent;
+
+  /// The red of the liked heart and the streak's flame.
+  final Color likedRed;
   final List<Shadow>? shadows;
   final bool liked;
   final bool saved;
@@ -1356,18 +1378,20 @@ class _ActionRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Labels are always in the text colour (a coloured word that small is
+    // hard to read on a picture); the icon shows the state.
     Widget b(IconData icon, String label, String semantic, VoidCallback onTap, {Color? color, bool active = false}) => _RailButton(
           icon: Icon(icon, color: color ?? ink, size: 31, shadows: shadows),
           label: label,
           semanticLabel: semantic,
-          color: color ?? ink,
+          color: ink,
           shadows: shadows,
           active: active,
           onTap: onTap,
         );
     return Column(mainAxisSize: MainAxisSize.min, children: [
       b(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, liked ? tr('Liked') : tr('Like'), liked ? tr('Unlike') : tr('Like'), onLike,
-          color: liked ? ember : null, active: liked),
+          color: liked ? likedRed : null, active: liked),
       b(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, saved ? tr('Saved') : tr('Save'), saved ? tr('Saved') : tr('Save'), onSave,
           color: saved ? accent : null, active: saved),
       b(Icons.edit_note_rounded, tr('Note'), tr('Write a note'), onNote),
@@ -1390,7 +1414,7 @@ class _ActionRail extends StatelessWidget {
       // The streak (its flame in the logo's red) and today's goal (green once met).
       if (onStreak != null)
         _RailButton(
-          icon: Icon(Icons.local_fire_department_rounded, size: 29, color: streak > 0 ? ember : ink, shadows: shadows),
+          icon: Icon(Icons.local_fire_department_rounded, size: 29, color: streak > 0 ? likedRed : ink, shadows: shadows),
           label: '$streak',
           semanticLabel: tr('{n} day streak. Open streak', {'n': streak}),
           color: ink,

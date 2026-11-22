@@ -121,6 +121,18 @@ void main() {
     expect(find.textContaining('👏'), findsNothing);
   });
 
+  testWidgets('the server can’t be reached: your own reading, and a way to try again', (tester) async {
+    final server = FakeServer()..feedStatus = 503;
+    await open(tester, server: server, before: readALittle);
+    await settle(tester, find.text('Emma'));
+    expect(find.text('Can’t reach Cloro right now'), findsOneWidget);
+    expect(find.text('You'), findsOneWidget, reason: 'your sessions, from the phone');
+    server.feedStatus = 200;
+    await tester.tap(find.bySemanticsLabel('Try again'));
+    await settle(tester, find.text('Ravi'));
+    expect(find.text('Can’t reach Cloro right now'), findsNothing);
+  });
+
   testWidgets('older activity loads as you reach the end', (tester) async {
     final server = FakeServer();
     final start = DateTime.now().toUtc();

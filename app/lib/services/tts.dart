@@ -39,6 +39,7 @@ class Tts {
 
   FlutterTts? _tts;
   VoidCallback? _onDone;
+  VoidCallback? _onError;
   bool _voiceChosen = false;
 
   Future<FlutterTts> _engine() async {
@@ -46,6 +47,14 @@ class Tts {
     t.setCompletionHandler(() {
       final cb = _onDone;
       _onDone = null;
+      _onError = null;
+      cb?.call();
+    });
+    t.setErrorHandler((message) {
+      debugPrint('TTS error: $message');
+      final cb = _onError;
+      _onDone = null;
+      _onError = null;
       cb?.call();
     });
     if (!_voiceChosen) {
@@ -64,9 +73,11 @@ class Tts {
     return t;
   }
 
-  /// Speaks [text]; [rate] 0.5 is the phone's normal speed.
-  Future<void> speak(String text, {double rate = 0.5, VoidCallback? onDone}) async {
+  /// Speaks [text]; [rate] 0.5 is the phone's normal speed. [onDone] when
+  /// it's said, [onError] if it can't be.
+  Future<void> speak(String text, {double rate = 0.5, VoidCallback? onDone, VoidCallback? onError}) async {
     _onDone = onDone;
+    _onError = onError;
     try {
       final t = await _engine();
       await t.setSpeechRate(rate.clamp(0.3, 0.8));
@@ -74,11 +85,14 @@ class Tts {
     } catch (e) {
       debugPrint('TTS unavailable: $e');
       _onDone = null;
+      _onError = null;
+      onError?.call();
     }
   }
 
   Future<void> stop() async {
     _onDone = null;
+    _onError = null;
     try {
       await _tts?.stop();
     } catch (_) {}

@@ -110,6 +110,9 @@ const pictureEdgeContrast = 4.5;
 const lightPictureInk = Color(0xFFF6F2EA);
 const darkPictureInk = Color(0xFF1C1A17);
 
+/// Pictures are measured this many pixels wide.
+const pictureMeasureWidth = 128;
+
 typedef _Rgb = (double, double, double);
 
 double _lin(double c) => c <= 0.04045 ? c / 12.92 : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
@@ -128,9 +131,13 @@ double luminanceOf(Color c) => _lum(_rgbOf(c));
 /// as [rgba] ([width] × [height], already cropped to what the screen shows)
 /// is measured in 11 bands from top to bottom, where the shade's stops are.
 /// Light ink goes on a shade of the picture's own darkest hue, dark ink on
-/// a light veil, whichever leaves more of the picture to see; each band is
-/// shaded just enough for the text to keep its contrast over the brightest
-/// (or darkest) tenth of that band. Text shadows cover the rest.
+/// a light veil, whichever leaves more of the picture to see. Each band is
+/// shaded just enough for every colour of text on it to keep its contrast
+/// over all but the brightest (or darkest) 3 % of that band: body text 7:1
+/// in the middle of the screen and 4.5:1 at the edges; softer text (the
+/// chapter, a track's artist, labels) and emphasis 4.5:1 everywhere. A stop
+/// is shaded as much as its neighbours need too, since the shade between two
+/// stops is a blend of both. Text shadows cover the rest.
 ScenePalette paletteForPixels(Uint8List rgba, int width, int height) {
   const stops = 11;
   final bands = List.generate(stops, (_) => <(_Rgb, double)>[]);
@@ -150,69 +157,86 @@ ScenePalette paletteForPixels(Uint8List rgba, int width, int height) {
   final average = HSLColor.fromColor(_colorOf((r / n, g / n, b / n)));
   final hue = average.hue;
   final saturation = average.saturation;
-  // Tenth-brightest and tenth-darkest pixel of each band (the band's own neighbours if empty).
   _Rgb percentile(List<(_Rgb, double)> px, double p) {
     final sorted = [...px]..sort((a, b) => a.$2.compareTo(b.$2));
     return sorted[((sorted.length - 1) * p).round()].$1;
   }
 
   final filled = [for (var k = 0; k < stops; k++) bands[k].isNotEmpty ? bands[k] : bands.firstWhere((x) => x.isNotEmpty, orElse: () => [((0.5, 0.5, 0.5), 0.21)])];
-  final bright = [for (final px in filled) percentile(px, 0.9)];
-  final dark = [for (final px in filled) percentile(px, 0.1)];
+  final bright = [for (final px in filled) percentile(px, 0.97)];
+  final dark = [for (final px in filled) percentile(px, 0.03)];
   double target(int k) => k >= 2 && k <= 8 ? pictureBodyContrast : pictureEdgeContrast;
-
-  // The least shade (between [min] and 0.9) that gives [ink] its contrast over [worst].
-  double alphaFor(_Rgb worst, _Rgb tint, double inkLum, double goal, {required bool light, required double min}) {
-    bool ok(double a) {
-      final bg = _lum(_mix(worst, tint, a));
-      return (light ? bg < inkLum : bg > inkLum) && contrastRatio(inkLum, bg) >= goal;
-    }
-
-    const max = 0.9;
-    if (ok(min)) return min;
-    if (!ok(max)) return max;
-    var lo = min, hi = max;
-    for (var i = 0; i < 14; i++) {
-      final mid = (lo + hi) / 2;
-      ok(mid) ? hi = mid : lo = mid;
-    }
-    return hi;
-  }
 
   final shadeTint = _rgbOf(HSLColor.fromAHSL(1, hue, math.min(saturation, 0.45), 0.07).toColor());
   final veilTint = _rgbOf(HSLColor.fromAHSL(1, hue, math.min(saturation, 0.3), 0.95).toColor());
-  final lightLum = luminanceOf(lightPictureInk), darkLum = luminanceOf(darkPictureInk);
-  final shade = [for (var k = 0; k < stops; k++) alphaFor(bright[k], shadeTint, lightLum, target(k), light: true, min: 0.16)];
-  final veil = [for (var k = 0; k < stops; k++) alphaFor(dark[k], veilTint, darkLum, target(k), light: false, min: 0.1)];
-  // The lighter touch wins (the body bands count double); ties go to light text.
+
+  // Each band's least shade (between [min] and 0.9) for: [ink] at its
+  // target, [ink] softened to [soft] opacity and [emphasis] at 4.5:1, over
+  // [worst]. Where even 0.9 isn't enough, 0.9.
+  List<double> shadeFor({required List<_Rgb> worst, required _Rgb tint, required _Rgb ink, required Color emphasis, required double soft, required bool light, required double min}) {
+    final inkLum = _lum(ink), emphasisLum = luminanceOf(emphasis), emphasisRgb = _rgbOf(emphasis);
+    const max = 0.9;
+    double least(bool Function(double a) ok) {
+      if (ok(min)) return min;
+      if (!ok(max)) return max;
+      var lo = min, hi = max;
+      for (var i = 0; i < 14; i++) {
+        final mid = (lo + hi) / 2;
+        ok(mid) ? hi = mid : lo = mid;
+      }
+      return hi;
+    }
+
+    bool clear(double textLum, double bg, double goal) => (light ? bg < textLum : bg > textLum) && contrastRatio(textLum, bg) >= goal;
+    final need = [
+      for (var k = 0; k < stops; k++)
+        least((a) {
+          final bg = _mix(worst[k], tint, a);
+          final bgLum = _lum(bg);
+          return clear(inkLum, bgLum, target(k)) &&
+              clear(_lum(_mix(bg, ink, soft)), bgLum, pictureEdgeContrast) &&
+              // Emphasis is checked as if it were the ink's own side of the background.
+              (emphasisRgb == ink || clear(emphasisLum, bgLum, pictureEdgeContrast));
+        }),
+    ];
+    return [
+      for (var k = 0; k < stops; k++) [need[k], if (k > 0) need[k - 1], if (k < stops - 1) need[k + 1]].reduce(math.max),
+    ];
+  }
+
+  // Each way of writing on the picture, in full: light text on a shade or
+  // dark text on a veil, with its emphasis (the picture's own hue, light on
+  // dark or deep on light; where even the most shade isn't enough for it,
+  // it moves towards the ink).
+  (List<double>, Color) option({required bool light}) {
+    final tint = light ? shadeTint : veilTint;
+    final ink = light ? lightPictureInk : darkPictureInk;
+    final worst = light ? bright : dark;
+    var emphasis = saturation < 0.08
+        ? (light ? const Color(0xFFFFE3A3) : const Color(0xFF5B3A12))
+        : HSLColor.fromAHSL(1, hue, saturation.clamp(0.35, 0.7), light ? 0.8 : 0.27).toColor();
+    List<double> levelsFor(Color e) => shadeFor(
+        worst: worst, tint: tint, ink: _rgbOf(ink), emphasis: e, soft: light ? lightSoftText : darkSoftText, light: light, min: light ? 0.16 : 0.1);
+    var levels = levelsFor(emphasis);
+    bool short() => [
+          for (var k = 0; k < stops; k++) contrastRatio(luminanceOf(emphasis), _lum(_mix(worst[k], tint, levels[k]))) < pictureEdgeContrast,
+        ].any((x) => x);
+    for (var i = 0; i < 5 && short(); i++) {
+      emphasis = _colorOf(_mix(_rgbOf(emphasis), _rgbOf(ink), 0.35));
+      levels = levelsFor(emphasis);
+    }
+    return (levels, emphasis);
+  }
+
+  // The lighter touch wins (the body bands count double), but a dark shade
+  // keeps a picture's mood where a light veil washes it out: dark text only
+  // where its veil is clearly lighter.
   double weight(List<double> a) => [for (var k = 0; k < stops; k++) a[k] * (k >= 2 && k <= 8 ? 2 : 1)].reduce((x, y) => x + y);
-  final lightInk = weight(shade) <= weight(veil) + 0.3;
+  final onShade = option(light: true), onVeil = option(light: false);
+  final lightInk = weight(onShade.$1) <= weight(onVeil.$1) + 1.5;
+  final (levels, emphasis) = lightInk ? onShade : onVeil;
   final tint = lightInk ? shadeTint : veilTint;
   final ink = lightInk ? lightPictureInk : darkPictureInk;
-  final worst = lightInk ? bright : dark;
-
-  // Emphasis (also labels and active controls, at the edges): the picture's
-  // own hue, light on dark or deep on light. Each band is shaded enough for
-  // it too to keep 4.5:1; where even the most shade isn't enough, it moves
-  // towards the ink.
-  var emphasis = saturation < 0.08
-      ? (lightInk ? const Color(0xFFFFE3A3) : const Color(0xFF5B3A12))
-      : HSLColor.fromAHSL(1, hue, saturation.clamp(0.35, 0.7), lightInk ? 0.8 : 0.27).toColor();
-  List<double> alphas() => [
-        for (var k = 0; k < stops; k++)
-          math.max(
-            lightInk ? shade[k] : veil[k],
-            alphaFor(worst[k], tint, luminanceOf(emphasis), pictureEdgeContrast, light: lightInk, min: lightInk ? 0.16 : 0.1),
-          ),
-      ];
-  var levels = alphas();
-  bool short() => [
-        for (var k = 0; k < stops; k++) contrastRatio(luminanceOf(emphasis), _lum(_mix(worst[k], tint, levels[k]))) < pictureEdgeContrast,
-      ].any((x) => x);
-  for (var i = 0; i < 5 && short(); i++) {
-    emphasis = _colorOf(_mix(_rgbOf(emphasis), _rgbOf(ink), 0.35));
-    levels = alphas();
-  }
   return ScenePalette(
     ink: ink,
     emphasis: emphasis,
@@ -232,7 +256,7 @@ Future<PictureLook> lookForPicture(AssetBundle bundle, String asset, double aspe
   final buffer = await ui.ImmutableBuffer.fromUint8List(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
   final descriptor = await ui.ImageDescriptor.encoded(buffer);
   final size = Size(descriptor.width.toDouble(), descriptor.height.toDouble());
-  final codec = await descriptor.instantiateCodec(targetWidth: math.min(64, descriptor.width));
+  final codec = await descriptor.instantiateCodec(targetWidth: math.min(pictureMeasureWidth, descriptor.width));
   final frame = await codec.getNextFrame();
   final image = frame.image;
   final bytes = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;

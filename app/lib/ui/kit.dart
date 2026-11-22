@@ -65,7 +65,9 @@ class Kit extends ThemeExtension<Kit> {
       dark: dark,
       motion: motion,
       ink: k.ink,
-      inkSoft: k.inkSoft,
+      // Softer text over a picture or scene is a little stronger than on a
+      // plain page: the shade behind it keeps 4.5:1, not the page's 7:1.
+      inkSoft: p == null ? k.inkSoft : (dark ? const Color(0xFFC8C8C8) : const Color(0xFF454545)),
       accent: k.accent,
       onAccent: k.onAccent,
       // Panels that sit on the scene stay see-through.

@@ -19,9 +19,23 @@ class SilentPlayer implements TrackPlayer {
   bool playing = false;
   bool disposed = false;
   VoidCallback? complete;
+  VoidCallback? error;
 
   @override
   set onComplete(VoidCallback? callback) => complete = callback;
+
+  @override
+  set onError(VoidCallback? callback) => error = callback;
+
+  /// Something outside the app paused it (as a call or another app can).
+  void pausedOutside() => playing = false;
+
+  /// The track stopped on an error.
+  void fail() {
+    playing = false;
+    log.add('error');
+    error?.call();
+  }
 
   @override
   Future<void> load(String asset, {required bool loop}) async {
@@ -33,8 +47,10 @@ class SilentPlayer implements TrackPlayer {
   @override
   Future<void> setVolume(double volume) async => this.volume = volume;
 
+  /// Like the real player: play while playing does nothing.
   @override
   Future<void> play() async {
+    if (playing) return;
     playing = true;
     log.add('play');
   }

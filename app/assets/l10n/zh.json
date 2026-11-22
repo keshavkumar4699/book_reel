@@ -741,5 +741,9 @@
  "{count} streak": "连续 {count}",
  "{title} by {author}": "《{title}》，{author} 著",
  "finished": "已读完",
- "{percent}% read": "已读 {percent}%"
+ "{percent}% read": "已读 {percent}%",
+ "Couldn’t read this aloud": "无法朗读这一段",
+ "Nothing to read yet": "还没有可读的书",
+ "Pick a book from your Library and it opens here.": "从书库里选一本书，它会在这里打开。",
+ "Open Library": "打开书库"
 }

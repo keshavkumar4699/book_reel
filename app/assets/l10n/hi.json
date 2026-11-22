@@ -767,5 +767,9 @@
  "{count} streak": "{count} की स्ट्रीक",
  "{title} by {author}": "{title}, {author} द्वारा",
  "finished": "पूरी हुई",
- "{percent}% read": "{percent}% पढ़ी"
+ "{percent}% read": "{percent}% पढ़ी",
+ "Couldn’t read this aloud": "इसे पढ़कर नहीं सुनाया जा सका",
+ "Nothing to read yet": "अभी पढ़ने को कुछ नहीं है",
+ "Pick a book from your Library and it opens here.": "अपनी लाइब्रेरी से कोई किताब चुनें, वह यहाँ खुलेगी।",
+ "Open Library": "लाइब्रेरी खोलें"
 }

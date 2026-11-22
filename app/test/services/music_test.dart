@@ -137,6 +137,108 @@ void main() {
     expect(players.last.disposed, isTrue);
     expect(c.read(musicProvider).playing, isFalse);
   });
+
+  test('switching music off in Settings stops the open book’s music; on, it plays', () async {
+    final music = c.read(musicProvider.notifier);
+    await music.start(Object());
+    await music.hold(); // Settings is open over the book
+    c.read(settingsProvider.notifier).update((s) => s.copyWith(music: false));
+    await pumpEventQueue();
+    expect(c.read(musicProvider).playing, isFalse);
+    await music.release(); // back to the book
+    expect(players.single.playing, isFalse, reason: 'it stays off');
+    c.read(settingsProvider.notifier).update((s) => s.copyWith(music: true));
+    await pumpEventQueue();
+    expect((c.read(musicProvider).playing, players.single.playing), (true, true));
+  });
+
+  test('back in sight without having gone (the notification shade): no fade in again', () async {
+    MusicPlayer.fade = const Duration(milliseconds: 600);
+    addTearDown(() => MusicPlayer.fade = Duration.zero);
+    final music = c.read(musicProvider.notifier);
+    await music.start(Object());
+    await Future<void>.delayed(const Duration(milliseconds: 700)); // faded in
+    expect(players.single.volume, 0.5);
+    await music.release();
+    expect(players.single.volume, 0.5, reason: 'no dip to silence');
+    expect(players.single.playing, isTrue);
+  });
+
+  test('a book opened after leaving the reader plays: the hold isn’t carried over', () async {
+    final music = c.read(musicProvider.notifier);
+    final first = Object(), second = Object(), third = Object();
+    await music.start(first);
+    await music.hold(); // another tab
+    // A book picked in the Library opens in the Reading tab as it comes back into sight.
+    await music.start(second);
+    expect(c.read(musicProvider).playing, isTrue);
+    expect(players.last.playing, isTrue, reason: 'heard, not just shown as playing');
+    await music.stop(first); // the old reader goes after the new one started
+    expect(players.last.playing, isTrue);
+
+    // A book that opens out of sight waits, then plays once it's shown.
+    await music.start(third, visible: false);
+    expect(players.last.playing, isFalse);
+    expect(c.read(musicProvider).playing, isTrue, reason: 'the button shows it will play');
+    await music.release();
+    expect(players.last.playing, isTrue);
+  });
+
+  test('a new book’s track is never the last book’s, even for a moment', () async {
+    final music = c.read(musicProvider.notifier);
+    await music.start(Object());
+    await music.hold();
+    log.clear();
+    MusicPlayer.random = _Fixed(2);
+    final opening = music.start(Object(), visible: false);
+    await music.release(); // in sight before the new track is ready
+    expect(log, isEmpty, reason: 'the last book’s track stays silent');
+    await opening;
+    expect(log, ['load assets/sounds/music/c.mp3', 'play']);
+  });
+
+  test('a book isn’t quieter because the last one was being read aloud', () async {
+    final music = c.read(musicProvider.notifier);
+    await music.start(Object());
+    await music.duck(true);
+    await music.start(Object());
+    expect(players.last.volume, 0.5);
+  });
+
+  test('after read-aloud the music is back up, and playing, whatever paused it meanwhile', () async {
+    final music = c.read(musicProvider.notifier);
+    await music.start(Object());
+    await music.duck(true);
+    expect(players.single.volume, closeTo(0.15, 1e-9));
+    players.single.pausedOutside();
+    await music.duck(false);
+    expect(players.single.playing, isTrue);
+    expect(players.single.volume, 0.5);
+    // Paused by the reader, it stays paused.
+    await music.toggle();
+    await music.duck(true);
+    await music.duck(false);
+    expect(players.single.playing, isFalse);
+  });
+
+  test('a track that stops on an error plays again, then the next; after a few, the music shows paused', () async {
+    final music = c.read(musicProvider.notifier);
+    await music.start(Object());
+    expect(c.read(musicProvider).track!.title, 'A');
+    players.single.fail();
+    await pumpEventQueue();
+    expect((c.read(musicProvider).track!.title, players.single.playing), ('A', true), reason: 'loaded again');
+    players.single.fail();
+    await pumpEventQueue();
+    expect((c.read(musicProvider).track!.title, players.single.playing), ('B', true), reason: 'then the next');
+    players.single.fail();
+    await pumpEventQueue();
+    players.single.fail();
+    await pumpEventQueue();
+    expect(c.read(musicProvider).playing, isFalse, reason: 'no endless retries');
+    await music.toggle();
+    expect(players.single.playing, isTrue, reason: 'play is a tap away');
+  });
 }
 
 class _Fixed extends FirstPick {

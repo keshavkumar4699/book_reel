@@ -767,5 +767,9 @@
  "{count} streak": "Sequência de {count}",
  "{title} by {author}": "{title}, de {author}",
  "finished": "concluído",
- "{percent}% read": "{percent}% lido"
+ "{percent}% read": "{percent}% lido",
+ "Couldn’t read this aloud": "Não foi possível ler em voz alta",
+ "Nothing to read yet": "Ainda não há nada para ler",
+ "Pick a book from your Library and it opens here.": "Escolha um livro na sua Biblioteca e ele abre aqui.",
+ "Open Library": "Abrir a Biblioteca"
 }

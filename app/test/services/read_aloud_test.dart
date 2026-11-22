@@ -7,66 +7,13 @@ import 'package:book_reel/data/settings.dart';
 import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
 import 'package:book_reel/services/local_voice.dart';
-import 'package:book_reel/services/on_device_ai.dart' show LocalCancel;
 import 'package:book_reel/services/read_aloud.dart';
 import 'package:book_reel/services/tts.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../data/fake_server.dart';
-
-class FakeSpeechPlayer implements SpeechPlayer {
-  final played = <String>[];
-  final _done = StreamController<void>.broadcast();
-  bool stopped = false;
-
-  void finish() => _done.add(null);
-
-  @override
-  Stream<void> get completed => _done.stream;
-  @override
-  Future<void> playFile(String path) async => played.add(path);
-  @override
-  Future<void> stop() async => stopped = true;
-  @override
-  Future<void> dispose() async => _done.close();
-}
-
-/// The voice on the phone, without the model: it "speaks" into a small file.
-class FakeLocalEngine implements LocalSpeechEngine {
-  final spoken = <String>[];
-  Object? failWith;
-
-  @override
-  Future<void> synthesize({required String text, required int speaker, required double speed, required String path}) async {
-    if (failWith != null) throw failWith!;
-    spoken.add(text);
-    File(path).writeAsStringSync('RIFF $speaker $speed $text');
-  }
-
-  @override
-  Future<void> close() async {}
-}
-
-/// A voice on the phone that takes its time: nothing is made until [gate] opens.
-class GatedLocalEngine extends FakeLocalEngine {
-  final gate = Completer<void>();
-
-  @override
-  Future<void> synthesize({required String text, required int speaker, required double speed, required String path}) async {
-    await gate.future;
-    return super.synthesize(text: text, speaker: speaker, speed: speed, path: path);
-  }
-}
-
-class InstalledVoice implements LocalVoiceInstaller {
-  @override
-  Future<bool> isInstalled(Directory dir) async => true;
-  @override
-  Future<void> install(Directory dir,
-      {required void Function(int percent) onProgress, required VoidCallback onUnpacking, required LocalCancel cancel}) async {}
-}
+import '../fake_voice.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -277,5 +224,60 @@ void main() {
     expect(c.read(localVoiceProvider).message, contains('did not load'));
     expect(server.speechRequests.single['text'], 'Down the rabbit hole.');
     expect(read.localActive, isFalse);
+  });
+
+  test('audio that won’t play ends the passage: the file is dropped, that voice rests, the listener is told', () async {
+    final engine = FakeLocalEngine();
+    LocalVoiceController.installer = InstalledVoice();
+    LocalVoiceController.root = () async => dir;
+    LocalSpeech.factory = (_) => engine;
+    c.read(localVoiceProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    final read = c.read(readAloudProvider);
+    final stops = <SpeechStopped>[];
+    var done = 0;
+    await read.speak('Down the rabbit hole. Curiouser and curiouser!', onDone: () => done++, onStopped: stops.add);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final file = File(player.played.single);
+    expect(file.existsSync(), isTrue);
+    player.fail();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(stops, [SpeechStopped.failed]);
+    expect(file.existsSync(), isFalse, reason: 'made again next time, not played broken again');
+    expect(read.localActive, isFalse, reason: 'the voice on the phone rests a while');
+    player.finish(); // nothing else was waiting on it
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(done, 0);
+    expect(player.played, hasLength(1));
+  });
+
+  test('a word said over a passage stops it and tells its listener; stop and the next passage don’t', () async {
+    final read = c.read(readAloudProvider);
+    final stops = <String>[];
+    await read.speak('Down the rabbit hole.', onDone: () {}, onStopped: (why) => stops.add('first ${why.name}'));
+    await read.speak('Curiouser and curiouser!', onDone: () {}, onStopped: (why) => stops.add('second ${why.name}'));
+    await read.stop();
+    expect(stops, isEmpty, reason: 'moving on, or stopping, is the listener’s own doing');
+    await read.speak('Down the rabbit hole.', onDone: () {}, onStopped: (why) => stops.add('third ${why.name}'));
+    await read.sayWord('rabbit');
+    expect(stops, ['third interrupted']);
+    expect(player.stopped, isTrue);
+    await read.sample('A voice’s sample.');
+    expect(stops, ['third interrupted'], reason: 'told once');
+  });
+
+  test('the voice on the phone never leaves a half-made file to be taken for a finished one', () async {
+    final engine = FakeLocalEngine();
+    LocalVoiceController.installer = InstalledVoice();
+    LocalVoiceController.root = () async => dir;
+    LocalSpeech.factory = (_) => engine;
+    c.read(localVoiceProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    final read = c.read(readAloudProvider);
+    await read.speak('Down the rabbit hole.', onDone: () {});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final names = Directory('${dir.path}/speech').listSync().map((f) => f.path.split('/').last).toList();
+    expect(names.where((n) => n.endsWith('.wav')), hasLength(1));
+    expect(names.where((n) => n.endsWith('.part')), isEmpty);
   });
 }
