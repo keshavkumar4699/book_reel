@@ -58,7 +58,7 @@ void main() {
     expect(find.text('Swipe up to begin'), findsOneWidget);
 
     // Music plays from the first page, for free users too: until you add your own, a calm loop.
-    expect(sounds, ['load assets/sounds/rain.ogg (loop)', 'play']);
+    expect(sounds, ['load assets/sounds/Artist - First.mp3', 'play']);
     expect(container.read(musicProvider).playing, isTrue);
 
     // First run shows the gesture guide once.
@@ -79,7 +79,7 @@ void main() {
     for (final o in ['Background', 'Music', 'Contents', 'Page mode', 'Daily goal', 'Gestures', 'Settings', 'This cut feels wrong']) {
       expect(find.text(o), findsOneWidget, reason: o);
     }
-    expect(find.widgetWithText(KitSwitchRow, 'Rain on the window'), findsOneWidget, reason: 'what is playing');
+    expect(find.widgetWithText(KitSwitchRow, 'First · Artist'), findsOneWidget, reason: 'what is playing');
     await tester.tap(find.text('Music'));
     await tester.pump();
     await tester.pump();

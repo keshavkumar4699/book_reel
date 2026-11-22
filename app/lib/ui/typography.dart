@@ -50,8 +50,8 @@ void registerFontLicenses() {
     for (final font in bundledFonts.entries) {
       yield LicenseEntryWithLineBreaks(['${font.value} (font)'], await rootBundle.loadString('assets/fonts/OFL-${font.key}.txt'));
     }
-    // Several recordings are CC BY and must be credited.
-    yield LicenseEntryWithLineBreaks(['Scene sounds'], await rootBundle.loadString('assets/sounds/CREDITS.md'));
+    // The music asks for credit.
+    yield LicenseEntryWithLineBreaks(['Music'], await rootBundle.loadString('assets/sounds/CREDITS.md'));
     // The natural voice on the phone (sherpa-onnx's own licence is listed with the packages).
     yield LicenseEntryWithLineBreaks(['ONNX Runtime (on-device voice)'], await rootBundle.loadString('assets/licences/onnxruntime-MIT.txt'));
     yield LicenseEntryWithLineBreaks(

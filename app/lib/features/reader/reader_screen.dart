@@ -793,7 +793,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
             KitSwitchRow(
               icon: s.music ? Icons.music_note_rounded : Icons.music_off_rounded,
               title: 'Music',
-              subtitle: track?.title,
+              subtitle: track?.label,
               value: s.music,
               onChanged: (_) => _toggleMusic(),
             ),
@@ -1272,7 +1272,7 @@ class _TrackName extends ConsumerWidget {
       Icon(Icons.music_note_rounded, size: 13, color: color.withValues(alpha: 0.85), shadows: shadows),
       const SizedBox(width: 3),
       Flexible(
-        child: Text(track.title,
+        child: Text(track.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: color.withValues(alpha: 0.85), fontSize: 12.5, fontWeight: FontWeight.w600, shadows: shadows)),

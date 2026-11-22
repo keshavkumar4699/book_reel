@@ -45,17 +45,18 @@ void main() {
     if (dir.existsSync()) dir.deleteSync(recursive: true);
   });
 
-  test('your own tracks replace the ambient loops; names read as words', () {
-    expect(tracksFrom(['assets/sounds/rain.ogg', 'assets/sounds/music/README.md']), ambientTracks);
+  test('every track in the sounds folders is music; names read as words', () {
+    expect(tracksFrom(['assets/sounds/CREDITS.md', 'assets/sounds/music/README.md']), isEmpty);
     final tracks = tracksFrom([
       'assets/sounds/music/02_Gymnopedie.ogg',
       'assets/sounds/music/01 - Clair_de_lune.mp3',
       'assets/sounds/music/notes.txt',
-      'assets/sounds/rain.ogg',
+      'assets/sounds/Lukrembo - Jay (freetouse.com).mp3',
+      'assets/sounds/massobeats - daydream (freetouse.com).mp3',
+      'assets/other/elsewhere.mp3',
     ]);
-    expect(tracks.map((t) => t.title), ['Clair de lune', 'Gymnopedie']);
+    expect(tracks.map((t) => t.label), ['Clair de lune', 'Gymnopedie', 'Jay · Lukrembo', 'Daydream · massobeats']);
     expect(tracks.every((t) => !t.loop), isTrue, reason: 'music plays through, then the next');
-    expect(ambientTracks.every((t) => t.loop), isTrue, reason: 'ambient loops repeat');
   });
 
   test('a book opens on a random track; previous and next wrap around; pause and play', () async {
@@ -89,9 +90,9 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(c.read(musicProvider).track!.title, 'B');
 
-    final ambient = await container(tracks: ambientTracks);
-    addTearDown(ambient.dispose);
-    await ambient.read(musicProvider.notifier).start(Object());
+    final looping = await container(tracks: const [Track('assets/sounds/rain.ogg', 'Rain', loop: true)]);
+    addTearDown(looping.dispose);
+    await looping.read(musicProvider.notifier).start(Object());
     expect(players.last.loop, isTrue);
   });
 

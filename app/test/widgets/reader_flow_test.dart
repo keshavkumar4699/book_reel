@@ -142,7 +142,7 @@ void main() {
     final (c, _) = await open(tester);
     Kit kit() => Kit.of(tester.element(find.byType(PageView)));
     expect(kit().backdrop, const Backdrop.scene(Vibe.meadow), reason: 'no pictures added yet: a painted scene');
-    expect(c.read(musicProvider).track!.title, 'Rain on the window');
+    expect(c.read(musicProvider).track!.label, 'First · Artist');
 
     // A tap shows the controls: the chapter, the music, and every picture in a row.
     await tester.tapAt(const Offset(30, 420));
@@ -161,7 +161,7 @@ void main() {
 
     await tester.tap(find.bySemanticsLabel('Next track'));
     await tester.pump();
-    expect(c.read(musicProvider).track!.title, 'Café murmur');
+    expect(c.read(musicProvider).track!.label, 'Second · Artist');
     await tester.tap(find.bySemanticsLabel('Pause music'));
     await tester.pump();
     expect(c.read(musicProvider).playing, isFalse);
@@ -170,7 +170,7 @@ void main() {
     expect(c.read(musicProvider).playing, isTrue);
     await tester.tap(find.bySemanticsLabel('Previous track'));
     await tester.pump();
-    expect(c.read(musicProvider).track!.title, 'Rain on the window');
+    expect(c.read(musicProvider).track!.label, 'First · Artist');
 
     // Plain, at the end of the row (scroll it along): the reading theme's own page.
     await tester.drag(find.byType(BackdropStrip), const Offset(-400, 0));

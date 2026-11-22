@@ -6,19 +6,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/app_assets.dart';
 import '../data/settings.dart';
 import 'kit.dart';
 import 'vibes.dart';
 
-/// Your own background pictures go here (JPG, PNG or WebP). The folder is
-/// listed in pubspec.yaml; until it has pictures, the painted scenes are used.
+/// Background pictures (JPG, PNG or WebP) are every picture in these folders
+/// (both listed in pubspec.yaml), the app's logo files excepted. A picture
+/// added to either is in the next build; until there are any, the painted
+/// scenes are used.
+const pictureDirs = ['assets/images/', 'assets/images/backgrounds/'];
 const backgroundsDir = 'assets/images/backgrounds/';
 
 final _pictureFile = RegExp(r'\.(jpe?g|png|webp)$', caseSensitive: false);
 
-/// The pictures among [assets], in name order.
-List<String> picturesIn(Iterable<String> assets) =>
-    [for (final a in assets) if (a.startsWith(backgroundsDir) && _pictureFile.hasMatch(a)) a]..sort();
+/// The pictures among [assets], by file name.
+List<String> picturesIn(Iterable<String> assets) => [
+      for (final a in assets)
+        if (_pictureFile.hasMatch(a) && pictureDirs.contains(a.substring(0, a.lastIndexOf('/') + 1)) && !_isLogo(a)) a,
+    ]..sort((a, b) => a.split('/').last.toLowerCase().compareTo(b.split('/').last.toLowerCase()));
+
+bool _isLogo(String asset) => asset.split('/').last.toLowerCase().startsWith('logo');
 
 /// What the reels sit on: one of your own pictures, a painted scene (until
 /// you add pictures), or Paper, the plain page.
@@ -66,10 +74,7 @@ List<Backdrop> backdropsFrom(Iterable<String> assets) {
       : [for (final v in [...dayScenes, ...nightScenes]) Backdrop.scene(v)];
 }
 
-final backdropsProvider = FutureProvider<List<Backdrop>>((ref) async {
-  final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-  return backdropsFrom(manifest.listAssets());
-});
+final backdropsProvider = FutureProvider<List<Backdrop>>((ref) async => backdropsFrom(await AppAssets.list()));
 
 /// Picks each book's first picture (tests make it predictable).
 math.Random backdropRandom = math.Random();

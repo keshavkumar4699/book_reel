@@ -1,7 +1,8 @@
 # Your background pictures
 
-Put the pictures you want behind your reels in this folder, then build the
-app again. Each book opens on one of them at random, and while reading you
+Put the pictures you want behind your reels in this folder, or straight in
+`assets/images/` (any picture there except the `logo_*` files), then build
+the app again. Each book opens on one of them at random, and while reading you
 can tap the screen and pick another from the row at the top.
 
 - **Formats:** JPG, PNG or WebP.

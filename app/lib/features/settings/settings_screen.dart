@@ -490,14 +490,13 @@ class MusicSettings extends ConsumerWidget {
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
     final tracks = ref.watch(tracksProvider).value ?? const <Track>[];
-    final own = tracks.where((t) => !t.loop).length;
+    final own = tracks.length;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Text(
         own > 0
             ? 'Each book starts one of your $own track${own == 1 ? '' : 's'} at random, then plays on through them. '
-                'While reading, tap the screen for previous, pause and next.'
-            : 'Each book starts one of the calm sound loops (rain, café, surf…) at random. '
-                'While reading, tap the screen for previous, pause and next. Music added to the app’s music folder replaces the loops.',
+                'While reading, tap the screen for previous, pause and next at the bottom.'
+            : 'There’s no music in the app yet: tracks added to its sounds folder play while you read.',
         style: kit.caption,
       ),
       const SizedBox(height: 12),

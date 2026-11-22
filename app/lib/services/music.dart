@@ -2,29 +2,34 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../data/app_assets.dart';
 import '../data/settings.dart';
 import '../data/settings_provider.dart';
 
-/// Your own music goes here (MP3, M4A, AAC, OGG, Opus, WAV or FLAC). The
-/// folder is listed in pubspec.yaml; until it has tracks, the calm ambient
-/// loops play instead.
-const musicDir = 'assets/sounds/music/';
+/// Music is every track (MP3, M4A, AAC, OGG, Opus, WAV or FLAC) in these
+/// folders, both listed in pubspec.yaml: a track added to either is in the
+/// next build.
+const musicDirs = ['assets/sounds/', 'assets/sounds/music/'];
 
 final _musicFile = RegExp(r'\.(mp3|m4a|aac|ogg|oga|opus|wav|flac)$', caseSensitive: false);
 
-/// Something the player plays: one of your tracks (played through, then the
-/// next one), or an ambient loop (repeats until you skip it).
+/// One of your tracks: played through, then the next one.
 @immutable
 class Track {
-  const Track(this.asset, this.title, {this.loop = false});
+  const Track(this.asset, this.title, {this.artist, this.loop = false});
 
   final String asset;
   final String title;
+  final String? artist;
+
+  /// Repeats until skipped (none of the bundled music does).
   final bool loop;
+
+  /// "Jay · Lukrembo", or just the title.
+  String get label => artist == null ? title : '$title · $artist';
 
   @override
   bool operator ==(Object other) => other is Track && other.asset == asset;
@@ -36,36 +41,31 @@ class Track {
   String toString() => 'Track($asset)';
 }
 
-/// The ambient loops (assets/sounds; sources and licences in CREDITS.md).
-const ambientTracks = [
-  Track('assets/sounds/rain.ogg', 'Rain on the window', loop: true),
-  Track('assets/sounds/cafe.ogg', 'Café murmur', loop: true),
-  Track('assets/sounds/waves.ogg', 'Surf on the shore', loop: true),
-  Track('assets/sounds/birds.ogg', 'Morning birdsong', loop: true),
-  Track('assets/sounds/wind.ogg', 'Wind in the pines', loop: true),
-  Track('assets/sounds/fireplace.ogg', 'A fire in the cabin', loop: true),
-  Track('assets/sounds/crickets.ogg', 'Crickets at night', loop: true),
-  Track('assets/sounds/city.ogg', 'Distant city', loop: true),
-  Track('assets/sounds/brown-noise.ogg', 'Soft focus noise', loop: true),
-];
-
-/// A track's file name as words ("01 - Clair_de_lune.mp3" → "Clair de lune").
-String trackTitle(String asset) {
+/// A track from its file name: "Lukrembo - Jay (freetouse.com).mp3" is
+/// "Jay" by Lukrembo; "01 - Clair_de_lune.mp3" is "Clair de lune". A
+/// trailing note in brackets (where it came from) is left out.
+Track trackFromAsset(String asset) {
   var name = asset.split('/').last.replaceFirst(_musicFile, '');
-  name = name.replaceFirst(RegExp(r'^\d+\s*[-.)_]\s*'), '').replaceAll(RegExp(r'[_]+'), ' ').trim();
-  return name.isEmpty ? 'Track' : name[0].toUpperCase() + name.substring(1);
+  name = name.replaceAll('_', ' ').replaceFirst(RegExp(r'\s*[\(\[][^\)\]]*[\)\]]\s*$'), '');
+  name = name.replaceFirst(RegExp(r'^\d+\s*(?:[-.)]\s*|\s+)'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+  String cap(String x) => x.isEmpty ? x : x[0].toUpperCase() + x.substring(1);
+  final dash = name.indexOf(' - ');
+  if (dash > 0 && dash < name.length - 3) {
+    return Track(asset, cap(name.substring(dash + 3).trim()), artist: name.substring(0, dash).trim());
+  }
+  return Track(asset, name.isEmpty ? 'Track' : cap(name));
 }
 
-/// Your tracks in name order, or until there are any the ambient loops.
+/// Your tracks, by file name (none: no music).
 List<Track> tracksFrom(Iterable<String> assets) {
-  final mine = [for (final a in assets) if (a.startsWith(musicDir) && _musicFile.hasMatch(a)) a]..sort();
-  return mine.isNotEmpty ? [for (final a in mine) Track(a, trackTitle(a))] : ambientTracks;
+  final mine = [
+    for (final a in assets)
+      if (_musicFile.hasMatch(a) && musicDirs.contains(a.substring(0, a.lastIndexOf('/') + 1))) a,
+  ]..sort((a, b) => a.split('/').last.toLowerCase().compareTo(b.split('/').last.toLowerCase()));
+  return [for (final a in mine) trackFromAsset(a)];
 }
 
-final tracksProvider = FutureProvider<List<Track>>((ref) async {
-  final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-  return tracksFrom(manifest.listAssets());
-});
+final tracksProvider = FutureProvider<List<Track>>((ref) async => tracksFrom(await AppAssets.list()));
 
 /// One audio player, behind an interface so the logic is testable.
 abstract class TrackPlayer {

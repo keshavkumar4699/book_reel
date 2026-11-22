@@ -86,10 +86,10 @@ flutter:
   uses-material-design: true
 
   assets:
-    # The logo (made from assets/images/logo.png; Android icons in res/mipmap-*).
-    - assets/images/logo_512.png
-    - assets/images/logo_mark.png
-    # Your own background pictures (see the README in the folder).
+    # Every picture here is a background (the logo_* files excepted): add or
+    # remove pictures and the next build has them. The logo's source is in
+    # branding/ (Android icons in res/mipmap-*).
+    - assets/images/
     - assets/images/backgrounds/
     - assets/books/
     # The privacy policy and terms (also served by the server at /privacy and /terms).
@@ -98,8 +98,8 @@ flutter:
     - assets/licences/espeak-ng-GPL-3.0.txt
     - assets/licences/kokoro-Apache-2.0.txt
     - assets/licences/onnxruntime-MIT.txt
-    # Ambient loops (licences in assets/sounds/CREDITS.md), and your own music
-    # (see the README in the folder).
+    # Every track here plays while reading (credits in assets/sounds/CREDITS.md):
+    # add or remove music and the next build has it.
     - assets/sounds/
     - assets/sounds/music/
     - assets/lexicon/zipf.tsv.gz

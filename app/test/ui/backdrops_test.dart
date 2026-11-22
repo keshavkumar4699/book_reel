@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:book_reel/data/settings.dart';
+import 'package:book_reel/services/music.dart';
 import 'package:book_reel/ui/backdrops.dart';
 import 'package:book_reel/ui/vibes.dart';
 import 'package:flutter/material.dart';
@@ -62,15 +64,18 @@ void _expectReadable(Uint8List rgba, int w, int h, ScenePalette p, String what) 
 
 void main() {
   test('your pictures replace the painted scenes; names read as words', () {
-    expect(backdropsFrom(['assets/images/logo.png', 'assets/images/backgrounds/README.md']).map((b) => b.vibe),
+    expect(backdropsFrom(['assets/images/logo_512.png', 'assets/images/backgrounds/README.md']).map((b) => b.vibe),
         [...dayScenes, ...nightScenes], reason: 'no pictures yet: the scenes');
     final mine = backdropsFrom([
       'assets/images/backgrounds/lake_at_dawn.jpg',
       'assets/images/backgrounds/City-Night.WEBP',
       'assets/images/backgrounds/notes.txt',
       'assets/images/logo_512.png',
+      'assets/images/logo_mark.png',
+      'assets/images/night_calm.jpg',
+      'assets/images/icons/elsewhere.png',
     ]);
-    expect(mine.map((b) => b.label), ['City Night', 'Lake at dawn']);
+    expect(mine.map((b) => b.label), ['City Night', 'Lake at dawn', 'Night calm'], reason: 'both folders, logos left out, by name');
     expect(mine.every((b) => b.isPicture), isTrue);
     expect(Backdrop.paper.label, 'Plain');
     expect(const Backdrop.scene(Vibe.night).label, 'Night');
@@ -130,6 +135,24 @@ void main() {
     expect(sized, isA<AssetImage>(), reason: 'smaller than the screen needs: as it is');
     final big = sizedForScreen(const AssetImage('x'), const Size(6000, 4000), const Size(1080, 2340)) as ResizeImage;
     expect((big.width, big.height), (3510, 2340));
+  });
+
+  test('the app finds the pictures and music in its folders by itself', () async {
+    // What the build bundled, against what the folders hold on disk.
+    final bundled = (await AssetManifest.loadFromAssetBundle(rootBundle)).listAssets();
+    final onDisk = [
+      for (final dir in ['assets/images', 'assets/images/backgrounds'])
+        for (final f in Directory(dir).listSync().whereType<File>())
+          if (RegExp(r'\.(jpe?g|png|webp)$', caseSensitive: false).hasMatch(f.path) && !f.path.split('/').last.startsWith('logo'))
+            f.path.replaceAll('\\', '/'),
+    ]..sort();
+    expect([for (final b in backdropsFrom(bundled)) if (b.isPicture) b.asset!]..sort(), onDisk);
+    final tracks = [
+      for (final dir in ['assets/sounds', 'assets/sounds/music'])
+        for (final f in Directory(dir).listSync().whereType<File>())
+          if (RegExp(r'\.(mp3|m4a|aac|ogg|oga|opus|wav|flac)$', caseSensitive: false).hasMatch(f.path)) f.path.replaceAll('\\', '/'),
+    ]..sort();
+    expect([for (final t in tracksFrom(bundled)) t.asset]..sort(), tracks);
   });
 }
 

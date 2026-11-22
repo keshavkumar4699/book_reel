@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:book_reel/data/app_assets.dart';
 import 'package:book_reel/services/music.dart';
 import 'package:book_reel/ui/backdrops.dart';
 import 'package:flutter/foundation.dart';
@@ -62,10 +63,16 @@ class FirstPick implements math.Random {
   bool nextBool() => false;
 }
 
-/// Silent music, and books that open on the first picture and track.
+/// Two tracks and no pictures, whatever the app's own folders hold: tests
+/// don't change when music or pictures are added.
+const testAssets = ['assets/sounds/Artist - First.mp3', 'assets/sounds/Artist - Second.mp3'];
+
+/// Silent music, and books that open on the first picture (a painted scene)
+/// and the first track.
 void quietReader([List<String>? log]) {
   MusicPlayer.playerFactory = () => SilentPlayer(log ?? []);
   MusicPlayer.fade = Duration.zero;
   MusicPlayer.random = FirstPick();
   backdropRandom = FirstPick();
+  AppAssets.list = () async => testAssets;
 }
