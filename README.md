@@ -11,6 +11,7 @@ Read books as a feed of short "reel" cards: real pages from your EPUBs and PDFs,
 | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Phases, status, and the launch checklist |
 | [`docs/CLORO_PLAN.md`](docs/CLORO_PLAN.md) | The Cloro redesign (steps 1–9, all done) |
 | [`docs/PRODUCTION_PLAN.md`](docs/PRODUCTION_PLAN.md) | What's left for a production launch, in order |
+| [`docs/TRANSLATIONS.md`](docs/TRANSLATIONS.md) | The app's nine languages, and how to add or change text |
 | [`docs/DEPLOY.md`](docs/DEPLOY.md) | Deploying the server so it costs nothing until it has users (Cloud Run + Neon), release signing, error reporting and alerts |
 
 ## The app at a glance
@@ -36,6 +37,8 @@ Five tabs, icons only: **Reading · Library · Notebook · Journal · Profile**.
   - **This week** as a blue circle round each day, sized by the minutes read (tap a day for its figures); the **streak** calendar in GitHub's greens; **stats** for this month, this year or all time; trophies, books and saved quotes.
   - Find people by @username.
 - **Look.** Black, white and greys everywhere except the reader's picture, with two colours that carry meaning, Google Fit-style: **blue** for how much you read (minutes, progress) and **green** for keeping at it (streaks, goals met, books finished), on headline figures only. The logo red appears only on the logo, the streak flame, the liked heart and badges. Flat lists, with lines only between groups.
+- **Nine languages.** English, Chinese, Hindi, Spanish, Arabic (right to left), French, Bengali, Portuguese and Russian. The app follows the phone's language, or pick one in Settings → Language.
+- **Send feedback** from Settings → About: an idea or a problem, with an optional email for a reply.
 - **Vibration.** A tap you can feel when you choose, like, save, follow or finish something, tuned to what Android phones actually play. Settings → Vibration turns it off.
 
 ## Repository layout

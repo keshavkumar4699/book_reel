@@ -10,6 +10,7 @@ import 'package:book_reel/features/library/library_screen.dart';
 import 'package:book_reel/features/notebook/notebook_screen.dart';
 import 'package:book_reel/features/profile/profile_screen.dart';
 import 'package:book_reel/features/settings/settings_screen.dart';
+import 'package:book_reel/l10n/l10n.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -88,6 +89,22 @@ void main() {
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -1200));
       await tester.pump(const Duration(seconds: 1));
       expect(tester.takeException(), isNull);
+    });
+  }
+
+  // Longer languages (and other scripts) at a larger text size: nothing overflows.
+  for (final code in ['es', 'fr', 'ru', 'hi', 'ar', 'bn', 'pt', 'zh']) {
+    testWidgets('every main screen in ${languageFor(code).english} at 130% text: nothing overflows', (tester) async {
+      await tester.runAsync(() async => Strings.current = await Strings.load(code));
+      addTearDown(() => Strings.current = Strings('en', const {}));
+      expect(Strings.current.code, code);
+      for (final screen in screens.values) {
+        await open(tester, screen(), dark: false, textScale: 1.3);
+        expect(tester.takeException(), isNull);
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -1200));
+        await tester.pump(const Duration(seconds: 1));
+        expect(tester.takeException(), isNull);
+      }
     });
   }
 }

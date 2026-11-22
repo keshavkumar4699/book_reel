@@ -11,6 +11,7 @@ import 'package:book_reel/features/onboarding/onboarding_screen.dart';
 import 'package:book_reel/features/reader/reader_screen.dart';
 import 'package:book_reel/features/settings/settings_screen.dart';
 import 'package:book_reel/features/shell/home_shell.dart';
+import 'package:book_reel/l10n/l10n.dart';
 import 'package:book_reel/ui/backdrops.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/scenes.dart';
@@ -148,5 +149,51 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('Settings → Language: the app switches language at once, Arabic right to left, and back to the phone’s', (tester) async {
+    tallScreen(tester);
+    final router = GoRouter(initialLocation: '/settings', routes: [
+      GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
+    ]);
+    final app = ProviderContainer(overrides: [storeProvider.overrideWithValue(store), routerProvider.overrideWithValue(router)]);
+    addTearDown(app.dispose);
+    addTearDown(() => Strings.current = Strings('en', const {}));
+    await tester.pumpWidget(UncontrolledProviderScope(container: app, child: const BookReelApp()));
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsOneWidget);
+    Future<void> settleLanguage() async {
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.text('Language'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Español'));
+    await settleLanguage();
+    expect(app.read(settingsProvider).language, 'es');
+    expect(Strings.current.code, 'es');
+    expect(find.text('Ajustes'), findsOneWidget, reason: 'the page title, in Spanish');
+    expect(find.text('Idioma'), findsOneWidget);
+    expect(find.text('Español'), findsOneWidget, reason: 'the language row shows the choice in its own name');
+
+    // Arabic: right to left.
+    await tester.tap(find.text('Idioma'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('العربية'));
+    await settleLanguage();
+    expect(find.text('الإعدادات'), findsOneWidget);
+    expect(Directionality.of(tester.element(find.text('الإعدادات'))), TextDirection.rtl);
+
+    // The phone's language (English here) again.
+    await tester.tap(find.text('اللغة'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('لغة الهاتف'));
+    await settleLanguage();
+    expect(app.read(settingsProvider).language, '');
+    expect(find.text('Settings'), findsOneWidget);
   });
 }

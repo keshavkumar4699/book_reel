@@ -5,7 +5,10 @@ import 'package:book_reel/l10n/l10n.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-final _lit = RegExp(r"""r?'(?:\\.|[^'\\\n])*'|r?"(?:\\.|[^"\\\n])*\"""");
+// A Dart string literal in single or double quotes (raw or not).
+const _sq = r"r?'(?:\\.|[^'\\\n])*'";
+const _dq = r'r?"(?:\\.|[^"\\\n])*"';
+final _lit = RegExp('$_sq|$_dq');
 
 String _unquote(String group) {
   final out = StringBuffer();
@@ -26,7 +29,7 @@ String _unquote(String group) {
 
 /// Every text the app shows through tr/trn/tk, and lib/l10n/keys.dart.
 Map<String, String?> appKeys() {
-  const lits = r"""(?:(?:r?'(?:\\.|[^'\\\n])*'|r?"(?:\\.|[^"\\\n])*")\s*)+""";
+  const lits = '(?:(?:$_sq|$_dq)\\s*)+';
   final keys = <String, String?>{};
   for (final f in Directory('lib').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
     final src = f.readAsStringSync();
