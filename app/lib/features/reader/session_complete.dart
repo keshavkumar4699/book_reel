@@ -4,6 +4,7 @@ import '../../ui/kit.dart';
 import '../share/progress_shares.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
+import '../../l10n/l10n.dart';
 
 enum SessionChoice { keepReading, done, share }
 
@@ -43,18 +44,18 @@ Future<SessionChoice?> showSessionComplete(
                     const Spacer(),
                     Celebration(big: milestone != null),
                     const SizedBox(height: 12),
-                    Text(milestone != null ? '$milestone-day streak!' : 'Goal done', style: kit.display),
+                    Text(milestone != null ? tr('{n}-day streak!', {'n': milestone}) : tr('Goal done'), style: kit.display),
                     const SizedBox(height: 8),
-                    Text(['$cards cards', if (words > 0) '${compactCount(words)} words', '${minutes.round()} min'].join(' · '), style: kit.heading),
+                    Text([trn(cards, '{n} card', '{n} cards'), if (words > 0) tr('{count} words', {'count': compactCount(words)}), tr('{n} min', {'n': minutes.round()})].join(' · '), style: kit.heading),
                     const SizedBox(height: 4),
                     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       const Icon(Icons.local_fire_department_rounded, color: ember),
                       const SizedBox(width: 4),
-                      Text('$streak-day streak', style: kit.heading),
+                      Text(tr('{n}-day streak', {'n': streak}), style: kit.heading),
                     ]),
                     if (ideaOfTheDay != null) ...[
                       const SizedBox(height: 32),
-                      Text('YOUR IDEA OF THE DAY', style: kit.label),
+                      Text(tr('YOUR IDEA OF THE DAY'), style: kit.label),
                       const SizedBox(height: 10),
                       Text('“$ideaOfTheDay”',
                           textAlign: TextAlign.center,
@@ -70,7 +71,7 @@ Future<SessionChoice?> showSessionComplete(
                     Row(children: [
                       Expanded(
                         child: KitButton.secondary(
-                          label: 'Share',
+                          label: tr('Share'),
                           leading: const ShareArrowIcon(),
                           expand: true,
                           onPressed: () => Navigator.of(dialogContext).pop(SessionChoice.share),
@@ -79,14 +80,14 @@ Future<SessionChoice?> showSessionComplete(
                       const SizedBox(width: 12),
                       Expanded(
                         child: KitButton(
-                          label: 'Keep reading',
+                          label: tr('Keep reading'),
                           expand: true,
                           onPressed: () => Navigator.of(dialogContext).pop(SessionChoice.keepReading),
                         ),
                       ),
                     ]),
                     const SizedBox(height: 8),
-                    KitButton.ghost(label: 'Done for today', onPressed: () => Navigator.of(dialogContext).pop(SessionChoice.done)),
+                    KitButton.ghost(label: tr('Done for today'), onPressed: () => Navigator.of(dialogContext).pop(SessionChoice.done)),
                   ]),
                 ),
               ),

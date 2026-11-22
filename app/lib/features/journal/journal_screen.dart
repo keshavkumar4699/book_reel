@@ -13,6 +13,7 @@ import '../../ui/widgets.dart';
 import '../profile/profile_screen.dart';
 import '../reader/goal_setup_sheet.dart';
 import 'feed.dart';
+import '../../l10n/l10n.dart';
 
 /// Journal (Cloro plan §10; the tab was called Today), Strava-style: today's
 /// goal ring and streak, the book to continue (its progress drawn round its
@@ -35,9 +36,9 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
 
   String _greeting() {
     final h = DateTime.now().hour;
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (h < 12) return tr('Good morning');
+    if (h < 17) return tr('Good afternoon');
+    return tr('Good evening');
   }
 
   @override
@@ -65,16 +66,18 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
       dock: true,
       onRefresh: () => ref.refresh(journalFeedProvider.future),
       leading: const CloroLogo(size: 40),
-      title: 'Journal',
-      subtitle: settings.displayName == 'Reader' ? '${_greeting()} · a few calm minutes with a book' : '${_greeting()}, ${settings.displayName}',
+      title: tr('Journal'),
+      subtitle: settings.displayName == 'Reader'
+          ? tr('{greeting} · a few calm minutes with a book', {'greeting': _greeting()})
+          : tr('{greeting}, {name}', {'greeting': _greeting(), 'name': settings.displayName}),
       actions: [
         KitIconButton(
           icon: Icons.person_outline_rounded,
-          semanticLabel: 'Your profile',
+          semanticLabel: tr('Your profile'),
           onPressed: () => context.go('/profile'),
           child: ReaderAvatar(settings: settings, size: 40, ring: today.meets(goal)),
         ),
-        KitIconButton(icon: Icons.settings_rounded, semanticLabel: 'Settings', onPressed: () => context.push('/settings')),
+        KitIconButton(icon: Icons.settings_rounded, semanticLabel: tr('Settings'), onPressed: () => context.push('/settings')),
       ],
       children: [
         // Today's goal and streak, straight on the scene.
@@ -83,31 +86,31 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
             KitPressable(
               onTap: () => showGoalSheet(context),
-              semanticLabel: 'Daily goal: $value of ${goal.dailyTarget}. Change goal',
+              semanticLabel: tr('Daily goal: {done} of {goal}. Change goal', {'done': value, 'goal': goal.dailyTarget}),
               excludeSemantics: true,
               child: GoalRing(
                 progress: today.progress(goal),
                 label: '$value / ${goal.dailyTarget}',
-                sublabel: goal.unit == GoalUnit.cards ? 'cards today' : 'min today',
+                sublabel: goal.unit == GoalUnit.cards ? tr('cards today') : tr('min today'),
                 size: 132,
               ),
             ),
             Flexible(
               child: KitPressable(
                 onTap: () => showStreakSheet(context),
-                semanticLabel: '$streak ${weekly ? 'week' : 'day'} streak. Details',
+                semanticLabel: weekly ? tr('{n} week streak. Details', {'n': streak}) : tr('{n} day streak. Details', {'n': streak}),
                 excludeSemantics: true,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                   StreakBadge(days: streak, weekly: weekly),
                   const SizedBox(height: 6),
                   Text(
                     weekly
-                        ? '${notifier.activeDaysThisWeek()} of ${goal.weeklyDays} days this week'
-                        : '$freezes streak freeze${freezes == 1 ? '' : 's'} left',
+                        ? tr('{done} of {days} days this week', {'done': notifier.activeDaysThisWeek(), 'days': goal.weeklyDays})
+                        : trn(freezes, '{n} streak freeze left', '{n} streak freezes left'),
                     style: kit.caption,
                   ),
                   const SizedBox(height: 8),
-                  Text(today.meets(goal) ? 'Goal done ✓' : 'Tap to see your week',
+                  Text(today.meets(goal) ? tr('Goal done ✓') : tr('Tap to see your week'),
                       style: kit.strong.copyWith(fontSize: 14, color: today.meets(goal) ? kit.growth : kit.ink)),
                 ]),
               ),
@@ -130,13 +133,13 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                         text: '${(current.progress * 100).round()}%',
                         style: TextStyle(color: kit.activity, fontWeight: FontWeight.w800),
                       ),
-                      TextSpan(text: ' read · ~${_minutesLeft(current.wordCount, current.progress, habit.wpm)} min left'),
+                      TextSpan(text: tr(' read · ~{n} min left', {'n': _minutesLeft(current.wordCount, current.progress, habit.wpm)})),
                     ]),
                     style: kit.caption,
                   ),
                   const SizedBox(height: 18),
                   KitButton(
-                    label: 'Continue reading',
+                    label: tr('Continue reading'),
                     icon: Icons.play_arrow_rounded,
                     expand: true,
                     onPressed: () => context.go('/read/${current.id}'),
@@ -150,8 +153,8 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             padding: EdgeInsets.zero,
             child: KitRow(
               icon: Icons.auto_stories_rounded,
-              title: 'Pick a book to start',
-              subtitle: 'Import an EPUB or PDF, or try a classic.',
+              title: tr('Pick a book to start'),
+              subtitle: tr('Import an EPUB or PDF, or try a classic.'),
               onTap: () => context.go('/library'),
             ),
           ),
@@ -161,8 +164,8 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             padding: EdgeInsets.zero,
             child: KitRow(
               icon: Icons.style_rounded,
-              title: '$dueWords word${dueWords == 1 ? '' : 's'} to review',
-              subtitle: 'A quick review helps new words stick',
+              title: trn(dueWords, '{n} word to review', '{n} words to review'),
+              subtitle: tr('A quick review helps new words stick'),
               onTap: () => context.push('/review'),
             ),
           ),
@@ -173,8 +176,8 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             padding: EdgeInsets.zero,
             child: KitRow(
               icon: Icons.emoji_events_outlined,
-              title: 'This week’s league',
-              subtitle: 'Read alongside readers like you',
+              title: tr('This week’s league'),
+              subtitle: tr('Read alongside readers like you'),
               onTap: () => context.push('/friends'),
             ),
           ),
@@ -183,11 +186,11 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
         Padding(
           padding: const EdgeInsets.only(top: 4, bottom: 8),
           child: Row(children: [
-            Expanded(child: Text('Activity', style: kit.heading)),
+            Expanded(child: Text(tr('Activity'), style: kit.heading)),
             if (api.enabled)
               KitIconButton(
                 icon: Icons.person_search_rounded,
-                semanticLabel: 'Find people',
+                semanticLabel: tr('Find people'),
                 onPressed: () => context.push('/people/me?tab=following'),
               ),
           ]),
@@ -197,21 +200,21 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           error: (e, _) => [
             KitEmpty(
               emoji: '☁️',
-              title: 'Can’t reach Cloro right now',
-              message: 'Your reading is saved and will sync later.',
-              action: KitButton.secondary(label: 'Try again', onPressed: () => ref.invalidate(journalFeedProvider)),
+              title: tr('Can’t reach Cloro right now'),
+              message: tr('Your reading is saved and will sync later.'),
+              action: KitButton.secondary(label: tr('Try again'), onPressed: () => ref.invalidate(journalFeedProvider)),
             ),
           ],
           data: (page) => page.items.isEmpty
               ? [
                   KitEmpty(
                     emoji: '📖',
-                    title: api.enabled ? 'Your feed is quiet' : 'Your reading shows here',
+                    title: api.enabled ? tr('Your feed is quiet') : tr('Your reading shows here'),
                     message: api.enabled
-                        ? 'Read a few cards, or follow readers to see their reading, kudos and comments here.'
-                        : 'Each reading session appears here: the book, minutes and cards.',
+                        ? tr('Read a few cards, or follow readers to see their reading, kudos and comments here.')
+                        : tr('Each reading session appears here: the book, minutes and cards.'),
                     action: api.enabled
-                        ? KitButton.secondary(label: 'Find people', onPressed: () => context.push('/people/me?tab=following'))
+                        ? KitButton.secondary(label: tr('Find people'), onPressed: () => context.push('/people/me?tab=following'))
                         : null,
                   ),
                 ]

@@ -5,11 +5,13 @@ import '../../data/api_client.dart';
 import '../../ui/haptics.dart';
 import '../../ui/kit.dart';
 import 'profile_header.dart';
+import '../../l10n/l10n.dart';
 
 /// What to tell the reader when the server says no.
-String apiErrorMessage(Object e, {String fallback = 'Couldn’t reach Cloro. Check your connection.'}) {
+String apiErrorMessage(Object e, {String? fallback}) {
+  fallback ??= tr('Couldn’t reach Cloro. Check your connection.');
   if (e is ApiException) {
-    if (e.rateLimited) return 'That’s a lot at once. Try again in a minute.';
+    if (e.rateLimited) return tr('That’s a lot at once. Try again in a minute.');
     final m = e.message;
     if (m != null && e.status == 400) return m;
   }
@@ -17,30 +19,30 @@ String apiErrorMessage(Object e, {String fallback = 'Couldn’t reach Cloro. Che
 }
 
 /// Why something is being reported (the server's reasons).
-const reportReasons = <(String, String)>[
-  ('spam', 'Spam'),
-  ('harassment', 'Harassment or bullying'),
-  ('hate', 'Hate'),
-  ('sexual', 'Sexual content'),
-  ('self_harm', 'Self-harm'),
-  ('impersonation', 'Pretending to be someone'),
-  ('other', 'Something else'),
+List<(String, String)> get reportReasons => [
+  ('spam', tr('Spam')),
+  ('harassment', tr('Harassment or bullying')),
+  ('hate', tr('Hate')),
+  ('sexual', tr('Sexual content')),
+  ('self_harm', tr('Self-harm')),
+  ('impersonation', tr('Pretending to be someone')),
+  ('other', tr('Something else')),
 ];
 
 /// Report a reader, an activity or a comment: pick a reason, then it's sent.
 /// Returns whether a report was sent.
 Future<bool> showReportSheet(BuildContext context, WidgetRef ref, {required String type, required String id}) async {
-  final what = switch (type) { 'comment' => 'this comment', 'activity' => 'this post', _ => 'this reader' };
+  final what = switch (type) { 'comment' => tr('this comment'), 'activity' => tr('this post'), _ => tr('this reader') };
   final reason = await showKitActions<String>(
     context,
-    title: 'Report $what',
-    subtitle: 'Reports are private. Someone at Cloro looks at each one.',
+    title: tr('Report {what}', {'what': what}),
+    subtitle: tr('Reports are private. Someone at Cloro looks at each one.'),
     actions: [for (final (value, label) in reportReasons) KitAction(value, label)],
   );
   if (reason == null || !context.mounted) return false;
   try {
     await ref.read(apiProvider).report(type: type, id: id, reason: reason);
-    if (context.mounted) showKitToast(context, 'Thanks for telling us. We’ll take a look.', icon: Icons.flag_rounded);
+    if (context.mounted) showKitToast(context, tr('Thanks for telling us. We’ll take a look.'), icon: Icons.flag_rounded);
     return true;
   } catch (e) {
     if (context.mounted) showKitToast(context, apiErrorMessage(e), icon: Icons.cloud_off_rounded);
@@ -52,17 +54,17 @@ Future<bool> showReportSheet(BuildContext context, WidgetRef ref, {required Stri
 Future<bool> confirmBlock(BuildContext context, WidgetRef ref, {required String userId, required String name}) async {
   final ok = await showKitConfirm(
     context,
-    title: 'Block $name?',
-    message: 'You’ll stop following each other, and neither of you will see the other’s profile, reading or comments. '
-        'They aren’t told. You can unblock them in Settings.',
-    confirm: 'Block',
+    title: tr('Block {name}?', {'name': name}),
+    message: tr('You’ll stop following each other, and neither of you will see the other’s profile, reading or comments. '
+        'They aren’t told. You can unblock them in Settings.'),
+    confirm: tr('Block'),
     destructive: true,
   );
   if (!ok || !context.mounted) return false;
   try {
     await ref.read(apiProvider).block(userId);
     Haptics.press();
-    if (context.mounted) showKitToast(context, '$name is blocked', icon: Icons.block_rounded);
+    if (context.mounted) showKitToast(context, tr('{name} is blocked', {'name': name}), icon: Icons.block_rounded);
     return true;
   } catch (e) {
     if (context.mounted) showKitToast(context, apiErrorMessage(e), icon: Icons.cloud_off_rounded);
@@ -81,8 +83,8 @@ Future<void> showSafetyActions(
   VoidCallback? onBlocked,
 }) async {
   final choice = await showKitActions<String>(context, actions: [
-    KitAction('report', switch (type) { 'comment' => 'Report comment', 'activity' => 'Report post', _ => 'Report $name' }, icon: Icons.flag_outlined),
-    KitAction('block', 'Block $name', icon: Icons.block_rounded, destructive: true),
+    KitAction('report', switch (type) { 'comment' => 'Report comment', 'activity' => 'Report post', _ => tr('Report {name}', {'name': name}) }, icon: Icons.flag_outlined),
+    KitAction('block', tr('Block {name}', {'name': name}), icon: Icons.block_rounded, destructive: true),
   ]);
   if (!context.mounted || choice == null) return;
   if (choice == 'report') {
@@ -105,7 +107,7 @@ class BlockedReaders extends ConsumerWidget {
           loading: () => const Padding(padding: EdgeInsets.all(30), child: Center(child: KitSpinner())),
           error: (e, _) => Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text(apiErrorMessage(e), style: kit.caption)),
           data: (items) => items.isEmpty
-              ? Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text('You haven’t blocked anyone.', style: kit.caption))
+              ? Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text(tr('You haven’t blocked anyone.'), style: kit.caption))
               : KitGroup(children: [
                   for (final p in items)
                     KitRow(
@@ -114,7 +116,7 @@ class BlockedReaders extends ConsumerWidget {
                       subtitle: p['handle'] == null ? null : '@${p['handle']}',
                       chevron: false,
                       trailing: KitButton.secondary(
-                        label: 'Unblock',
+                        label: tr('Unblock'),
                         compact: true,
                         onPressed: () async {
                           try {

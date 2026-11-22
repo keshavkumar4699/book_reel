@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../../ui/kit.dart';
+import '../../l10n/l10n.dart';
 
 /// Opens the crop step for a picked photo. Returns a square PNG of
 /// [outputSize] pixels (what the circle shows), or null when cancelled.
@@ -50,12 +51,12 @@ class _AvatarCropperState extends State<AvatarCropper> {
             child: Row(children: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel', style: TextStyle(color: Colors.white, fontSize: 16)),
+                child: Text(tr('Cancel'), style: TextStyle(color: Colors.white, fontSize: 16)),
               ),
-              const Expanded(
-                child: Text('Move and scale', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              Expanded(
+                child: Text(tr('Move and scale'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
               ),
-              KitButton(label: _saving ? 'Saving…' : 'Use photo', compact: true, onPressed: _saving ? null : _use),
+              KitButton(label: _saving ? tr('Saving…') : tr('Use photo'), compact: true, onPressed: _saving ? null : _use),
             ]),
           ),
           Expanded(
@@ -83,9 +84,9 @@ class _AvatarCropperState extends State<AvatarCropper> {
               );
             }),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(24, 0, 24, 20),
-            child: Text('Pinch to zoom, drag to move.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)),
+            child: Text(tr('Pinch to zoom, drag to move.'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)),
           ),
         ]),
       ),

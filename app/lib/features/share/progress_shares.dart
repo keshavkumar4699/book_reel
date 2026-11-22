@@ -3,6 +3,7 @@ import '../../core/models/book.dart';
 import '../../data/habit.dart';
 import '../../data/sessions.dart';
 import 'share_sheet.dart';
+import '../../l10n/l10n.dart';
 
 /// What gets shared, Strava-style: every figure that counts. Only reading
 /// that was really done is in them (skimmed reels count toward nothing).
@@ -29,15 +30,15 @@ ProgressShare goalShare({
   final today = habit.today(now);
   return ProgressShare(
     emoji: '🔥',
-    headline: milestone != null ? '$milestone-day reading streak!' : 'Today’s reading goal, done',
-    subtitle: 'Reading $bookTitle',
+    headline: milestone != null ? tr('{n}-day reading streak!', {'n': milestone}) : tr('Today’s reading goal, done'),
+    subtitle: tr('Reading {title}', {'title': bookTitle}),
     stats: [
-      ('${today.verifiedCards}', 'cards'),
-      (compactCount(today.words), 'words'),
-      (shareDuration(today.minutes), 'time'),
-      ('$streak', 'day streak'),
-      ('${habit.wpm.round()}', 'words/min'),
-      ('${(bookProgress * 100).clamp(0, 100).round()}%', 'of the book'),
+      ('${today.verifiedCards}', trn(today.verifiedCards, 'card', 'cards')),
+      (compactCount(today.words), tr('words')),
+      (shareDuration(today.minutes), tr('time')),
+      ('$streak', tr('day streak')),
+      ('${habit.wpm.round()}', tr('words/min')),
+      ('${(bookProgress * 100).clamp(0, 100).round()}%', tr('of the book')),
     ],
   );
 }
@@ -56,15 +57,15 @@ ProgressShare bookShare({
   final days = {for (final s in mine) dateKey(s.startedAt)}.length;
   return ProgressShare(
     emoji: '🎉',
-    headline: 'Finished ${book.title}',
-    subtitle: 'by ${book.author}',
+    headline: tr('Finished {title}', {'title': book.title}),
+    subtitle: tr('by {author}', {'author': book.author}),
     stats: [
-      (compactCount(book.wordsRead ?? 0), 'words read'),
-      ('$cards', 'cards'),
+      (compactCount(book.wordsRead ?? 0), tr('words read')),
+      ('$cards', trn(cards, 'card', 'cards')),
       (shareDuration(minutes), 'time'),
-      ('$days', days == 1 ? 'day' : 'days'),
-      ('$streak', 'day streak'),
-      ('$booksFinished', booksFinished == 1 ? 'book read' : 'books read'),
+      ('$days', trn(days, 'day', 'days')),
+      ('$streak', tr('day streak')),
+      ('$booksFinished', trn(booksFinished, 'book read', 'books read')),
     ],
   );
 }
@@ -81,14 +82,14 @@ ProgressShare profileShare({
 }) =>
     ProgressShare(
       emoji: emoji,
-      headline: handle == null || handle.isEmpty ? '$name on Cloro' : '$name · @$handle',
-      subtitle: reading == null ? null : 'Reading $reading',
+      headline: handle == null || handle.isEmpty ? tr('{name} on Cloro', {'name': name}) : '$name · @$handle',
+      subtitle: reading == null ? null : tr('Reading {title}', {'title': reading}),
       stats: [
-        ('$booksFinished', booksFinished == 1 ? 'book read' : 'books read'),
-        (compactCount(habit.totalVerifiedCards), 'cards'),
-        (compactCount(habit.totalWords), 'words read'),
-        (shareDuration(habit.totalMinutes), 'time'),
-        ('$streak', 'day streak'),
-        ('${habit.streak.best}', 'best streak'),
+        ('$booksFinished', trn(booksFinished, 'book read', 'books read')),
+        (compactCount(habit.totalVerifiedCards), tr('cards')),
+        (compactCount(habit.totalWords), tr('words read')),
+        (shareDuration(habit.totalMinutes), tr('time')),
+        ('$streak', tr('day streak')),
+        ('${habit.streak.best}', tr('best streak')),
       ],
     );

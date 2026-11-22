@@ -5,6 +5,7 @@ import '../../../data/settings.dart';
 import '../../../ui/kit.dart';
 import '../../../ui/theme.dart';
 import '../../../ui/typography.dart';
+import '../../../l10n/l10n.dart';
 
 /// Text in the book's own body font (the quiz, recap and reflect cards
 /// belong to the book too).
@@ -81,7 +82,7 @@ class ChapterTitleCardView extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('CHAPTER $chapterNumber',
+          Text(tr('CHAPTER {n}', {'n': chapterNumber}),
               style: TextStyle(color: accent, fontWeight: FontWeight.w800, letterSpacing: 3, fontSize: 15, shadows: shadows)),
           const SizedBox(height: 14),
           Semantics(
@@ -90,7 +91,7 @@ class ChapterTitleCardView extends StatelessWidget {
                 style: type.display(color: theme.spot, size: (settings.fontSize * 1.9).clamp(30.0, 52.0), shadows: shadows)),
           ),
           const SizedBox(height: 20),
-          Text('$cards cards · ~$minutes min', style: TextStyle(color: theme.muted, fontSize: 15, fontWeight: FontWeight.w600, shadows: shadows)),
+          Text('${trn(cards, '{n} card', '{n} cards')} · ${tr('~{n} min', {'n': minutes})}', style: TextStyle(color: theme.muted, fontSize: 15, fontWeight: FontWeight.w600, shadows: shadows)),
           if (teaser != null) ...[
             const SizedBox(height: 24),
             Text(teaser!, style: type.body(color: theme.text, scale: 1.02, shadows: shadows)),
@@ -99,7 +100,7 @@ class ChapterTitleCardView extends StatelessWidget {
           Row(children: [
             Icon(Icons.keyboard_arrow_up, color: theme.muted),
             const SizedBox(width: 4),
-            Text('Swipe up to begin', style: TextStyle(color: theme.muted)),
+            Text(tr('Swipe up to begin'), style: TextStyle(color: theme.muted)),
           ]),
         ],
       ),
@@ -130,9 +131,9 @@ class RecapCardView extends StatelessWidget {
     return _CardFrame(
       theme: theme,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        _AiChip(label: 'AI SUMMARY', theme: theme),
+        _AiChip(label: tr('AI SUMMARY'), theme: theme),
         const SizedBox(height: 16),
-        Text('So far', style: _serif(type, theme, scale: 1.3, weight: FontWeight.w600)),
+        Text(tr('So far'), style: _serif(type, theme, scale: 1.3, weight: FontWeight.w600)),
         const SizedBox(height: 16),
         for (final b in bullets)
           Padding(
@@ -182,9 +183,9 @@ class _RecallCardViewState extends State<RecallCardView> {
     return _CardFrame(
       theme: t,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        _AiChip(label: q == null ? 'QUICK CHECK' : 'AI QUICK CHECK', theme: t),
+        _AiChip(label: q == null ? tr('QUICK CHECK') : tr('AI QUICK CHECK'), theme: t),
         const SizedBox(height: 16),
-        Text(q?.question ?? 'Pause and recall: what was the main idea of the last few cards?',
+        Text(q?.question ?? tr('Pause and recall: what was the main idea of the last few cards?'),
             style: _serif(s, t, scale: 1.15, weight: FontWeight.w600)),
         const SizedBox(height: 20),
         if (q != null)
@@ -211,14 +212,14 @@ class _RecallCardViewState extends State<RecallCardView> {
             )
         else if (!_revealed)
           KitButton.secondary(
-            label: 'Tap to reveal',
+            label: tr('Tap to reveal'),
             onPressed: () {
               setState(() => _revealed = true);
               widget.onAnswered(true);
             },
           )
         else ...[
-          Text('Key points', style: TextStyle(color: t.muted, fontWeight: FontWeight.w600)),
+          Text(tr('Key points'), style: TextStyle(color: t.muted, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           for (final r in widget.revealSentences)
             Padding(
@@ -228,11 +229,11 @@ class _RecallCardViewState extends State<RecallCardView> {
         ],
         if (_picked != null && q != null) ...[
           const SizedBox(height: 8),
-          Text(_picked == q.answerIndex ? 'Nice, that stuck. ✨' : 'Close. The highlighted one is it.',
+          Text(_picked == q.answerIndex ? tr('Nice, that stuck. ✨') : tr('Close. The highlighted one is it.'),
               style: TextStyle(color: t.muted)),
         ],
         const SizedBox(height: 24),
-        Text('Swipe up to continue', style: TextStyle(color: t.muted, fontSize: 13)),
+        Text(tr('Swipe up to continue'), style: TextStyle(color: t.muted, fontSize: 13)),
       ]),
     );
   }
@@ -308,23 +309,23 @@ class _ReflectCardViewState extends State<ReflectCardView> {
     return _CardFrame(
       theme: t,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        _AiChip(label: 'REFLECT', theme: t),
+        _AiChip(label: tr('REFLECT'), theme: t),
         const SizedBox(height: 16),
-        Text('One idea from this chapter you’ll carry with you?',
+        Text(tr('One idea from this chapter you’ll carry with you?'),
             style: _serif(widget.type, t, scale: 1.15, weight: FontWeight.w600)),
         const SizedBox(height: 20),
         if (_saved)
           Row(children: [
             Icon(Icons.check, color: t.text),
             const SizedBox(width: 8),
-            Text('Saved to your Notebook', style: TextStyle(color: t.text)),
+            Text(tr('Saved to your Notebook'), style: TextStyle(color: t.text)),
           ])
         else ...[
-          KitTextField(controller: _controller, hint: 'Write a sentence…', minLines: 2, maxLines: 5),
+          KitTextField(controller: _controller, hint: tr('Write a sentence…'), minLines: 2, maxLines: 5),
           const SizedBox(height: 12),
           Row(children: [
             KitButton(
-              label: 'Save',
+              label: tr('Save'),
               compact: true,
               onPressed: () {
                 if (_controller.text.trim().isEmpty) return;
@@ -334,11 +335,11 @@ class _ReflectCardViewState extends State<ReflectCardView> {
               },
             ),
             const SizedBox(width: 10),
-            KitButton.secondary(label: 'Skip', compact: true, onPressed: () => FocusScope.of(context).unfocus()),
+            KitButton.secondary(label: tr('Skip'), compact: true, onPressed: () => FocusScope.of(context).unfocus()),
           ]),
         ],
         const SizedBox(height: 24),
-        Text('Swipe up to continue', style: TextStyle(color: t.muted, fontSize: 13)),
+        Text(tr('Swipe up to continue'), style: TextStyle(color: t.muted, fontSize: 13)),
       ]),
     );
   }
@@ -377,20 +378,20 @@ class MilestoneCardView extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Text('📖', style: TextStyle(fontSize: 56)),
           const SizedBox(height: 16),
-          Text('The end of', style: _serif(type, theme, scale: 0.9, color: theme.muted)),
+          Text(tr('The end of'), style: _serif(type, theme, scale: 0.9, color: theme.muted)),
           const SizedBox(height: 8),
           Text(bookTitle,
               textAlign: TextAlign.center,
               style: type.display(color: theme.spot, size: (settings.fontSize * 1.6).clamp(26.0, 42.0), shadows: theme.textShadows)),
           const SizedBox(height: 20),
           Text(
-            'About ${(short * 100).round()}% of it was really read, so it doesn’t count as finished yet. '
-            'Skimmed reels don’t count: read the parts you skipped, and it will.',
+            tr('About {percent}% of it was really read, so it doesn’t count as finished yet. '
+                'Skimmed reels don’t count: read the parts you skipped, and it will.', {'percent': (short * 100).round()}),
             textAlign: TextAlign.center,
             style: _serif(type, theme, scale: 0.8, color: theme.text),
           ),
           const SizedBox(height: 28),
-          KitButton.ghost(label: 'Back to library', onPressed: onDone),
+          KitButton.ghost(label: tr('Back to library'), onPressed: onDone),
         ]),
       );
     }
@@ -400,15 +401,15 @@ class MilestoneCardView extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('🎉', style: TextStyle(fontSize: 64)),
         const SizedBox(height: 16),
-        Text('You finished', style: _serif(type, theme, scale: 0.9, color: theme.muted)),
+        Text(tr('You finished'), style: _serif(type, theme, scale: 0.9, color: theme.muted)),
         const SizedBox(height: 8),
         Text(bookTitle,
             textAlign: TextAlign.center,
             style: type.display(color: theme.spot, size: (settings.fontSize * 1.8).clamp(28.0, 48.0), shadows: theme.textShadows)),
         const SizedBox(height: 32),
-        KitButton(label: 'Share', leading: const ShareArrowIcon(), onPressed: onShare),
+        KitButton(label: tr('Share'), leading: const ShareArrowIcon(), onPressed: onShare),
         const SizedBox(height: 8),
-        KitButton.ghost(label: 'Back to library', onPressed: onDone),
+        KitButton.ghost(label: tr('Back to library'), onPressed: onDone),
       ]),
     );
   }

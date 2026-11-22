@@ -6,6 +6,7 @@ import '../../data/library.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../ui/kit.dart';
+import '../../l10n/l10n.dart';
 
 /// ≤ 60 seconds to the first card: a welcome, pick interests, then straight
 /// into a starter book. The daily goal is asked later, after the first cards;
@@ -50,23 +51,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const Spacer(),
         const CloroLogo(size: 56, wordmark: true),
         const SizedBox(height: 28),
-        Text('Scroll books\nlike reels.', style: titleStyle),
+        Text(tr('Scroll books\nlike reels.'), style: titleStyle),
         const SizedBox(height: 14),
-        Text('Real books in short, beautiful cards. A few calm minutes a day, and a habit that sticks.', style: bodyStyle),
+        Text(tr('Real books in short, beautiful cards. A few calm minutes a day, and a habit that sticks.'), style: bodyStyle),
         const SizedBox(height: 32),
-        primary('Get started', () => setState(() => _step = 1)),
+        primary(tr('Get started'), () => setState(() => _step = 1)),
       ]),
       // 2. Interests
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Spacer(),
-        Text('What do you like to read?', style: titleStyle),
+        Text(tr('What do you like to read?'), style: titleStyle),
         const SizedBox(height: 8),
-        Text('Pick up to 3. We’ll start you with a short classic.', style: bodyStyle),
+        Text(tr('Pick up to 3. We’ll start you with a short classic.'), style: bodyStyle),
         const SizedBox(height: 20),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final o in _options)
             KitChip(
-              label: o,
+              label: tr(o),
               selected: _interests.contains(o),
               // Up to 3, as on the profile.
               onTap: !_interests.contains(o) && _interests.length >= 3
@@ -75,7 +76,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
         ]),
         const SizedBox(height: 28),
-        primary(_starting ? 'Preparing your first cards…' : 'Start reading', _starting ? null : _start),
+        primary(_starting ? tr('Preparing your first cards…') : tr('Start reading'), _starting ? null : _start),
       ]),
     ];
 

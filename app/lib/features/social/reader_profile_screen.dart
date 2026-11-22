@@ -9,6 +9,7 @@ import 'people_screen.dart';
 import '../journal/feed.dart' show journalFeedProvider;
 import 'profile_header.dart';
 import 'safety.dart';
+import '../../l10n/l10n.dart';
 
 /// Another reader's public profile ("me", a user id or "@handle").
 final readerProfileProvider = FutureProvider.autoDispose.family<Map<String, dynamic>?, String>((ref, id) => ref.read(apiProvider).profile(id));
@@ -39,13 +40,13 @@ class _ReaderProfileScreenState extends ConsumerState<ReaderProfileScreen> {
       error: (e, _) => [
         KitEmpty(
           emoji: '☁️',
-          title: 'Can’t reach Cloro right now',
-          message: 'Try again in a moment.',
-          action: KitButton.secondary(label: 'Try again', onPressed: () => ref.invalidate(readerProfileProvider(widget.id))),
+          title: tr('Can’t reach Cloro right now'),
+          message: tr('Try again in a moment.'),
+          action: KitButton.secondary(label: tr('Try again'), onPressed: () => ref.invalidate(readerProfileProvider(widget.id))),
         ),
       ],
       data: (p) => p == null
-          ? const [KitEmpty(emoji: '🔍', title: 'No reader found', message: 'They may have changed their username.')]
+          ? [KitEmpty(emoji: '🔍', title: tr('No reader found'), message: tr('They may have changed their username.'))]
           : _profile(context, kit, p),
     );
     final handle = p?['handle'] as String?;
@@ -58,14 +59,14 @@ class _ReaderProfileScreenState extends ConsumerState<ReaderProfileScreen> {
         if (p != null && p['me'] != true)
           KitIconButton(
             icon: Icons.more_horiz_rounded,
-            semanticLabel: 'More: report or block',
+            semanticLabel: tr('More: report or block'),
             onPressed: () => showSafetyActions(
               context,
               ref,
               type: 'user',
               id: p['user_id'] as String,
               userId: p['user_id'] as String,
-              name: (p['display_name'] as String?) ?? 'this reader',
+              name: (p['display_name'] as String?) ?? tr('this reader'),
               onBlocked: () {
                 refreshSocial(ref);
                 ref.invalidate(journalFeedProvider);
@@ -102,17 +103,17 @@ class _ReaderProfileScreenState extends ConsumerState<ReaderProfileScreen> {
         bio: (p['bio'] as String?) ?? '',
         reading: p['reading'] as String?,
         genres: ((p['genres'] as List?) ?? const []).cast<String>(),
-        extra: p['follows_you'] == true && !me ? Text('Follows you', style: kit.caption) : null,
+        extra: p['follows_you'] == true && !me ? Text(tr('Follows you'), style: kit.caption) : null,
         actions: [
           if (me)
-            KitButton.secondary(label: 'Edit your profile', expand: true, onPressed: () => context.go('/profile'))
+            KitButton.secondary(label: tr('Edit your profile'), expand: true, onPressed: () => context.go('/profile'))
           else
             FollowButton(following: following, expand: true, onPressed: () => _toggle(id, following)),
         ],
       ),
       const KitDivider(),
       KitGroup(children: [
-        KitRow(emoji: '🔥', title: current == 1 ? '1-day streak' : '$current-day streak', value: 'Best $best', chevron: false),
+        KitRow(emoji: '🔥', title: tr('{n}-day streak', {'n': current}), value: tr('Best {n}', {'n': best}), chevron: false),
       ]),
     ];
   }
@@ -127,7 +128,7 @@ class _ReaderProfileScreenState extends ConsumerState<ReaderProfileScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _following = following);
-      showKitToast(context, 'Couldn’t update. Check your connection.', icon: Icons.cloud_off_rounded);
+      showKitToast(context, tr('Couldn’t update. Check your connection.'), icon: Icons.cloud_off_rounded);
     }
   }
 }

@@ -7,6 +7,7 @@ import '../core/models/book.dart';
 import 'haptics.dart';
 import 'kit.dart';
 import 'theme.dart';
+import '../l10n/l10n.dart';
 
 /// Goal ring (like activity rings) showing today's progress.
 class GoalRing extends StatelessWidget {
@@ -23,7 +24,7 @@ class GoalRing extends StatelessWidget {
     // Blue on its way, green once met.
     final met = progress >= 1;
     return Semantics(
-      label: 'Daily goal $label${sublabel == null ? '' : ' $sublabel'}${met ? ', done' : ''}',
+      label: met ? tr('Daily goal {goal}, done', {'goal': '$label${sublabel == null ? '' : ' $sublabel'}'}) : tr('Daily goal {goal}', {'goal': '$label${sublabel == null ? '' : ' $sublabel'}'}),
       child: SizedBox(
         width: size,
         height: size,
@@ -83,13 +84,13 @@ class StreakBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
-    final unit = weekly ? (days == 1 ? 'week' : 'weeks') : (days == 1 ? 'day' : 'days');
+    final count = weekly ? trn(days, '{n} week', '{n} weeks') : trn(days, '{n} day', '{n} days');
     return Semantics(
-      label: '$days $unit streak',
+      label: tr('{count} streak', {'count': count}),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.local_fire_department_rounded, color: days > 0 ? ember : kit.inkSoft, size: 26),
         const SizedBox(width: 4),
-        Text('$days $unit', style: kit.heading),
+        Text(count, style: kit.heading),
       ]),
     );
   }
@@ -145,7 +146,7 @@ class BookCover extends StatelessWidget {
       ));
     }
     return Semantics(
-      label: '${book.title} by ${book.author}',
+      label: tr('{title} by {author}', {'title': book.title, 'author': book.author}),
       child: ClipRRect(borderRadius: BorderRadius.circular(8), child: child),
     );
   }
@@ -170,7 +171,7 @@ class ProgressCover extends StatelessWidget {
     final done = p >= 1;
     final gap = stroke + 2.5;
     return Semantics(
-      value: done ? 'finished' : '${(p * 100).round()}% read',
+      value: done ? tr('finished') : tr('{percent}% read', {'percent': (p * 100).round()}),
       child: CustomPaint(
         foregroundPainter: CoverOutlinePainter(
           progress: p,

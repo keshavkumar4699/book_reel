@@ -51,6 +51,8 @@ dependencies:
   crypto: ^3.0.8
   collection: ^1.19.1
   intl: ^0.20.3
+  flutter_localizations:
+    sdk: flutter
   path: ^1.9.1
   just_audio: ^0.10.6
   in_app_purchase: ^3.3.1
@@ -94,6 +96,8 @@ flutter:
     - assets/books/
     # The privacy policy and terms (also served by the server at /privacy and /terms).
     - assets/legal/
+    # The app's text in each language but English (lib/l10n/l10n.dart).
+    - assets/l10n/
     # Licences of the on-device voice's parts (see the README there).
     - assets/licences/espeak-ng-GPL-3.0.txt
     - assets/licences/kokoro-Apache-2.0.txt

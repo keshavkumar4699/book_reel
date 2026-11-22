@@ -10,6 +10,7 @@ import '../data/app_assets.dart';
 import '../data/settings.dart';
 import 'kit.dart';
 import 'vibes.dart';
+import '../l10n/l10n.dart';
 
 /// Background pictures (JPG, PNG or WebP) are every picture in these folders
 /// (both listed in pubspec.yaml), the app's logo files excepted. A picture
@@ -51,9 +52,9 @@ class Backdrop {
   /// or the scene's name.
   String get label {
     final a = asset;
-    if (a == null) return isPaper ? 'Plain' : vibeStyles[vibe]!.label;
+    if (a == null) return isPaper ? tr('Plain') : tr(vibeStyles[vibe]!.label);
     final name = a.split('/').last.replaceFirst(_pictureFile, '').replaceAll(RegExp(r'[_\-]+'), ' ').trim();
-    return name.isEmpty ? 'Picture' : name[0].toUpperCase() + name.substring(1);
+    return name.isEmpty ? tr('Picture') : name[0].toUpperCase() + name.substring(1);
   }
 
   @override
@@ -363,7 +364,7 @@ class BackdropThumb extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: 'Background: ${backdrop.label}',
+      label: tr('Background: {name}', {'name': backdrop.label}),
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(

@@ -8,6 +8,7 @@ import '../../data/api_client.dart';
 import '../../services/error_reporter.dart';
 import '../../ui/haptics.dart';
 import '../../ui/kit.dart';
+import '../../l10n/l10n.dart';
 
 enum FeedbackKind { idea, problem, other }
 
@@ -23,7 +24,7 @@ String appVersionLabel([String version = ErrorReporter.version]) {
 /// (by email or any app). The app version and phone are added only if the
 /// reader leaves that on.
 Future<void> showFeedbackSheet(BuildContext context) =>
-    showKitSheet<void>(context, title: 'Send feedback', subtitle: 'Ideas and problems are read by a person', builder: (_) => const _FeedbackForm());
+    showKitSheet<void>(context, title: tr('Send feedback'), subtitle: tr('Ideas and problems are read by a person'), builder: (_) => const _FeedbackForm());
 
 class _FeedbackForm extends ConsumerStatefulWidget {
   const _FeedbackForm();
@@ -52,7 +53,7 @@ class _FeedbackFormState extends ConsumerState<_FeedbackForm> {
   Future<void> _send() async {
     final message = _message.text.trim();
     if (message.isEmpty) {
-      setState(() => _error = 'Write a few words first.');
+      setState(() => _error = tr('Write a few words first.'));
       return;
     }
     setState(() {
@@ -77,28 +78,28 @@ class _FeedbackFormState extends ConsumerState<_FeedbackForm> {
         if (!mounted) return;
         setState(() {
           _sending = false;
-          _error = e.status == 429 ? 'That’s a lot of feedback for one hour. Try again later.' : 'It didn’t send. Check your connection and try again.';
+          _error = e.status == 429 ? tr('That’s a lot of feedback for one hour. Try again later.') : tr('It didn’t send. Check your connection and try again.');
         });
         return;
       } catch (_) {
         if (!mounted) return;
         setState(() {
           _sending = false;
-          _error = 'It didn’t send. Check your connection and try again.';
+          _error = tr('It didn’t send. Check your connection and try again.');
         });
         return;
       }
       Haptics.success();
       if (!mounted) return;
       final messenger = Navigator.of(context);
-      showKitToast(context, 'Thanks! Your feedback was sent.', emoji: '💌');
+      showKitToast(context, tr('Thanks! Your feedback was sent.'), emoji: '💌');
       messenger.pop();
       return;
     }
     // No server: the phone's share sheet (email or any app).
     final text = [
       message,
-      if (contact.isNotEmpty) '\nReply to: $contact',
+      if (contact.isNotEmpty) '\n${tr('Reply to: {contact}', {'contact': contact})}',
       if (_details) '\nCloro ${appVersionLabel()} · $_device${locale.isEmpty ? '' : ' · $locale'}',
     ].join('\n');
     await SharePlus.instance.share(ShareParams(text: text, subject: 'Cloro feedback: ${_kind.name}'));
@@ -114,34 +115,34 @@ class _FeedbackFormState extends ConsumerState<_FeedbackForm> {
         values: FeedbackKind.values,
         selected: _kind,
         label: (k) => switch (k) {
-          FeedbackKind.idea => 'Idea',
-          FeedbackKind.problem => 'Problem',
-          FeedbackKind.other => 'Other',
+          FeedbackKind.idea => tr('Idea'),
+          FeedbackKind.problem => tr('Problem'),
+          FeedbackKind.other => tr('Other'),
         },
         onChanged: (k) => setState(() => _kind = k),
       ),
-      label('YOUR MESSAGE'),
+      label(tr('YOUR MESSAGE')),
       KitTextField(
         controller: _message,
-        hint: _kind == FeedbackKind.problem ? 'What happened, and what did you expect?' : 'What would make Cloro better for you?',
+        hint: _kind == FeedbackKind.problem ? tr('What happened, and what did you expect?') : tr('What would make Cloro better for you?'),
         maxLines: 6,
         minLines: 4,
         maxLength: 2000,
-        semanticLabel: 'Your message',
+        semanticLabel: tr('Your message'),
       ),
-      label('EMAIL FOR A REPLY (OPTIONAL)'),
+      label(tr('EMAIL FOR A REPLY (OPTIONAL)')),
       KitTextField(
         controller: _contact,
-        hint: 'you@example.com',
+        hint: tr('you@example.com'),
         keyboardType: TextInputType.emailAddress,
         capitalization: TextCapitalization.none,
         maxLength: 200,
-        semanticLabel: 'Email for a reply',
+        semanticLabel: tr('Email for a reply'),
       ),
       const SizedBox(height: 6),
       KitSwitchRow(
         icon: Icons.phone_android_rounded,
-        title: 'Include app version and phone',
+        title: tr('Include app version and phone'),
         subtitle: 'Cloro ${appVersionLabel()} · ${Platform.operatingSystem}',
         value: _details,
         onChanged: (v) => setState(() => _details = v),
@@ -151,7 +152,7 @@ class _FeedbackFormState extends ConsumerState<_FeedbackForm> {
         Text(_error!, style: kit.caption.copyWith(color: kit.danger)),
       ],
       const SizedBox(height: 16),
-      KitButton(label: _sending ? 'Sending…' : 'Send', icon: Icons.send_rounded, expand: true, onPressed: _sending ? null : _send),
+      KitButton(label: _sending ? tr('Sending…') : tr('Send'), icon: Icons.send_rounded, expand: true, onPressed: _sending ? null : _send),
     ]);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../ui/kit.dart';
+import '../../l10n/l10n.dart';
 
 /// Another reader's picture: their emoji, or their initial. (Photos stay on
 /// their own phone.)
@@ -106,7 +107,6 @@ class ProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
-    String count(int n, String one, String many) => '$n ${n == 1 ? one : many}';
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
         avatar,
@@ -122,9 +122,9 @@ class ProfileHeader extends StatelessWidget {
             if (followers != null && following != null) ...[
               const SizedBox(height: 6),
               Wrap(spacing: 4, children: [
-                _CountLink(label: count(followers!, 'follower', 'followers'), onTap: onFollowers),
+                _CountLink(label: trn(followers!, '{n} follower', '{n} followers'), onTap: onFollowers),
                 Text('·', style: kit.caption),
-                _CountLink(label: '${following!} following', onTap: onFollowing),
+                _CountLink(label: tr('{n} following', {'n': following!}), onTap: onFollowing),
               ]),
             ],
             if (extra != null) ...[const SizedBox(height: 6), extra!],
@@ -135,20 +135,20 @@ class ProfileHeader extends StatelessWidget {
       if (bio.trim().isNotEmpty)
         Text(bio.trim(), style: kit.body)
       else if (onAddBio != null)
-        _Tappable(onTap: onAddBio, child: Text('Add a bio: what you love to read, and why', style: kit.caption)),
+        _Tappable(onTap: onAddBio, child: Text(tr('Add a bio: what you love to read, and why'), style: kit.caption)),
       if (reading != null && reading!.isNotEmpty) ...[
         const SizedBox(height: 2),
         _Tappable(
           onTap: onReading,
           child: Text.rich(TextSpan(children: [
-            TextSpan(text: '📖 Reading: ', style: kit.caption),
+            TextSpan(text: tr('📖 Reading: '), style: kit.caption),
             TextSpan(text: reading, style: kit.body.copyWith(fontWeight: FontWeight.w600)),
           ])),
         ),
       ],
       if (genres.isNotEmpty) ...[
         const SizedBox(height: 6),
-        Text(genres.take(3).join(' · '), style: kit.caption),
+        Text(genres.take(3).map(tr).join(' · '), style: kit.caption),
       ],
       if (actions.isNotEmpty) ...[
         const SizedBox(height: 14),

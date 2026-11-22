@@ -44,6 +44,7 @@ import 'goal_setup_sheet.dart';
 import 'page_mode.dart';
 import 'session_complete.dart';
 import 'word_sheet.dart';
+import '../../l10n/l10n.dart';
 
 /// Whether the reader's controls are showing (the tab bar follows them).
 class ReaderChrome extends Notifier<bool> {
@@ -234,7 +235,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       try {
         await ref.read(pictureLookProvider(pictureLookKey(asset, MediaQuery.sizeOf(context))).future);
       } catch (_) {
-        if (mounted) showKitToast(_ui, 'Couldn’t open that picture', icon: Icons.broken_image_outlined);
+        if (mounted) showKitToast(_ui, tr('Couldn’t open that picture'), icon: Icons.broken_image_outlined);
         return;
       }
     }
@@ -594,9 +595,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     Haptics.success();
     showKitToast(
       _ui,
-      record.milestone != null ? '${record.milestone}-day streak! Goal done' : 'Goal done · ${record.streak}-day streak',
+      record.milestone != null
+          ? tr('{n}-day streak! Goal done', {'n': record.milestone})
+          : tr('Goal done · {n}-day streak', {'n': record.streak}),
       emoji: '🔥',
-      actionLabel: 'See',
+      actionLabel: tr('See'),
       onAction: () => _showSessionComplete(record, book),
       duration: const Duration(seconds: 3),
     );
@@ -729,7 +732,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     }
     showKitToast(
       _ui,
-      saved ? 'Saved to your Notebook 🔖' : 'Removed from saved',
+      saved ? tr('Saved to your Notebook 🔖') : tr('Removed from saved'),
       icon: saved ? Icons.bookmark_rounded : Icons.bookmark_remove_rounded,
       duration: const Duration(milliseconds: 1600),
     );
@@ -753,7 +756,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
 
   Future<void> _editNote(Highlight h) async {
     if (!mounted) return;
-    final note = await showKitPrompt(_ui, title: 'Note', message: h.text, hint: 'Your thoughts…', initial: h.note ?? '', maxLines: 4);
+    final note = await showKitPrompt(_ui, title: tr('Note'), message: h.text, hint: tr('Your thoughts…'), initial: h.note ?? '', maxLines: 4);
     if (note != null) ref.read(notebookProvider.notifier).updateHighlight(h.copyWith(note: note));
   }
 
@@ -762,14 +765,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final wpm = ref.read(habitProvider).wpm;
     final chapter = await showKitSheet<int>(
       _ui,
-      title: 'Contents',
+      title: tr('Contents'),
       subtitle: book.title,
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
       builder: (context) => Column(mainAxisSize: MainAxisSize.min, children: [
         for (final c in book.chapters)
           KitRow(
             title: c.title,
-            subtitle: c.index < book.bodyStart ? 'Front matter' : '~${(c.wordCount / wpm).ceil()} min',
+            subtitle: c.index < book.bodyStart ? tr('Front matter') : tr('~{n} min', {'n': (c.wordCount / wpm).ceil()}),
             selected: c.index == current,
             chevron: false,
             onTap: () => Navigator.of(context).pop(c.index),
@@ -811,22 +814,22 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         void pick(String v) => Navigator.of(context).pop(v);
         return Column(mainAxisSize: MainAxisSize.min, children: [
           KitGroup(children: [
-            KitRow(icon: Icons.image_outlined, title: 'Background', value: _backdrop?.label, onTap: () => pick('background')),
+            KitRow(icon: Icons.image_outlined, title: tr('Background'), value: _backdrop?.label, onTap: () => pick('background')),
             KitSwitchRow(
               icon: s.music ? Icons.music_note_rounded : Icons.music_off_rounded,
-              title: 'Music',
+              title: tr('Music'),
               subtitle: track?.label,
               value: s.music,
               onChanged: (_) => _toggleMusic(),
             ),
-            KitRow(icon: Icons.format_list_bulleted_rounded, title: 'Contents', onTap: () => pick('toc')),
-            KitRow(icon: Icons.chrome_reader_mode_rounded, title: 'Page mode', subtitle: 'Read the chapter as one page', onTap: () => pick('page')),
-            KitRow(icon: Icons.flag_rounded, title: 'Daily goal', onTap: () => pick('goal')),
-            KitRow(icon: Icons.touch_app_rounded, title: 'Gestures', onTap: () => pick('gestures')),
-            KitRow(icon: Icons.settings_rounded, title: 'Settings', onTap: () => pick('settings')),
+            KitRow(icon: Icons.format_list_bulleted_rounded, title: tr('Contents'), onTap: () => pick('toc')),
+            KitRow(icon: Icons.chrome_reader_mode_rounded, title: tr('Page mode'), subtitle: tr('Read the chapter as one page'), onTap: () => pick('page')),
+            KitRow(icon: Icons.flag_rounded, title: tr('Daily goal'), onTap: () => pick('goal')),
+            KitRow(icon: Icons.touch_app_rounded, title: tr('Gestures'), onTap: () => pick('gestures')),
+            KitRow(icon: Icons.settings_rounded, title: tr('Settings'), onTap: () => pick('settings')),
           ]),
           KitGroup(divided: true, children: [
-            KitRow(icon: Icons.content_cut_rounded, title: 'This cut feels wrong', chevron: false, onTap: () => pick('report')),
+            KitRow(icon: Icons.content_cut_rounded, title: tr('This cut feels wrong'), chevron: false, onTap: () => pick('report')),
           ]),
         ]);
       }),
@@ -846,7 +849,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       case 'settings':
         context.push('/settings');
       case 'report':
-        showKitToast(_ui, 'Thanks! Reports like this help us cut cards better.', emoji: '✂️');
+        showKitToast(_ui, tr('Thanks! Reports like this help us cut cards better.'), emoji: '✂️');
     }
   }
 
@@ -857,8 +860,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final paper = ReadingTheme.of(effectiveReadingTheme(ref.read(settingsProvider), MediaQuery.platformBrightnessOf(context)));
     final picked = await showKitSheet<Backdrop>(
       _ui,
-      title: 'Background',
-      subtitle: 'A different one each time you open a book',
+      title: tr('Background'),
+      subtitle: tr('A different one each time you open a book'),
       builder: (context) => BackdropGrid(
         backdrops: all,
         selected: _backdrop ?? Backdrop.paper,
@@ -872,7 +875,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// The note box: an empty page for your own thoughts on this reel, kept in
   /// the Notebook with the passage it was written on.
   Future<void> _writeThought(BookContent book, FeedItem item) async {
-    final text = await showKitPrompt(_ui, title: 'Your thoughts', hint: 'What does this make you think?', maxLines: 6);
+    final text = await showKitPrompt(_ui, title: tr('Your thoughts'), hint: tr('What does this make you think?'), maxLines: 6);
     if (text == null || text.trim().isEmpty || !mounted) return;
     ref.read(notebookProvider.notifier).addReflection(
           bookTitle: book.title,
@@ -880,7 +883,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           text: text,
           quote: _reelText(item),
         );
-    showKitToast(_ui, 'Saved to your Notebook', emoji: '📝');
+    showKitToast(_ui, tr('Saved to your Notebook'), emoji: '📝');
   }
 
   // ---------------------------------------------------------------- build
@@ -913,7 +916,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     Widget body;
     final error = contentAsync.error ?? segmentsAsync.error;
     if (error != null) {
-      body = Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Could not open this book.\n$error', style: TextStyle(color: readingTheme.text))));
+      body = Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('${tr('Could not open this book.')}\n$error', style: TextStyle(color: readingTheme.text))));
     } else if (contentAsync.value == null || segmentsAsync.value == null || !backdropReady) {
       body = const Center(child: KitSpinner());
     } else {
@@ -1364,7 +1367,7 @@ class _SpeechProgressState extends State<SpeechProgress> with SingleTickerProvid
           : Semantics(
               key: const ValueKey('speech'),
               liveRegion: true,
-              label: 'Converting text to audio',
+              label: tr('Converting text to audio'),
               value: '${(_value * 100).round()}%',
               excludeSemantics: true,
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
@@ -1375,7 +1378,7 @@ class _SpeechProgressState extends State<SpeechProgress> with SingleTickerProvid
                     Icon(Icons.graphic_eq_rounded, size: 14, color: widget.ink, shadows: widget.shadows),
                     const SizedBox(width: 5),
                     Flexible(
-                      child: Text('Converting text to audio…',
+                      child: Text(tr('Converting text to audio…'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: widget.ink, fontSize: 12, fontWeight: FontWeight.w700, shadows: widget.shadows)),
@@ -1398,7 +1401,7 @@ class _GoalLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-        label: 'Today\'s goal ${(progress * 100).round()} percent',
+        label: tr('Today\'s goal {percent} percent', {'percent': (progress * 100).round()}),
         child: TweenAnimationBuilder<double>(
           tween: Tween(end: progress.clamp(0.0, 1.0)),
           duration: const Duration(milliseconds: 450),
@@ -1457,7 +1460,7 @@ class _MusicBar extends ConsumerWidget {
       const SizedBox(width: 10),
       Expanded(
         child: Semantics(
-          label: 'Playing ${track.label}',
+          label: tr('Playing {track}', {'track': track.label}),
           excludeSemantics: true,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text(track.title,
@@ -1503,9 +1506,9 @@ class _MusicControls extends ConsumerWidget {
           iconSize: size,
         );
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      button(Icons.skip_previous_rounded, 'Previous track', player.previous),
-      button(music.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, music.playing ? 'Pause music' : 'Play music', player.toggle, size: 28),
-      button(Icons.skip_next_rounded, 'Next track', player.next),
+      button(Icons.skip_previous_rounded, tr('Previous track'), player.previous),
+      button(music.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, music.playing ? tr('Pause music') : tr('Play music'), player.toggle, size: 28),
+      button(Icons.skip_next_rounded, tr('Next track'), player.next),
     ]);
   }
 }
@@ -1517,15 +1520,15 @@ class _GestureGuide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const rows = [
-      (Icons.swipe_up_outlined, 'Swipe up', 'Next reel'),
-      (Icons.translate, 'Tap a word', 'Its meaning'),
-      (Icons.touch_app_outlined, 'Tap empty space', 'Show the music, pictures and tabs for a few seconds'),
-      (Icons.border_color_rounded, 'Long-press a word', 'Highlight it, then drag the handles'),
-      (Icons.more_horiz_rounded, 'Long-press empty space', 'Theme, sound, contents and more'),
-      (Icons.favorite, 'Double-tap', 'Like'),
-      (Icons.swipe_left_outlined, 'Swipe left', 'Save'),
-      (Icons.swipe_right_outlined, 'Swipe right', 'Share'),
+    final rows = [
+      (Icons.swipe_up_outlined, tr('Swipe up'), tr('Next reel')),
+      (Icons.translate, tr('Tap a word'), tr('Its meaning')),
+      (Icons.touch_app_outlined, tr('Tap empty space'), tr('Show the music, pictures and tabs for a few seconds')),
+      (Icons.border_color_rounded, tr('Long-press a word'), tr('Highlight it, then drag the handles')),
+      (Icons.more_horiz_rounded, tr('Long-press empty space'), tr('Theme, sound, contents and more')),
+      (Icons.favorite, tr('Double-tap'), tr('Like')),
+      (Icons.swipe_left_outlined, tr('Swipe left'), tr('Save')),
+      (Icons.swipe_right_outlined, tr('Swipe right'), tr('Share')),
     ];
     return GestureDetector(
       onTap: onDone,
@@ -1537,7 +1540,7 @@ class _GestureGuide extends StatelessWidget {
           child: Center(
             child: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Read like you scroll',
+            Text(tr('Read like you scroll'),
                 style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
             const SizedBox(height: 24),
             for (final r in rows)
@@ -1555,7 +1558,7 @@ class _GestureGuide extends StatelessWidget {
                 ]),
               ),
             const SizedBox(height: 28),
-            KitButton(label: 'Got it', onPressed: onDone),
+            KitButton(label: tr('Got it'), onPressed: onDone),
               ]),
             ),
           ),

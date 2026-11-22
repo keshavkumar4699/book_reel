@@ -8,6 +8,7 @@ import '../../data/settings.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../share/share_sheet.dart';
+import '../../l10n/l10n.dart';
 
 enum _Tab { all, saved, highlights, words, reflections }
 
@@ -48,22 +49,22 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
       _Tab.reflections: n.reflections.length,
     };
     String label(_Tab t) => switch (t) {
-          _Tab.all => 'All',
-          _Tab.saved => 'Saved',
-          _Tab.highlights => 'Highlights',
-          _Tab.words => 'Words',
-          _Tab.reflections => 'Reflections',
+          _Tab.all => tr('All'),
+          _Tab.saved => tr('Saved'),
+          _Tab.highlights => tr('Highlights'),
+          _Tab.words => tr('Words'),
+          _Tab.reflections => tr('Reflections'),
         };
     return KitPage(
       back: false,
       backdrop: false,
       dock: true,
-      title: 'Notebook',
+      title: tr('Notebook'),
       actions: [
         KitIconButton(
           icon: Icons.reply_rounded,
-          semanticLabel: 'Export as Markdown',
-          onPressed: () => SharePlus.instance.share(ShareParams(text: notebookToMarkdown(n), subject: 'My Cloro notebook')),
+          semanticLabel: tr('Export as Markdown'),
+          onPressed: () => SharePlus.instance.share(ShareParams(text: notebookToMarkdown(n), subject: tr('My Cloro notebook'))),
           child: const ShareArrowIcon(size: 22),
         ),
       ],
@@ -116,15 +117,15 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
         (at: r.createdAt, kind: _Tab.reflections, text: r.text, quote: r.quote == null ? null : '“${r.quote}”', source: '${r.bookTitle} · ${r.chapterTitle}', link: null, mark: null),
     ]..sort((a, b) => b.at.compareTo(a.at));
     if (items.isEmpty) {
-      return const [
-        KitEmpty(emoji: '📓', title: 'Your notebook is empty', message: 'Save a card, highlight a line or look up a word while reading: it all lands here.'),
+      return [
+        KitEmpty(emoji: '📓', title: tr('Your notebook is empty'), message: tr('Save a card, highlight a line or look up a word while reading: it all lands here.')),
       ];
     }
     String kind(_Tab t) => switch (t) {
-          _Tab.saved => 'Saved',
-          _Tab.highlights => 'Highlight',
-          _Tab.words => 'Word',
-          _Tab.reflections => 'Reflection',
+          _Tab.saved => tr('Saved'),
+          _Tab.highlights => tr('Highlight'),
+          _Tab.words => tr('Word'),
+          _Tab.reflections => tr('Reflection'),
           _Tab.all => '',
         };
     return [
@@ -178,7 +179,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
 
   List<Widget> _saved(BuildContext context, List<SavedCard> saved) {
     final kit = Kit.of(context);
-    if (saved.isEmpty) return const [KitEmpty(emoji: '🔖', title: 'Nothing saved yet', message: 'Tap 🔖 on any card to keep it here.')];
+    if (saved.isEmpty) return [KitEmpty(emoji: '🔖', title: tr('Nothing saved yet'), message: tr('Tap 🔖 on any card to keep it here.'))];
     return [
       for (final s in saved)
         Padding(
@@ -198,7 +199,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                 Expanded(child: Text('${s.bookTitle} · ${s.chapterTitle}', style: kit.caption, overflow: TextOverflow.ellipsis)),
                 KitIconButton(
                   icon: Icons.reply_rounded,
-                  semanticLabel: 'Share',
+                  semanticLabel: tr('Share'),
                   glass: false,
                   onPressed: () => showShareSheet(
                     context,
@@ -208,7 +209,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                 ),
                 KitIconButton(
                   icon: Icons.delete_outline_rounded,
-                  semanticLabel: 'Remove',
+                  semanticLabel: tr('Remove'),
                   glass: false,
                   color: kit.inkSoft,
                   iconSize: 21,
@@ -224,7 +225,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   List<Widget> _highlights(BuildContext context, List<Highlight> highlights) {
     final kit = Kit.of(context);
     if (highlights.isEmpty) {
-      return const [KitEmpty(emoji: '✨', title: 'No highlights yet', message: 'Tap a sentence while reading to highlight it.')];
+      return [KitEmpty(emoji: '✨', title: tr('No highlights yet'), message: tr('Tap a sentence while reading to highlight it.'))];
     }
     final colors = ReadingTheme.of(ReadingThemeId.paper).highlights;
     return [
@@ -266,12 +267,12 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   List<Widget> _words(BuildContext context, List<WordEntry> words) {
     final kit = Kit.of(context);
     if (words.isEmpty) {
-      return const [KitEmpty(emoji: '🔤', title: 'No words yet', message: 'Long-press any word while reading, then “Add to word list”.')];
+      return [KitEmpty(emoji: '🔤', title: tr('No words yet'), message: tr('Long-press any word while reading, then “Add to word list”.'))];
     }
     final due = words.where((w) => !w.dueAt.isAfter(DateTime.now())).length;
     return [
       KitButton(
-        label: due == 0 ? 'All caught up' : 'Review $due word${due == 1 ? '' : 's'}',
+        label: due == 0 ? tr('All caught up') : trn(due, 'Review {n} word', 'Review {n} words'),
         icon: Icons.style_rounded,
         expand: true,
         kind: due == 0 ? KitButtonKind.secondary : KitButtonKind.primary,
@@ -285,7 +286,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
             subtitle: w.meaning,
             trailing: KitIconButton(
               icon: Icons.close_rounded,
-              semanticLabel: 'Remove ${w.word}',
+              semanticLabel: tr('Remove {word}', {'word': w.word}),
               glass: false,
               color: kit.inkSoft,
               iconSize: 20,
@@ -299,7 +300,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   List<Widget> _reflections(BuildContext context, List<Reflection> reflections) {
     final kit = Kit.of(context);
     if (reflections.isEmpty) {
-      return const [KitEmpty(emoji: '💡', title: 'No reflections yet', message: 'At the end of a chapter, write one idea you’ll use.')];
+      return [KitEmpty(emoji: '💡', title: tr('No reflections yet'), message: tr('At the end of a chapter, write one idea you’ll use.'))];
     }
     return [
       for (final r in reflections)

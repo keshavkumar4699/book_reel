@@ -26,6 +26,7 @@ import '../share/share_sheet.dart';
 import '../social/people_screen.dart';
 import '../social/profile_header.dart';
 import 'avatar_cropper.dart';
+import '../../l10n/l10n.dart';
 
 /// The reader's profile, Strava-style (Cloro plan §11): a header with your
 /// photo, name, pronouns, follower counts, bio, the book you're reading and
@@ -69,14 +70,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       title: s.username.isEmpty ? s.displayName : '@${s.username}',
       onRefresh: me == null ? null : () async => ref.invalidate(socialMeProvider),
       actions: [
-        KitIconButton(icon: Icons.person_add_alt_1_rounded, semanticLabel: 'Find people', onPressed: () => context.push('/people/me?tab=following')),
-        KitIconButton(icon: Icons.settings_rounded, semanticLabel: 'Settings', onPressed: () => context.push('/settings')),
+        KitIconButton(icon: Icons.person_add_alt_1_rounded, semanticLabel: tr('Find people'), onPressed: () => context.push('/people/me?tab=following')),
+        KitIconButton(icon: Icons.settings_rounded, semanticLabel: tr('Settings'), onPressed: () => context.push('/settings')),
       ],
       children: [
         ProfileHeader(
           avatar: KitPressable(
             onTap: () => showEditProfile(context),
-            semanticLabel: 'Profile photo. Edit profile',
+            semanticLabel: tr('Profile photo. Edit profile'),
             excludeSemantics: true,
             child: ReaderAvatar(settings: s, size: 88, ring: goalMet),
           ),
@@ -92,9 +93,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           onReading: reading == null ? null : () => context.go('/read/${reading.id}'),
           genres: s.interests,
           actions: [
-            KitButton.secondary(label: 'Edit profile', compact: true, expand: true, onPressed: () => showEditProfile(context)),
+            KitButton.secondary(label: tr('Edit profile'), compact: true, expand: true, onPressed: () => showEditProfile(context)),
             KitButton.secondary(
-              label: 'Share',
+              label: tr('Share'),
               compact: true,
               expand: true,
               onPressed: () => showShareSheet(
@@ -112,9 +113,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ],
         ),
-        _Section(title: 'This week', child: _ThisWeek(habit: habit, books: books, now: now)),
+        _Section(title: tr('This week'), child: _ThisWeek(habit: habit, books: books, now: now)),
         _Section(
-          title: 'Streak',
+          title: tr('Streak'),
           child: _StreakSection(
             habit: habit,
             settings: s,
@@ -123,7 +124,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
         _Section(
-          title: 'Stats',
+          title: tr('Stats'),
           child: _StatsSection(
             habit: habit,
             notebook: notebook,
@@ -133,10 +134,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             onChanged: (v) => setState(() => _period = v),
           ),
         ),
-        _Section(title: 'Trophies', child: _Trophies(habit: habit, books: books)),
-        _Section(title: 'Books', child: _BooksSection(books: books)),
+        _Section(title: tr('Trophies'), child: _Trophies(habit: habit, books: books)),
+        _Section(title: tr('Books'), child: _BooksSection(books: books)),
         _Section(
-          title: 'Saved quotes',
+          title: tr('Saved quotes'),
           trailing: saved == 0 ? null : Text('$saved', style: kit.caption),
           child: _QuotesGrid(notebook: notebook),
         ),
@@ -209,8 +210,15 @@ class _ThisWeekState extends State<_ThisWeek> {
   /// The day tapped (0 is Monday); today until then.
   int? _picked;
 
-  static const _letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  static const _names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  /// Monday to Sunday in the app's language: one letter, and the full name.
+  static List<String> _days(String pattern) {
+    final monday = DateTime(2024, 1, 1);
+    final f = localDate(pattern);
+    return [for (var d = 0; d < 7; d++) f.format(monday.add(Duration(days: d)))];
+  }
+
+  List<String> get _letters => _days('EEEEE');
+  List<String> get _names => _days('EEEE');
 
   @override
   Widget build(BuildContext context) {
@@ -229,10 +237,10 @@ class _ThisWeekState extends State<_ThisWeek> {
     final day = stats[picked];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
-        Expanded(child: _Figure('${minutes.round()}', 'minutes', color: kit.activity)),
-        Expanded(child: _Figure('$cards', 'cards')),
+        Expanded(child: _Figure('${minutes.round()}', trn(minutes.round(), 'minute', 'minutes'), color: kit.activity)),
+        Expanded(child: _Figure('$cards', trn(cards, 'card', 'cards'))),
         Expanded(child: _Figure(compactCount(words), 'words')),
-        Expanded(child: _Figure('$read', read == 1 ? 'book' : 'books')),
+        Expanded(child: _Figure('$read', trn(read, 'book', 'books'))),
       ]),
       const SizedBox(height: 14),
       Row(children: [
@@ -245,7 +253,7 @@ class _ThisWeekState extends State<_ThisWeek> {
               today: i == today,
               future: i > today,
               picked: i == picked,
-              semanticLabel: '${_names[i]}${i == today ? ', today' : ''}: ${stats[i].minutes.round()} minutes, ${stats[i].verifiedCards} cards',
+              semanticLabel: '${i == today ? tr('{day}, today', {'day': _names[i]}) : _names[i]}: ${trn(stats[i].minutes.round(), '{n} minute', '{n} minutes')}, ${trn(stats[i].verifiedCards, '{n} card', '{n} cards')}',
               onTap: () {
                 Haptics.select();
                 setState(() => _picked = i);
@@ -257,11 +265,11 @@ class _ThisWeekState extends State<_ThisWeek> {
       ExcludeSemantics(
         child: Text.rich(
           TextSpan(children: [
-            TextSpan(text: picked == today ? 'Today' : _names[picked], style: TextStyle(color: kit.ink, fontWeight: FontWeight.w700)),
+            TextSpan(text: picked == today ? tr('Today') : _names[picked], style: TextStyle(color: kit.ink, fontWeight: FontWeight.w700)),
             const TextSpan(text: '  ·  '),
-            TextSpan(text: '${day.minutes.round()} min', style: TextStyle(color: kit.activity, fontWeight: FontWeight.w800)),
-            TextSpan(text: '  ·  ${day.verifiedCards} ${day.verifiedCards == 1 ? 'card' : 'cards'}'),
-            if (day.words > 0) TextSpan(text: '  ·  ${compactCount(day.words)} words'),
+            TextSpan(text: tr('{n} min', {'n': day.minutes.round()}), style: TextStyle(color: kit.activity, fontWeight: FontWeight.w800)),
+            TextSpan(text: '  ·  ${trn(day.verifiedCards, '{n} card', '{n} cards')}'),
+            if (day.words > 0) TextSpan(text: '  ·  ${tr('{count} words', {'count': compactCount(day.words)})}'),
           ]),
           textAlign: TextAlign.center,
           style: kit.caption.copyWith(fontSize: 13),
@@ -372,19 +380,19 @@ class _StreakSection extends StatelessWidget {
     final weekly = settings.goalMode == GoalMode.weekly;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
-        Expanded(child: _Figure('$streak', weekly ? 'week streak' : 'day streak', color: streak > 0 ? kit.growth : null)),
-        Expanded(child: _Figure('${habit.streak.best}', 'best')),
-        Expanded(child: _Figure('$freezes', freezes == 1 ? 'freeze left' : 'freezes left')),
+        Expanded(child: _Figure('$streak', weekly ? tr('week streak') : tr('day streak'), color: streak > 0 ? kit.growth : null)),
+        Expanded(child: _Figure('${habit.streak.best}', tr('best'))),
+        Expanded(child: _Figure('$freezes', trn(freezes, 'freeze left', 'freezes left'))),
       ]),
       const SizedBox(height: 16),
       StreakCalendar(stats: habit.stats, goal: settings.goal, now: DateTime.now()),
       const SizedBox(height: 8),
       // GitHub's key: from no reading to the goal met.
       Row(children: [
-        Expanded(child: Text('Last 12 weeks', style: kit.caption.copyWith(fontSize: 12.5))),
+        Expanded(child: Text(tr('Last 12 weeks'), style: kit.caption.copyWith(fontSize: 12.5))),
         ExcludeSemantics(
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text('Less', style: kit.caption.copyWith(fontSize: 11.5)),
+            Text(tr('Less'), style: kit.caption.copyWith(fontSize: 11.5)),
             const SizedBox(width: 4),
             for (final c in kit.streakScale)
               Container(
@@ -394,7 +402,7 @@ class _StreakSection extends StatelessWidget {
                 decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2.5)),
               ),
             const SizedBox(width: 4),
-            Text('More', style: kit.caption.copyWith(fontSize: 11.5)),
+            Text(tr('More'), style: kit.caption.copyWith(fontSize: 11.5)),
           ]),
         ),
       ]),
@@ -404,12 +412,15 @@ class _StreakSection extends StatelessWidget {
 
 /// The stats' period on the Profile.
 enum StatsPeriod {
-  month('This month'),
-  year('This year'),
-  all('All time');
+  month,
+  year,
+  all;
 
-  const StatsPeriod(this.label);
-  final String label;
+  String get label => switch (this) {
+        StatsPeriod.month => tr('This month'),
+        StatsPeriod.year => tr('This year'),
+        StatsPeriod.all => tr('All time'),
+      };
 
   /// Whether a day (a date key) falls in the period around [now].
   bool covers(String day, DateTime now) => switch (this) {
@@ -454,18 +465,18 @@ class _StatsSection extends StatelessWidget {
         ? math.max(habit.booksFinished, books.where((b) => b.finishedAt != null).length)
         : books.where((b) => b.finishedAt != null && period.covers(dateKey(b.finishedAt!), now)).length;
     final figures = [
-      _Figure(_duration(minutes), 'reading time', color: kit.activity),
-      _Figure('$cards', 'cards'),
-      _Figure(compactCount(words), 'words read'),
+      _Figure(_duration(minutes), tr('reading time'), color: kit.activity),
+      _Figure('$cards', trn(cards, 'card', 'cards')),
+      _Figure(compactCount(words), tr('words read')),
       // Honest about it: reels flicked past too fast to read count toward nothing.
-      _Figure('$skimmed', skimmed == 1 ? 'reel skimmed (not counted)' : 'reels skimmed (not counted)'),
-      _Figure('$finished', finished == 1 ? 'book finished' : 'books finished', color: finished > 0 ? kit.growth : null),
-      _Figure('$readingDays', readingDays == 1 ? 'reading day' : 'reading days', color: readingDays > 0 ? kit.growth : null),
-      _Figure(readingDays == 0 ? '0' : '${(minutes / readingDays).round()}', 'minutes a reading day'),
+      _Figure('$skimmed', trn(skimmed, 'reel skimmed (not counted)', 'reels skimmed (not counted)')),
+      _Figure('$finished', trn(finished, 'book finished', 'books finished'), color: finished > 0 ? kit.growth : null),
+      _Figure('$readingDays', trn(readingDays, 'reading day', 'reading days'), color: readingDays > 0 ? kit.growth : null),
+      _Figure(readingDays == 0 ? '0' : '${(minutes / readingDays).round()}', tr('minutes a reading day')),
       if (period == StatsPeriod.all)
-        _Figure('${notebook.words.length}', 'words learned')
+        _Figure('${notebook.words.length}', tr('words learned'))
       else
-        _Figure('${habit.wpm.round()}', 'words a minute'),
+        _Figure('${habit.wpm.round()}', tr('words a minute')),
     ];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       KitSegmented<StatsPeriod>(values: StatsPeriod.values, selected: period, label: (p) => p.label, onChanged: onChanged),
@@ -480,8 +491,8 @@ class _StatsSection extends StatelessWidget {
 
   static String _duration(double minutes) {
     final m = minutes.round();
-    if (m < 60) return '$m min';
-    return m % 60 == 0 ? '${m ~/ 60} h' : '${m ~/ 60} h ${m % 60} min';
+    if (m < 60) return tr('{n} min', {'n': m});
+    return m % 60 == 0 ? tr('{h} h', {'h': m ~/ 60}) : tr('{h} h {m} min', {'h': m ~/ 60, 'm': m % 60});
   }
 }
 
@@ -505,10 +516,10 @@ List<Trophy> trophiesFor({required int bestStreak, required int booksFinished, r
   }
 
   return [
-    ...ladder(streakMilestones, bestStreak, '🔥', (n) => '$n-day streak'),
-    ...ladder(_bookMilestones, booksFinished, '📚', (n) => n == 1 ? 'First book' : '$n books'),
-    ...ladder(_cardMilestones, cards, '🃏', (n) => '$n cards'),
-    if (bestWeekMinutes >= 1) Trophy('⏱️', 'Best week: ${bestWeekMinutes.round()} min', earned: true),
+    ...ladder(streakMilestones, bestStreak, '🔥', (n) => tr('{n}-day streak', {'n': n})),
+    ...ladder(_bookMilestones, booksFinished, '📚', (n) => n == 1 ? tr('First book') : trn(n, '{n} book', '{n} books')),
+    ...ladder(_cardMilestones, cards, '🃏', (n) => trn(n, '{n} card', '{n} cards')),
+    if (bestWeekMinutes >= 1) Trophy('⏱️', tr('Best week: {n} min', {'n': bestWeekMinutes.round()}), earned: true),
   ];
 }
 
@@ -533,14 +544,14 @@ class _Trophies extends StatelessWidget {
     );
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (!trophies.any((t) => t.earned)) ...[
-        Text('Your first trophies are close.', style: kit.caption),
+        Text(tr('Your first trophies are close.'), style: kit.caption),
         const SizedBox(height: 12),
       ],
       Wrap(spacing: 10, runSpacing: 14, children: [
         for (final t in trophies)
           Semantics(
             container: true,
-            label: t.earned ? 'Trophy: ${t.title}' : 'Next trophy: ${t.title}',
+            label: t.earned ? tr('Trophy: {title}', {'title': t.title}) : tr('Next trophy: {title}', {'title': t.title}),
             excludeSemantics: true,
             child: Opacity(
               opacity: t.earned ? 1 : 0.38,
@@ -556,7 +567,7 @@ class _Trophies extends StatelessWidget {
                     child: Text(t.emoji, style: const TextStyle(fontSize: 26)),
                   ),
                   const SizedBox(height: 6),
-                  Text(t.earned ? t.title : 'Next: ${t.title}',
+                  Text(t.earned ? t.title : tr('Next: {title}', {'title': t.title}),
                       textAlign: TextAlign.center, maxLines: 2, style: kit.caption.copyWith(fontSize: 12, color: kit.ink)),
                 ]),
               ),
@@ -575,7 +586,7 @@ class _BooksSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
-    if (books.isEmpty) return const KitEmpty(emoji: '📚', title: 'No books yet', message: 'Import a book from the Library.');
+    if (books.isEmpty) return KitEmpty(emoji: '📚', title: tr('No books yet'), message: tr('Import a book from the Library.'));
     final reading = [for (final b in books) if (b.finishedAt == null) b]
       ..sort((a, b) => (b.lastReadAt ?? DateTime(0)).compareTo(a.lastReadAt ?? DateTime(0)));
     final finished = [for (final b in books) if (b.finishedAt != null) b]..sort((a, b) => b.finishedAt!.compareTo(a.finishedAt!));
@@ -591,7 +602,7 @@ class _BooksSection extends StatelessWidget {
               final b = reading[i];
               return KitPressable(
                 onTap: () => context.go('/read/${b.id}'),
-                semanticLabel: '${b.title}, ${(b.progress * 100).round()}% read',
+                semanticLabel: tr('{title}, {percent}% read', {'title': b.title, 'percent': (b.progress * 100).round()}),
                 excludeSemantics: true,
                 child: SizedBox(
                   width: 72,
@@ -607,7 +618,7 @@ class _BooksSection extends StatelessWidget {
         ),
       if (finished.isNotEmpty) ...[
         const SizedBox(height: 10),
-        Text('Finished', style: kit.label),
+        Text(tr('Finished'), style: kit.label),
         KitGroup(children: [
           for (final b in finished)
             KitRow(
@@ -723,7 +734,7 @@ class _QuotesGrid extends StatelessWidget {
         (at: h.createdAt, text: h.text, link: '/read/${h.bookId}?sid=${h.sid}', tint: colors[h.color % colors.length].withValues(alpha: 1), saved: false),
     ]..sort((a, b) => b.at.compareTo(a.at));
     if (items.isEmpty) {
-      return const KitEmpty(emoji: '🔖', title: 'No quotes yet', message: 'Save a card or highlight a line, and it shows up here.');
+      return KitEmpty(emoji: '🔖', title: tr('No quotes yet'), message: tr('Save a card or highlight a line, and it shows up here.'));
     }
     return GridView.count(
       crossAxisCount: 3,
@@ -801,8 +812,8 @@ class StreakCalendar extends StatelessWidget {
     }
     return Semantics(
       container: true,
-      label: 'Reading calendar for the last 12 weeks: $reading ${reading == 1 ? 'day' : 'days'} with reading, '
-          'the goal met on $met',
+      label: tr('Reading calendar for the last 12 weeks: {days}, the goal met on {met}',
+          {'days': trn(reading, '{n} day with reading', '{n} days with reading'), 'met': met}),
       excludeSemantics: true,
       child: LayoutBuilder(builder: (context, c) {
         // Twelve columns across the width, square cells with a small gap.
@@ -838,9 +849,10 @@ class StreakCalendar extends StatelessWidget {
 
 /// Edit profile: photo or emoji, name, @username, pronouns, bio, genres.
 Future<void> showEditProfile(BuildContext context) =>
-    showKitSheet<void>(context, title: 'Edit profile', maxHeight: 0.94, builder: (_) => const _EditProfile());
+    showKitSheet<void>(context, title: tr('Edit profile'), maxHeight: 0.94, builder: (_) => const _EditProfile());
 
 /// Pronouns to pick from; anything else is "Custom".
+/// (Shown as written: other readers see them too.)
 const pronounChoices = ['he/him', 'she/her', 'they/them'];
 
 /// Favourite genres shown on a profile.
@@ -903,7 +915,7 @@ class _EditProfileState extends ConsumerState<_EditProfile> {
   Future<void> _pickEmoji() async {
     final picked = await showKitSheet<String>(
       context,
-      title: 'Pick an emoji',
+      title: tr('Pick an emoji'),
       builder: (context) => Wrap(spacing: 6, runSpacing: 6, alignment: WrapAlignment.center, children: [
         for (final e in _avatarEmoji)
           KitPressable(
@@ -923,12 +935,12 @@ class _EditProfileState extends ConsumerState<_EditProfile> {
   Future<void> _save() async {
     final username = _username.text.trim().replaceFirst(RegExp('^@'), '').toLowerCase();
     if (username.isNotEmpty && !usernamePattern.hasMatch(username)) {
-      setState(() => _error = 'Usernames are 3–24 letters, numbers, dots or underscores.');
+      setState(() => _error = tr('Usernames are 3–24 letters, numbers, dots or underscores.'));
       return;
     }
     // Other readers see these: no links (the server checks the same).
     if (_profileLink.hasMatch(_name.text) || _profileLink.hasMatch(_bio.text)) {
-      setState(() => _error = 'Links aren’t allowed in your name or bio.');
+      setState(() => _error = tr('Links aren’t allowed in your name or bio.'));
       return;
     }
     setState(() {
@@ -950,7 +962,7 @@ class _EditProfileState extends ConsumerState<_EditProfile> {
         if (e.status == 409 || e.status == 400) {
           if (mounted) {
             setState(() {
-              _error = e.status == 400 && e.message != null ? e.message! : '@$username is taken. Try another.';
+              _error = e.status == 400 && e.message != null ? e.message! : tr('@{username} is taken. Try another.', {'username': username});
               _saving = false;
             });
           }
@@ -994,11 +1006,11 @@ class _EditProfileState extends ConsumerState<_EditProfile> {
       Center(child: ReaderAvatar(settings: preview, size: 84)),
       const SizedBox(height: 10),
       Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
-        KitChip(label: 'Photo', icon: Icons.photo_rounded, onTap: _pickPhoto),
-        KitChip(label: 'Emoji', icon: Icons.emoji_emotions_rounded, onTap: _pickEmoji),
+        KitChip(label: tr('Photo'), icon: Icons.photo_rounded, onTap: _pickPhoto),
+        KitChip(label: tr('Emoji'), icon: Icons.emoji_emotions_rounded, onTap: _pickEmoji),
         if (_photo != null || _emoji.isNotEmpty)
           KitChip(
-            label: 'Remove',
+            label: tr('Remove'),
             icon: Icons.close_rounded,
             onTap: () => setState(() {
               _emoji = '';
@@ -1006,28 +1018,28 @@ class _EditProfileState extends ConsumerState<_EditProfile> {
             }),
           ),
       ]),
-      label('NAME'),
-      KitTextField(controller: _name, hint: 'Your name', capitalization: TextCapitalization.words, maxLength: 40, onChanged: (_) => setState(() {})),
-      label('USERNAME'),
-      KitTextField(controller: _username, hint: '@yourname', capitalization: TextCapitalization.none, maxLength: 25),
-      label('PRONOUNS'),
+      label(tr('NAME')),
+      KitTextField(controller: _name, hint: tr('Your name'), capitalization: TextCapitalization.words, maxLength: 40, onChanged: (_) => setState(() {})),
+      label(tr('USERNAME')),
+      KitTextField(controller: _username, hint: tr('@yourname'), capitalization: TextCapitalization.none, maxLength: 25),
+      label(tr('PRONOUNS')),
       Wrap(spacing: 8, runSpacing: 8, children: [
         for (final p in [...pronounChoices, 'custom'])
           KitChip(
-            label: p == 'custom' ? 'Custom' : p,
+            label: p == 'custom' ? tr('Custom') : p,
             selected: _pronounChoice == p,
             onTap: () => setState(() => _pronounChoice = _pronounChoice == p ? '' : p),
           ),
       ]),
       if (_pronounChoice == 'custom') ...[
         const SizedBox(height: 8),
-        KitTextField(controller: _pronouns, hint: 'Your pronouns', capitalization: TextCapitalization.none, maxLength: 30),
+        KitTextField(controller: _pronouns, hint: tr('Your pronouns'), capitalization: TextCapitalization.none, maxLength: 30),
       ],
-      label('BIO'),
-      KitTextField(controller: _bio, hint: 'What you love to read, and why', maxLines: 4, minLines: 2, maxLength: 150),
-      label('FAVOURITE GENRES'),
+      label(tr('BIO')),
+      KitTextField(controller: _bio, hint: tr('What you love to read, and why'), maxLines: 4, minLines: 2, maxLength: 150),
+      label(tr('FAVOURITE GENRES')),
       Text(
-        _genres.length >= maxGenres ? 'Pick up to $maxGenres (that’s $maxGenres)' : 'Pick up to $maxGenres (${maxGenres - _genres.length} left)',
+        _genres.length >= maxGenres ? tr('Pick up to {max} (that’s {max})', {'max': maxGenres}) : tr('Pick up to {max} ({left} left)', {'max': maxGenres, 'left': maxGenres - _genres.length}),
         style: kit.caption,
       ),
       const SizedBox(height: 8),
@@ -1039,7 +1051,7 @@ class _EditProfileState extends ConsumerState<_EditProfile> {
             return Opacity(
               opacity: full ? 0.4 : 1,
               child: KitChip(
-                label: g,
+                label: tr(g),
                 selected: on,
                 onTap: full ? null : () => setState(() => _genres = on ? ({..._genres}..remove(g)) : {..._genres, g}),
               ),
@@ -1051,7 +1063,7 @@ class _EditProfileState extends ConsumerState<_EditProfile> {
         Text(_error!, style: kit.caption.copyWith(color: kit.danger)),
       ],
       const SizedBox(height: 18),
-      KitButton(label: _saving ? 'Saving…' : 'Save', expand: true, onPressed: _saving ? null : _save),
+      KitButton(label: _saving ? tr('Saving…') : tr('Save'), expand: true, onPressed: _saving ? null : _save),
     ]);
   }
 }

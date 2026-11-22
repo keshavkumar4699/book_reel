@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 import 'on_device_ai.dart' show LocalCancel, formatBytes;
+import '../l10n/l10n.dart';
 
 /// The natural voice on the phone: Kokoro (82M parameters, Apache 2.0), run
 /// by sherpa-onnx. Downloaded once, then free, unlimited and offline; the
@@ -200,7 +201,7 @@ class LocalVoiceController extends Notifier<LocalVoiceState> {
       if (!ref.mounted) return;
       state = cancel.cancelled
           ? const LocalVoiceState(phase: LocalVoicePhase.absent)
-          : LocalVoiceState(phase: LocalVoicePhase.failed, message: 'The download stopped (${_short(e)}). Try again, ideally on Wi-Fi.');
+          : LocalVoiceState(phase: LocalVoicePhase.failed, message: tr('The download stopped ({error}). Try again, ideally on Wi-Fi.', {'error': _short(e)}));
     } finally {
       if (identical(_download, cancel)) _download = null;
     }
@@ -210,7 +211,7 @@ class LocalVoiceController extends Notifier<LocalVoiceState> {
 
   /// The voice failed to load on this phone: say so, and fall back.
   void markBroken(Object error) {
-    state = LocalVoiceState(phase: LocalVoicePhase.failed, message: 'The voice couldn’t start on this phone (${_short(error)}).');
+    state = LocalVoiceState(phase: LocalVoicePhase.failed, message: tr('The voice couldn’t start on this phone ({error}).', {'error': _short(error)}));
   }
 
   /// Deletes the voice (and any half-finished download).

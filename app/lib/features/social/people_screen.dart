@@ -7,13 +7,13 @@ import '../../ui/haptics.dart';
 import '../friends/friends_screen.dart' show InviteCard;
 import '../../ui/kit.dart';
 import 'profile_header.dart';
+import '../../l10n/l10n.dart';
 
 enum PeopleTab {
-  followers('Followers'),
-  following('Following');
+  followers,
+  following;
 
-  const PeopleTab(this.label);
-  final String label;
+  String get label => this == PeopleTab.followers ? tr('Followers') : tr('Following');
 }
 
 /// Your account as the server sees it: id, invite code, follower counts.
@@ -59,8 +59,8 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
     final key = (widget.userId, _tab);
     final List<Widget> children;
     if (!api.enabled) {
-      children = const [
-        KitEmpty(emoji: '☁️', title: 'Following needs the Cloro server', message: 'Your reading is saved on this phone.'),
+      children = [
+        KitEmpty(emoji: '☁️', title: tr('Following needs the Cloro server'), message: tr('Your reading is saved on this phone.')),
       ];
     } else {
       final me = ref.watch(socialMeProvider).value;
@@ -69,17 +69,17 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
         const SizedBox(height: 8),
         if (_own)
           KitGroup(children: [
-            KitRow(icon: Icons.person_search_rounded, title: 'Find people', subtitle: 'Follow a reader by their @username', onTap: _find),
-            KitRow(icon: Icons.key_rounded, title: 'Follow by invite code', onTap: _byCode),
+            KitRow(icon: Icons.person_search_rounded, title: tr('Find people'), subtitle: tr('Follow a reader by their @username'), onTap: _find),
+            KitRow(icon: Icons.key_rounded, title: tr('Follow by invite code'), onTap: _byCode),
           ]),
         ...ref.watch(peopleProvider(key)).when(
               loading: () => const [Padding(padding: EdgeInsets.all(48), child: Center(child: KitSpinner()))],
               error: (e, _) => [
                 KitEmpty(
                   emoji: '☁️',
-                  title: 'Can’t reach Cloro right now',
-                  message: 'Try again in a moment.',
-                  action: KitButton.secondary(label: 'Try again', onPressed: () => ref.invalidate(peopleProvider(key))),
+                  title: tr('Can’t reach Cloro right now'),
+                  message: tr('Try again in a moment.'),
+                  action: KitButton.secondary(label: tr('Try again'), onPressed: () => ref.invalidate(peopleProvider(key))),
                 ),
               ],
               data: (people) => [
@@ -88,8 +88,8 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 28),
                     child: Text(
                       _tab == PeopleTab.followers
-                          ? (_own ? 'No followers yet. Share your invite below.' : 'No followers yet.')
-                          : (_own ? 'You don’t follow anyone yet. Find people by their @username.' : 'Not following anyone yet.'),
+                          ? (_own ? tr('No followers yet. Share your invite below.') : tr('No followers yet.'))
+                          : (_own ? tr('You don’t follow anyone yet. Find people by their @username.') : tr('Not following anyone yet.')),
                       textAlign: TextAlign.center,
                       style: kit.caption,
                     ),
@@ -109,7 +109,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
     return KitPage(
       back: true,
       backdrop: true,
-      title: _own ? 'People' : (widget.name ?? 'People'),
+      title: _own ? tr('People') : (widget.name ?? tr('People')),
       onRefresh: api.enabled
           ? () async {
               refreshSocial(ref);
@@ -123,10 +123,10 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
   Future<void> _find() async {
     final handle = await showKitPrompt(
       context,
-      title: 'Find people',
-      message: 'Follow a reader by their @username',
-      hint: '@username',
-      confirm: 'Follow',
+      title: tr('Find people'),
+      message: tr('Follow a reader by their @username'),
+      hint: tr('@username'),
+      confirm: tr('Follow'),
     );
     if (handle == null || handle.trim().isEmpty || !mounted) return;
     final name = handle.trim().replaceFirst(RegExp('^@'), '');
@@ -134,35 +134,35 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
       final user = await ref.read(apiProvider).followHandle(name);
       if (!mounted) return;
       if (user == null) {
-        showKitToast(context, 'No reader is called @$name.');
+        showKitToast(context, tr('No reader is called @{name}.', {'name': name}));
         return;
       }
       Haptics.tap();
-      showKitToast(context, 'You now follow ${user['display_name']}');
+      showKitToast(context, tr('You now follow {name}', {'name': user['display_name']}));
       refreshSocial(ref);
       setState(() => _tab = PeopleTab.following);
     } catch (_) {
-      if (mounted) showKitToast(context, 'Couldn’t follow. Check your connection.', icon: Icons.cloud_off_rounded);
+      if (mounted) showKitToast(context, tr('Couldn’t follow. Check your connection.'), icon: Icons.cloud_off_rounded);
     }
   }
 
   Future<void> _byCode() async {
     final code = await showKitPrompt(
       context,
-      title: 'Follow by invite code',
-      message: 'Enter their invite code: you’ll follow each other',
-      hint: 'e.g. 7PA756JQ',
-      confirm: 'Follow',
+      title: tr('Follow by invite code'),
+      message: tr('Enter their invite code: you’ll follow each other'),
+      hint: tr('e.g. 7PA756JQ'),
+      confirm: tr('Follow'),
       capitalization: TextCapitalization.characters,
     );
     if (code == null || code.isEmpty || !mounted) return;
     try {
       final name = await ref.read(apiProvider).addFriend(code);
       if (!mounted) return;
-      showKitToast(context, name == null ? 'No reader found with that code.' : 'You and $name now follow each other 🎉');
+      showKitToast(context, name == null ? tr('No reader found with that code.') : tr('You and {name} now follow each other 🎉', {'name': name}));
       if (name != null) refreshSocial(ref);
     } catch (_) {
-      if (mounted) showKitToast(context, 'Couldn’t follow. Check your connection.', icon: Icons.cloud_off_rounded);
+      if (mounted) showKitToast(context, tr('Couldn’t follow. Check your connection.'), icon: Icons.cloud_off_rounded);
     }
   }
 }
@@ -219,7 +219,7 @@ class _PersonRowState extends ConsumerState<_PersonRow> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _following = !follow);
-      showKitToast(context, 'Couldn’t update. Check your connection.', icon: Icons.cloud_off_rounded);
+      showKitToast(context, tr('Couldn’t update. Check your connection.'), icon: Icons.cloud_off_rounded);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -235,6 +235,6 @@ class FollowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => following
-      ? KitButton.secondary(label: 'Following', compact: !expand, expand: expand, onPressed: onPressed)
-      : KitButton(label: 'Follow', compact: !expand, expand: expand, onPressed: onPressed);
+      ? KitButton.secondary(label: tr('Following'), compact: !expand, expand: expand, onPressed: onPressed)
+      : KitButton(label: tr('Follow'), compact: !expand, expand: expand, onPressed: onPressed);
 }

@@ -14,6 +14,7 @@ import '../../ui/widgets.dart';
 import '../profile/profile_screen.dart' show ReaderAvatar;
 import '../social/profile_header.dart' show PersonAvatar;
 import '../social/safety.dart';
+import '../../l10n/l10n.dart';
 
 /// One card in the Journal feed (Cloro plan §10): a reading session or a
 /// milestone, yours or from a reader you follow.
@@ -193,15 +194,15 @@ final journalFeedProvider = AsyncNotifierProvider.autoDispose<JournalFeed, FeedP
 String timeAgo(DateTime at, DateTime now) {
   final d = now.difference(at);
   if (d.inMinutes < 1) return 'now';
-  if (d.inMinutes < 60) return '${d.inMinutes} min';
-  if (d.inHours < 24 && at.day == now.day) return '${d.inHours} h';
+  if (d.inMinutes < 60) return tr('{n} min', {'n': d.inMinutes});
+  if (d.inHours < 24 && at.day == now.day) return tr('{h} h', {'h': d.inHours});
   final day = DateTime(at.year, at.month, at.day);
   final today = DateTime(now.year, now.month, now.day);
   final days = today.difference(day).inDays;
-  if (days == 1) return 'Yesterday';
-  if (days < 7) return const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][at.weekday - 1];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return '${at.day} ${months[at.month - 1]}${at.year == now.year ? '' : ' ${at.year}'}';
+  if (days == 1) return tr('Yesterday');
+  // Day and month names in the app's language.
+  if (days < 7) return localDate('E').format(at);
+  return localDate(at.year == now.year ? 'MMMd' : 'yMMMd').format(at);
 }
 
 String _minutes(num m) => m < 1 ? '<1' : m.round().toString();
@@ -240,7 +241,7 @@ class ActivityCard extends ConsumerWidget {
           behavior: HitTestBehavior.opaque,
           onTap: openAuthor,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(e.mine ? 'You' : e.name, style: kit.strong, maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(e.mine ? tr('You') : e.name, style: kit.strong, maxLines: 1, overflow: TextOverflow.ellipsis),
             Text(timeAgo(e.at, now ?? DateTime.now()), style: kit.caption),
           ]),
         ),
@@ -248,7 +249,7 @@ class ActivityCard extends ConsumerWidget {
       if (!e.mine && !e.local)
         KitIconButton(
           icon: Icons.more_horiz_rounded,
-          semanticLabel: 'More: report or block',
+          semanticLabel: tr('More: report or block'),
           onPressed: () => showSafetyActions(
             context,
             ref,
@@ -278,7 +279,7 @@ class ActivityCard extends ConsumerWidget {
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title.isEmpty ? 'Read' : title, style: kit.heading, maxLines: 2, overflow: TextOverflow.ellipsis),
+              Text(title.isEmpty ? tr('Read') : title, style: kit.heading, maxLines: 2, overflow: TextOverflow.ellipsis),
               if ('${book?['author'] ?? ''}'.isNotEmpty) Text('${book!['author']}', style: kit.caption),
             ]),
           ),
@@ -286,9 +287,9 @@ class ActivityCard extends ConsumerWidget {
         ]),
         const SizedBox(height: 12),
         Wrap(runSpacing: 8, children: [
-          stat('${_minutes((e.data['minutes'] as num?) ?? 0)} min', 'Time', color: kit.activity),
-          stat('${e.data['cards'] ?? 0}', 'Cards'),
-          if (progress > 0) stat('${(progress * 100).round()}%', 'Book'),
+          stat(tr('{n} min', {'n': _minutes((e.data['minutes'] as num?) ?? 0)}), tr('Time'), color: kit.activity),
+          stat('${e.data['cards'] ?? 0}', tr('Cards')),
+          if (progress > 0) stat('${(progress * 100).round()}%', tr('Book')),
         ]),
         if (quote != null && quote.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -323,10 +324,12 @@ class ActivityCard extends ConsumerWidget {
                     : () async {
                         Haptics.tap();
                         if (!await ref.read(journalFeedProvider.notifier).giveKudos(e) && context.mounted) {
-                          showKitToast(context, 'Couldn’t send kudos. Check your connection.', icon: Icons.cloud_off_rounded);
+                          showKitToast(context, tr('Couldn’t send kudos. Check your connection.'), icon: Icons.cloud_off_rounded);
                         }
                       },
-                semanticLabel: e.mine ? '${e.kudos} kudos' : (e.gaveKudos ? 'You gave kudos, ${e.kudos} in all' : 'Give kudos, ${e.kudos} so far'),
+                semanticLabel: e.mine
+                    ? tr('{n} kudos', {'n': e.kudos})
+                    : (e.gaveKudos ? tr('You gave kudos, {n} in all', {'n': e.kudos}) : tr('Give kudos, {n} so far', {'n': e.kudos})),
                 excludeSemantics: true,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(0, 8, 18, 8),
@@ -335,7 +338,7 @@ class ActivityCard extends ConsumerWidget {
               ),
               KitPressable(
                 onTap: () => showComments(context, ref, e),
-                semanticLabel: '${e.comments} comment${e.comments == 1 ? '' : 's'}. Open',
+                semanticLabel: trn(e.comments, '{n} comment. Open', '{n} comments. Open'),
                 excludeSemantics: true,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(0, 8, 18, 8),
@@ -365,8 +368,8 @@ class ActivityCard extends ConsumerWidget {
 /// your own activity).
 Future<void> showComments(BuildContext context, WidgetRef ref, FeedEntry e) => showKitSheet<void>(
       context,
-      title: 'Comments',
-      subtitle: e.type == 'session' ? '${e.mine ? 'You' : e.name} · ${(e.data['book'] as Map?)?['title'] ?? ''}' : null,
+      title: tr('Comments'),
+      subtitle: e.type == 'session' ? '${e.mine ? tr('You') : e.name} · ${(e.data['book'] as Map?)?['title'] ?? ''}' : null,
       builder: (_) => _Comments(entry: e),
     );
 
@@ -403,14 +406,14 @@ class _CommentsState extends ConsumerState<_Comments> {
   }
 
   Future<void> _write() async {
-    final text = await showKitPrompt(context, title: 'Add a comment', hint: 'Say something kind', maxLines: 4, confirm: 'Post');
+    final text = await showKitPrompt(context, title: tr('Add a comment'), hint: tr('Say something kind'), maxLines: 4, confirm: tr('Post'));
     if (text == null || text.trim().isEmpty || !mounted) return;
     try {
       await ref.read(apiProvider).addComment(widget.entry.id, text.trim());
       await _load();
     } catch (e) {
       if (mounted) {
-        showKitToast(context, apiErrorMessage(e, fallback: 'Couldn’t post your comment. Check your connection.'), icon: Icons.info_outline_rounded);
+        showKitToast(context, apiErrorMessage(e, fallback: tr('Couldn’t post your comment. Check your connection.')), icon: Icons.info_outline_rounded);
       }
     }
   }
@@ -420,7 +423,7 @@ class _CommentsState extends ConsumerState<_Comments> {
       await ref.read(apiProvider).deleteComment(c['id'] as String);
       await _load();
     } catch (_) {
-      if (mounted) showKitToast(context, 'Couldn’t remove it. Check your connection.', icon: Icons.cloud_off_rounded);
+      if (mounted) showKitToast(context, tr('Couldn’t remove it. Check your connection.'), icon: Icons.cloud_off_rounded);
     }
   }
 
@@ -431,11 +434,11 @@ class _CommentsState extends ConsumerState<_Comments> {
     final now = DateTime.now();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       if (_failed)
-        Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text('Couldn’t load comments.', style: kit.caption))
+        Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text(tr('Couldn’t load comments.'), style: kit.caption))
       else if (items == null)
         const Padding(padding: EdgeInsets.all(24), child: Center(child: KitSpinner()))
       else if (items.isEmpty)
-        Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text('No comments yet. Be the first.', style: kit.caption))
+        Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text(tr('No comments yet. Be the first.'), style: kit.caption))
       else
         for (final c in items)
           Padding(
@@ -446,7 +449,7 @@ class _CommentsState extends ConsumerState<_Comments> {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text.rich(TextSpan(children: [
-                    TextSpan(text: c['mine'] == true ? 'You' : '${c['name']}', style: kit.strong),
+                    TextSpan(text: c['mine'] == true ? tr('You') : '${c['name']}', style: kit.strong),
                     TextSpan(text: '  ${timeAgo(DateTime.tryParse('${c['at']}')?.toLocal() ?? now, now)}', style: kit.caption),
                   ])),
                   const SizedBox(height: 2),
@@ -456,7 +459,7 @@ class _CommentsState extends ConsumerState<_Comments> {
               if (c['mine'] != true)
                 KitIconButton(
                   icon: Icons.more_horiz_rounded,
-                  semanticLabel: 'More: report or block',
+                  semanticLabel: tr('More: report or block'),
                   onPressed: () => showSafetyActions(
                     context,
                     ref,
@@ -471,11 +474,11 @@ class _CommentsState extends ConsumerState<_Comments> {
                   ),
                 ),
               if (c['can_delete'] == true)
-                KitIconButton(icon: Icons.delete_outline_rounded, semanticLabel: 'Remove comment', onPressed: () => _delete(c)),
+                KitIconButton(icon: Icons.delete_outline_rounded, semanticLabel: tr('Remove comment'), onPressed: () => _delete(c)),
             ]),
           ),
       KitGroup(divided: true, children: [
-        KitRow(icon: Icons.edit_rounded, title: 'Add a comment', chevron: false, onTap: _write),
+        KitRow(icon: Icons.edit_rounded, title: tr('Add a comment'), chevron: false, onTap: _write),
       ]),
     ]);
   }

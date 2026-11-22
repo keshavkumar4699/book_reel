@@ -3,6 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
+import '../l10n/l10n.dart';
 
 /// Calm notifications (UX_DESIGN.md §5.10): at most one daily reminder at the
 /// user's chosen time, worded with their habit anchor, plus a gentle
@@ -20,11 +21,12 @@ class ReminderService {
   final _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
-  static const _details = NotificationDetails(
+  // A getter: the channel's name is in the app's language.
+  static NotificationDetails get _details => NotificationDetails(
     android: AndroidNotificationDetails(
       'reading_reminders',
-      'Reading reminders',
-      channelDescription: 'One gentle daily reminder to read',
+      tr('Reading reminders'),
+      channelDescription: tr('One gentle daily reminder to read'),
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     ),
@@ -55,9 +57,11 @@ class ReminderService {
 
   /// Text for the daily reminder, using the user's own words when given.
   static String reminderBody({required String habitAnchor, required int dailyGoal, String? bookTitle}) {
-    final what = bookTitle == null ? '$dailyGoal cards' : '$dailyGoal cards of $bookTitle';
-    final anchor = habitAnchor.trim();
-    return anchor.isEmpty ? 'Time for $what?' : '$anchor: $what?';
+    final what = bookTitle == null
+        ? trn(dailyGoal, '{n} card', '{n} cards')
+        : tr('{cards} of {title}', {'cards': trn(dailyGoal, '{n} card', '{n} cards'), 'title': bookTitle});
+    final anchor = tr(habitAnchor.trim());
+    return anchor.isEmpty ? tr('Time for {what}?', {'what': what}) : '$anchor: $what?';
   }
 
   Future<void> scheduleDaily({
@@ -91,8 +95,8 @@ class ReminderService {
     final at = tz.TZDateTime(tz.local, now.year, now.month, now.day, 20);
     if (!at.isAfter(now)) return;
     final body = freezesLeft > 0
-        ? 'Your $streak-day streak is safe with a freeze, or read 3 cards to keep it going.'
-        : 'Keep your $streak-day streak going? A few cards is enough.';
+        ? tr('Your {n}-day streak is safe with a freeze, or read 3 cards to keep it going.', {'n': streak})
+        : tr('Keep your {n}-day streak going? A few cards is enough.', {'n': streak});
     await _plugin.zonedSchedule(
       id: _nudgeId,
       scheduledDate: at,

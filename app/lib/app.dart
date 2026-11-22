@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -19,6 +20,7 @@ import 'features/reader/reading_tab.dart';
 import 'features/settings/licenses_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/shell/home_shell.dart';
+import 'l10n/l10n.dart';
 import 'features/journal/journal_screen.dart';
 import 'ui/haptics.dart';
 import 'ui/kit.dart';
@@ -98,6 +100,28 @@ class BookReelApp extends ConsumerStatefulWidget {
 }
 
 class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingObserver {
+  /// The language on screen (its text is in [Strings.current]).
+  String _language = Strings.current.code;
+  String? _loading;
+
+  /// Loads [code]'s text, then draws every screen again in it (keeping
+  /// where you are).
+  Future<void> _useLanguage(String code) async {
+    if (_loading == code) return;
+    _loading = code;
+    final strings = await Strings.load(code);
+    if (!mounted || _loading != code) return;
+    _loading = null;
+    Strings.current = strings;
+    setState(() => _language = code);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) rebuildAllText(context);
+    });
+  }
+
+  @override
+  void didChangeLocales(List<Locale>? locales) => setState(() {});
+
   // Screens outside the reader: plain light and dark (the reader wears its scene).
   static final _light = buildAppTheme(Kit.appLight);
   static final _dark = buildAppTheme(Kit.appDark);
@@ -140,8 +164,14 @@ class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingOb
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     final appearance = ref.watch(settingsProvider.select((s) => s.appearance));
+    final wanted = resolveLanguage(ref.watch(settingsProvider.select((s) => s.language)), WidgetsBinding.instance.platformDispatcher.locales);
+    if (wanted != _language) WidgetsBinding.instance.addPostFrameCallback((_) => _useLanguage(wanted));
     return MaterialApp.router(
       title: 'Cloro',
+      // The app's language; Flutter's own text (and right-to-left for Arabic) follows it.
+      locale: Locale(_language),
+      supportedLocales: [for (final l in appLanguages) l.locale],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
       theme: _light,
       darkTheme: _dark,

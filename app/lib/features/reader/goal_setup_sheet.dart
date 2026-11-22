@@ -8,13 +8,14 @@ import '../../data/settings_provider.dart';
 import '../../services/notifications.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
+import '../../l10n/l10n.dart';
 
 /// Asked after the first few cards, when motivation is highest
 /// (UX_DESIGN.md §5.9): daily goal + habit anchor ("After I ___, I'll read").
 Future<void> showGoalSetup(BuildContext context) => showKitSheet<void>(
       context,
-      title: 'Nice start! Set a small daily goal',
-      subtitle: 'Small goals are easier to keep. You can change this anytime.',
+      title: tr('Nice start! Set a small daily goal'),
+      subtitle: tr('Small goals are easier to keep. You can change this anytime.'),
       dismissible: false,
       builder: (_) => const _GoalSetup(),
     );
@@ -23,7 +24,7 @@ Future<void> showGoalSetup(BuildContext context) => showKitSheet<void>(
 /// reader's flag pill, the Journal ring and Settings.
 Future<void> showGoalSheet(BuildContext context) => showKitSheet<void>(
       context,
-      title: 'Daily goal',
+      title: tr('Daily goal'),
       builder: (_) => const _GoalEditor(),
     );
 
@@ -31,7 +32,7 @@ Future<void> showGoalSheet(BuildContext context) => showKitSheet<void>(
 /// reader's flame pill and Journal.
 Future<void> showStreakSheet(BuildContext context) => showKitSheet<void>(
       context,
-      title: 'Your streak',
+      title: tr('Your streak'),
       builder: (_) => const _StreakDetails(),
     );
 
@@ -58,6 +59,7 @@ class _GoalSetupState extends ConsumerState<_GoalSetup> {
   String _anchor = '';
   TimeOfDay _time = const TimeOfDay(hour: 20, minute: 0);
 
+  /// Kept in English in the settings; shown (and in the reminder) translated.
   static const _anchors = ['After my morning tea', 'On my commute', 'After lunch', 'Before bed'];
 
   Future<void> _finish({required bool reminders}) async {
@@ -81,22 +83,22 @@ class _GoalSetupState extends ConsumerState<_GoalSetup> {
     final kit = Kit.of(context);
     final quiet = ReminderService.isQuietHour(_time.hour);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      KitSegmented<int>(values: const [10, 20, 40], selected: _goal, label: (v) => '$v cards', onChanged: (v) => setState(() => _goal = v)),
+      KitSegmented<int>(values: const [10, 20, 40], selected: _goal, label: (v) => trn(v, '{n} card', '{n} cards'), onChanged: (v) => setState(() => _goal = v)),
       const SizedBox(height: 6),
-      Text('≈ ${(_goal * 0.15).round()}–${(_goal * 0.3).round()} minutes a day', style: kit.caption),
+      Text(tr('≈ {from}–{to} minutes a day', {'from': (_goal * 0.15).round(), 'to': (_goal * 0.3).round()}), style: kit.caption),
       const SizedBox(height: 22),
-      Text('When will you read?', style: kit.heading),
+      Text(tr('When will you read?'), style: kit.heading),
       const SizedBox(height: 2),
-      Text('Linking reading to something you already do makes it stick.', style: kit.caption),
+      Text(tr('Linking reading to something you already do makes it stick.'), style: kit.caption),
       const SizedBox(height: 10),
       Wrap(spacing: 8, runSpacing: 8, children: [
-        for (final a in _anchors) KitChip(label: a, selected: _anchor == a, onTap: () => setState(() => _anchor = _anchor == a ? '' : a)),
+        for (final a in _anchors) KitChip(label: tr(a), selected: _anchor == a, onTap: () => setState(() => _anchor = _anchor == a ? '' : a)),
         KitChip(
-          label: _anchors.contains(_anchor) || _anchor.isEmpty ? 'Something else…' : 'After I $_anchor',
+          label: _anchors.contains(_anchor) || _anchor.isEmpty ? tr('Something else…') : tr('After I {habit}', {'habit': _anchor}),
           icon: Icons.edit_rounded,
           selected: _anchor.isNotEmpty && !_anchors.contains(_anchor),
           onTap: () async {
-            final v = await showKitPrompt(context, title: 'After I…', hint: 'have my morning tea', initial: _anchors.contains(_anchor) ? '' : _anchor);
+            final v = await showKitPrompt(context, title: tr('After I…'), hint: tr('have my morning tea'), initial: _anchors.contains(_anchor) ? '' : _anchor);
             if (v != null) setState(() => _anchor = v);
           },
         ),
@@ -106,19 +108,19 @@ class _GoalSetupState extends ConsumerState<_GoalSetup> {
         padding: EdgeInsets.zero,
         child: KitRow(
           icon: Icons.notifications_rounded,
-          title: 'One gentle reminder a day',
-          subtitle: quiet ? 'That’s during quiet hours (10 pm–8 am). Pick another time.' : 'At ${_time.format(context)}',
-          value: 'Change',
+          title: tr('One gentle reminder a day'),
+          subtitle: quiet ? tr('That’s during quiet hours (10 pm–8 am). Pick another time.') : tr('At {time}', {'time': _time.format(context)}),
+          value: tr('Change'),
           onTap: () async {
-            final t = await showKitTimePicker(context, initial: _time, title: 'Reminder time', subtitle: 'Never during quiet hours (10 pm–8 am)');
+            final t = await showKitTimePicker(context, initial: _time, title: tr('Reminder time'), subtitle: tr('Never during quiet hours (10 pm–8 am)'));
             if (t != null) setState(() => _time = t);
           },
         ),
       ),
       const SizedBox(height: 18),
-      KitButton(label: 'Set goal & remind me', expand: true, onPressed: quiet ? null : () => _finish(reminders: true)),
+      KitButton(label: tr('Set goal & remind me'), expand: true, onPressed: quiet ? null : () => _finish(reminders: true)),
       const SizedBox(height: 4),
-      KitButton.ghost(label: 'No reminders', expand: true, onPressed: () => _finish(reminders: false)),
+      KitButton.ghost(label: tr('No reminders'), expand: true, onPressed: () => _finish(reminders: false)),
     ]);
   }
 }
@@ -139,7 +141,11 @@ class _GoalEditor extends ConsumerWidget {
       // Blue on its way, green once met (as the Journal's ring).
       Row(children: [
         Expanded(
-          child: Text(today.meets(goal) ? 'Done for today ✓' : '$done of ${goal.dailyTarget} ${cards ? 'cards' : 'min'} today',
+          child: Text(today.meets(goal)
+              ? tr('Done for today ✓')
+              : (cards
+                  ? tr('{done} of {goal} cards today', {'done': done, 'goal': goal.dailyTarget})
+                  : tr('{done} of {goal} min today', {'done': done, 'goal': goal.dailyTarget})),
               style: kit.strong.copyWith(color: today.meets(goal) ? kit.growth : null)),
         ),
         Text('${(today.progress(goal) * 100).round()}%', style: kit.strong.copyWith(color: today.meets(goal) ? kit.growth : kit.activity)),
@@ -155,17 +161,17 @@ class _GoalEditor extends ConsumerWidget {
       KitSegmented<GoalMode>(
         values: GoalMode.values,
         selected: s.goalMode,
-        label: (m) => m == GoalMode.daily ? 'Daily streak' : 'Days per week',
+        label: (m) => m == GoalMode.daily ? tr('Daily streak') : tr('Days per week'),
         onChanged: (m) => n.update((x) => x.copyWith(goalMode: m)),
       ),
       const SizedBox(height: 16),
-      Text('Each day', style: kit.label),
+      Text(tr('Each day'), style: kit.label),
       const SizedBox(height: 8),
       Wrap(spacing: 8, runSpacing: 8, children: [
         for (final g in const [10, 20, 40, 60])
-          KitChip(label: '$g ${cards ? 'cards' : 'min'}', selected: s.dailyGoal == g, onTap: () => n.update((x) => x.copyWith(dailyGoal: g))),
+          KitChip(label: cards ? trn(g, '{n} card', '{n} cards') : tr('{n} min', {'n': g}), selected: s.dailyGoal == g, onTap: () => n.update((x) => x.copyWith(dailyGoal: g))),
         KitChip(
-          label: cards ? 'Count minutes' : 'Count cards',
+          label: cards ? tr('Count minutes') : tr('Count cards'),
           icon: Icons.swap_horiz_rounded,
           onTap: () => n.update((x) => x.copyWith(goalUnit: cards ? GoalUnit.minutes : GoalUnit.cards)),
         ),
@@ -173,7 +179,7 @@ class _GoalEditor extends ConsumerWidget {
       if (s.goalMode == GoalMode.weekly) ...[
         const SizedBox(height: 16),
         Row(children: [
-          Expanded(child: Text('Days a week', style: kit.label)),
+          Expanded(child: Text(tr('Days a week'), style: kit.label)),
           Text('${s.weeklyDays}', style: kit.strong),
         ]),
         KitSlider(
@@ -181,8 +187,8 @@ class _GoalEditor extends ConsumerWidget {
           min: 2,
           max: 7,
           divisions: 5,
-          semanticLabel: 'Days a week',
-          format: (v) => '${v.round()} days',
+          semanticLabel: tr('Days a week'),
+          format: (v) => trn(v.round(), '{n} day', '{n} days'),
           onChanged: (v) => n.update((x) => x.copyWith(weeklyDays: v.round())),
         ),
       ],
@@ -191,8 +197,8 @@ class _GoalEditor extends ConsumerWidget {
         MergeSemantics(
           child: KitRow(
             icon: Icons.notifications_rounded,
-            title: 'Daily reminder',
-            subtitle: s.reminderEnabled ? 'Never during quiet hours (10 pm–8 am)' : 'Off',
+            title: tr('Daily reminder'),
+            subtitle: s.reminderEnabled ? tr('Never during quiet hours (10 pm–8 am)') : tr('Off'),
             chevron: false,
             trailing: KitSwitch(
               value: s.reminderEnabled,
@@ -207,16 +213,16 @@ class _GoalEditor extends ConsumerWidget {
         if (s.reminderEnabled)
           KitRow(
             icon: Icons.schedule_rounded,
-            title: 'Reminder time',
+            title: tr('Reminder time'),
             value: _formatTime(context, s.reminderHour, s.reminderMinute),
             onTap: () async {
               final t = await showKitTimePicker(context,
                   initial: TimeOfDay(hour: s.reminderHour, minute: s.reminderMinute),
-                  title: 'Reminder time',
-                  subtitle: 'Never during quiet hours (10 pm–8 am)');
+                  title: tr('Reminder time'),
+                  subtitle: tr('Never during quiet hours (10 pm–8 am)'));
               if (t == null || !context.mounted) return;
               if (ReminderService.isQuietHour(t.hour)) {
-                showKitToast(context, 'That’s during quiet hours (10 pm–8 am). Pick another time.', emoji: '🌙');
+                showKitToast(context, tr('That’s during quiet hours (10 pm–8 am). Pick another time.'), emoji: '🌙');
                 return;
               }
               n.update((x) => x.copyWith(reminderHour: t.hour, reminderMinute: t.minute));
@@ -225,10 +231,10 @@ class _GoalEditor extends ConsumerWidget {
           ),
         KitRow(
           icon: Icons.link_rounded,
-          title: 'Habit anchor',
-          value: s.habitAnchor.isEmpty ? 'Not set' : s.habitAnchor,
+          title: tr('Habit anchor'),
+          value: s.habitAnchor.isEmpty ? tr('Not set') : s.habitAnchor,
           onTap: () async {
-            final v = await showKitPrompt(context, title: 'After I…', hint: 'have my morning tea', initial: s.habitAnchor);
+            final v = await showKitPrompt(context, title: tr('After I…'), hint: tr('have my morning tea'), initial: s.habitAnchor);
             if (v == null) return;
             n.update((x) => x.copyWith(habitAnchor: v));
             await _reschedule(ref.read(settingsProvider));
@@ -255,15 +261,19 @@ class _StreakDetails extends ConsumerWidget {
     final now = DateTime.now();
     // Monday-first week, like the leagues.
     final monday = DateTime(now.year, now.month, now.day - (now.weekday - 1));
-    const names = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    // One letter a day, in the app's language.
+    final narrow = localDate('EEEEE');
+    final names = [for (var d = 0; d < 7; d++) narrow.format(DateTime(2024, 1, 1 + d))];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Row(children: [
         Icon(Icons.local_fire_department_rounded, size: 46, color: streak > 0 ? ember : kit.inkSoft),
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$streak ${weekly ? (streak == 1 ? 'week' : 'weeks') : (streak == 1 ? 'day' : 'days')}', style: kit.display),
-            Text(weekly ? '${notifier.activeDaysThisWeek()} of ${goal.weeklyDays} days done this week' : 'Best: ${habit.streak.best} days',
+            Text(weekly ? trn(streak, '{n} week', '{n} weeks') : trn(streak, '{n} day', '{n} days'), style: kit.display),
+            Text(weekly
+                ? tr('{done} of {days} days done this week', {'done': notifier.activeDaysThisWeek(), 'days': goal.weeklyDays})
+                : tr('Best: {n} days', {'n': habit.streak.best}),
                 style: kit.caption),
           ]),
         ),
@@ -278,7 +288,7 @@ class _StreakDetails extends ConsumerWidget {
             final isToday = d == now.weekday - 1;
             final future = day.isAfter(now);
             return Semantics(
-              label: '${names[d]}: ${met ? 'goal met' : future ? 'to come' : 'not yet'}',
+              label: '${names[d]}: ${met ? tr('goal met') : future ? tr('to come') : tr('not yet')}',
               child: Column(children: [
                 // A day the goal was met is green, as on the Profile's
                 // calendar; today, still to do, is ringed in blue.
@@ -308,13 +318,13 @@ class _StreakDetails extends ConsumerWidget {
       KitGroup(divided: true, children: [
         KitRow(
           icon: Icons.ac_unit_rounded,
-          title: '$freezes streak freeze${freezes == 1 ? '' : 's'} left',
-          subtitle: 'A freeze covers a missed day. Your plan gives ${s.tier.freezes} a week.',
+          title: trn(freezes, '{n} streak freeze left', '{n} streak freezes left'),
+          subtitle: tr('A freeze covers a missed day. Your plan gives {n} a week.', {'n': s.tier.freezes}),
         ),
         KitRow(
           icon: Icons.flag_rounded,
-          title: 'Daily goal',
-          value: '${goal.dailyTarget} ${goal.unit == GoalUnit.cards ? 'cards' : 'min'}',
+          title: tr('Daily goal'),
+          value: goal.unit == GoalUnit.cards ? trn(goal.dailyTarget, '{n} card', '{n} cards') : tr('{n} min', {'n': goal.dailyTarget}),
           onTap: () {
             // Open the goal sheet from the navigator, not from this closing sheet.
             final navigator = Navigator.of(context);

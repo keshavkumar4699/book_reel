@@ -1,6 +1,7 @@
 import '../core/habit/habit_engine.dart';
 import '../core/segmentation/rule_segmenter.dart';
 import '../core/text/lexicon.dart';
+import '../l10n/l10n.dart';
 
 enum ReadingThemeId { paper, white, sepia, dark, black }
 
@@ -36,12 +37,15 @@ enum Vibe { forest, cafe, rain, ocean, night, meadow, snow, city, paper }
 
 /// Light or dark for every screen except the reader (which wears its scene).
 enum AppAppearance {
-  system('System default'),
-  light('Light'),
-  dark('Dark');
+  system,
+  light,
+  dark;
 
-  const AppAppearance(this.label);
-  final String label;
+  String get label => switch (this) {
+        AppAppearance.system => tr('System default'),
+        AppAppearance.light => tr('Light'),
+        AppAppearance.dark => tr('Dark'),
+      };
 }
 
 /// Bump when defaults change in a way existing users should get.
@@ -134,6 +138,7 @@ class AppSettings {
     this.online = true,
     this.crashReports = true,
     this.haptics = true,
+    this.language = '',
   });
 
   final ReadingThemeId theme;
@@ -217,6 +222,9 @@ class AppSettings {
   /// A light vibration when you choose, like, save or finish something.
   final bool haptics;
 
+  /// The app's language (a code from `appLanguages`); empty: the phone's.
+  final String language;
+
   GoalConfig get goal => GoalConfig(
         unit: goalUnit,
         dailyTarget: dailyGoal,
@@ -276,6 +284,7 @@ class AppSettings {
     bool? online,
     bool? crashReports,
     bool? haptics,
+    String? language,
   }) =>
       AppSettings(
         theme: theme ?? this.theme,
@@ -327,6 +336,7 @@ class AppSettings {
         online: online ?? this.online,
         crashReports: crashReports ?? this.crashReports,
         haptics: haptics ?? this.haptics,
+        language: language ?? this.language,
       );
 
   Map<String, dynamic> toJson() => {
@@ -379,6 +389,7 @@ class AppSettings {
         'online': online,
         'crashReports': crashReports,
         'haptics': haptics,
+        'language': language,
         'planVersion': currentPlanVersion,
       };
 
@@ -457,6 +468,7 @@ class AppSettings {
       online: (j['online'] as bool?) ?? d.online,
       crashReports: (j['crashReports'] as bool?) ?? d.crashReports,
       haptics: (j['haptics'] as bool?) ?? d.haptics,
+      language: (j['language'] as String?) ?? d.language,
     );
   }
 }

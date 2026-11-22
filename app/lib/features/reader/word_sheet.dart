@@ -5,6 +5,7 @@ import '../../core/text/lexicon.dart';
 import '../../data/notebook.dart';
 import '../../services/tts.dart';
 import '../../ui/kit.dart';
+import '../../l10n/l10n.dart';
 
 /// Word sheet (UX_DESIGN.md §5.4): meaning in this sentence first, then
 /// dictionary senses, pronunciation and "add to word list". The meaning in
@@ -24,7 +25,7 @@ Future<void> showWordSheet(
     context,
     title: entry?.lemma ?? word.toLowerCase(),
     maxHeight: 0.8,
-    trailing: KitIconButton(icon: Icons.volume_up_rounded, semanticLabel: 'Pronounce', onPressed: () => Tts.instance.speak(word)),
+    trailing: KitIconButton(icon: Icons.volume_up_rounded, semanticLabel: tr('Pronounce'), onPressed: () => Tts.instance.speak(word)),
     builder: (context) => _WordSheet(
       word: word,
       sentence: sentence,
@@ -80,9 +81,9 @@ class _WordSheetState extends ConsumerState<_WordSheet> {
     }
   }
 
-  Widget _inContext(Kit kit, String text, {String label = 'IN THIS SENTENCE'}) => KitPanel(
+  Widget _inContext(Kit kit, String text, {String? label}) => KitPanel(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: kit.label),
+          Text(label ?? tr('IN THIS SENTENCE'), style: kit.label),
           const SizedBox(height: 6),
           Text(text, style: kit.heading),
         ]),
@@ -100,20 +101,20 @@ class _WordSheetState extends ConsumerState<_WordSheet> {
       if (widget.contextMeaning != null)
         _inContext(kit, widget.contextMeaning!)
       else if (_local != null)
-        _inContext(kit, _local!, label: 'IN THIS SENTENCE · ON-DEVICE AI')
+        _inContext(kit, _local!, label: tr('IN THIS SENTENCE · ON-DEVICE AI'))
       else if (_asking)
         KitPanel(
           child: Row(children: [
             KitSpinner(size: 18, color: kit.ink),
             const SizedBox(width: 12),
-            Expanded(child: Text('Working out what it means here, on your phone…', style: kit.caption)),
+            Expanded(child: Text(tr('Working out what it means here, on your phone…'), style: kit.caption)),
           ]),
         ),
       const SizedBox(height: 14),
       if (entry == null && contextMeaning == null)
-        Text(_asking ? '' : 'No offline definition for “$word”.', style: kit.body)
+        Text(_asking ? '' : tr('No offline definition for “{word}”.', {'word': word}), style: kit.body)
       else if (entry != null) ...[
-        Text('DICTIONARY', style: kit.label),
+        Text(tr('DICTIONARY'), style: kit.label),
         const SizedBox(height: 8),
         for (final s in entry.senses)
           Padding(
@@ -132,7 +133,7 @@ class _WordSheetState extends ConsumerState<_WordSheet> {
       ],
       const SizedBox(height: 6),
       KitButton(
-        label: saved ? 'In your word list' : 'Add to word list',
+        label: saved ? tr('In your word list') : tr('Add to word list'),
         icon: saved ? Icons.check_rounded : Icons.add_rounded,
         kind: saved ? KitButtonKind.secondary : KitButtonKind.primary,
         expand: true,

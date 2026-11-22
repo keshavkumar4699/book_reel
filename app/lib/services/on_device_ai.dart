@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/settings_provider.dart';
+import '../l10n/l10n.dart';
 
 /// On-device AI for the Free plan (DESIGN.md §4.3, IMPLEMENTATION_PLAN.md
 /// Phase 8): a small open-weight language model, downloaded once, that writes
@@ -96,17 +97,17 @@ class PlatformDeviceProbe implements DeviceProbe {
   @override
   Future<DeviceProfile> read() async {
     if (kIsWeb || !Platform.isAndroid) {
-      return const DeviceProfile(supported: false, reason: 'On-device AI runs on Android phones.');
+      return DeviceProfile(supported: false, reason: tr('On-device AI runs on Android phones.'));
     }
     // The engine ships for 64-bit ARM only; a 32-bit build of the app has none.
     if (Abi.current() != Abi.androidArm64) {
-      return const DeviceProfile(
-          supported: false, reason: 'On-device AI needs a 64-bit phone and the 64-bit (arm64) version of the app.');
+      return DeviceProfile(
+          supported: false, reason: tr('On-device AI needs a 64-bit phone and the 64-bit (arm64) version of the app.'));
     }
     final m = await _channel.invokeMapMethod<String, Object?>('capability') ?? const {};
     final sdk = (m['sdk'] as num?)?.toInt() ?? 0;
     if (sdk < 30) {
-      return const DeviceProfile(supported: false, reason: 'On-device AI needs Android 11 or newer.');
+      return DeviceProfile(supported: false, reason: tr('On-device AI needs Android 11 or newer.'));
     }
     return DeviceProfile(
       supported: true,
@@ -245,15 +246,15 @@ class OnDeviceAiController extends Notifier<OnDeviceAiState> {
   Future<void> _check() async {
     final runtime = _runtime ??= runtimeFactory();
     if (runtime == null) {
-      state = const OnDeviceAiState(
-          phase: LocalAiPhase.unsupported, message: 'This build of the app has no on-device AI engine.');
+      state = OnDeviceAiState(
+          phase: LocalAiPhase.unsupported, message: tr('This build of the app has no on-device AI engine.'));
       return;
     }
     DeviceProfile profile;
     try {
       profile = await probeFactory().read();
     } catch (e) {
-      profile = DeviceProfile(supported: false, reason: 'Couldn’t check this phone: $e');
+      profile = DeviceProfile(supported: false, reason: tr('Couldn’t check this phone: {error}', {'error': e}));
     }
     if (!profile.supported) {
       state = OnDeviceAiState(phase: LocalAiPhase.unsupported, profile: profile, message: profile.reason);
@@ -288,8 +289,8 @@ class OnDeviceAiController extends Notifier<OnDeviceAiState> {
         phase: LocalAiPhase.failed,
         profile: profile,
         model: model,
-        message: 'Not enough free space: ${model.name} needs ${formatBytes(model.sizeBytes + headroom)} and the phone has '
-            '${formatBytes(profile.freeBytes)} free.',
+        message: tr('Not enough free space: {model} needs {needed} and the phone has {free} free.',
+            {'model': model.name, 'needed': formatBytes(model.sizeBytes + headroom), 'free': formatBytes(profile.freeBytes)}),
       );
       return;
     }
@@ -323,7 +324,7 @@ class OnDeviceAiController extends Notifier<OnDeviceAiState> {
               phase: LocalAiPhase.failed,
               profile: profile,
               model: model,
-              message: 'The download stopped (${_short(e)}). Try again, ideally on Wi-Fi.',
+              message: tr('The download stopped ({error}). Try again, ideally on Wi-Fi.', {'error': _short(e)}),
             );
     } finally {
       if (identical(_download, cancel)) _download = null;
@@ -398,7 +399,7 @@ class OnDeviceAiController extends Notifier<OnDeviceAiState> {
             phase: LocalAiPhase.failed,
             profile: state.profile,
             model: state.model,
-            message: 'This phone couldn’t load the model (${_short(e)}). Free cards still work without it.',
+            message: tr('This phone couldn’t load the model ({error}). Free cards still work without it.', {'error': _short(e)}),
           );
           job.skip();
           continue;

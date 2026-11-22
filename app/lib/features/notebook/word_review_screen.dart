@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/notebook.dart';
 import '../../ui/kit.dart';
+import '../../l10n/l10n.dart';
 
 /// Spaced-repetition flashcards for saved words (DESIGN.md §2.5).
 class WordReviewScreen extends ConsumerStatefulWidget {
@@ -33,13 +34,13 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
     final done = _index >= _queue.length;
     final height = MediaQuery.sizeOf(context).height;
     return KitPage(
-      title: done ? 'Review' : 'Review ${_index + 1} of ${_queue.length}',
+      title: done ? tr('Review') : tr('Review {i} of {n}', {'i': _index + 1, 'n': _queue.length}),
       children: [
         if (done)
           KitEmpty(
             emoji: '✅',
-            title: _queue.isEmpty ? 'Nothing to review right now' : 'Done! $_remembered of ${_queue.length} remembered',
-            action: KitButton(label: 'Back', onPressed: () => Navigator.pop(context)),
+            title: _queue.isEmpty ? tr('Nothing to review right now') : tr('Done! {done} of {n} remembered', {'done': _remembered, 'n': _queue.length}),
+            action: KitButton(label: tr('Back'), onPressed: () => Navigator.pop(context)),
           )
         else ...[
           SizedBox(height: height * 0.06),
@@ -66,12 +67,12 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
           ),
           const SizedBox(height: 24),
           if (!_revealed)
-            KitButton(label: 'Show meaning', expand: true, onPressed: () => setState(() => _revealed = true))
+            KitButton(label: tr('Show meaning'), expand: true, onPressed: () => setState(() => _revealed = true))
           else
             Row(children: [
-              Expanded(child: KitButton.secondary(label: 'Still learning', expand: true, onPressed: () => _answer(false))),
+              Expanded(child: KitButton.secondary(label: tr('Still learning'), expand: true, onPressed: () => _answer(false))),
               const SizedBox(width: 12),
-              Expanded(child: KitButton(label: 'I knew it', expand: true, onPressed: () => _answer(true))),
+              Expanded(child: KitButton(label: tr('I knew it'), expand: true, onPressed: () => _answer(true))),
             ]),
         ],
       ],

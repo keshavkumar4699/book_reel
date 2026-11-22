@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../data/notebook.dart';
 import '../../ui/kit.dart';
 import '../reader/reader_screen.dart';
+import '../../l10n/l10n.dart';
 
 /// Five tabs and a floating dock (Cloro plan §9): Reading (the reels of the
 /// current book, wearing its scene), Library, Notebook, Journal and Profile in
@@ -43,11 +44,11 @@ class HomeShell extends ConsumerWidget {
                     // Tapping the Reading tab again keeps your place (no reset).
                     onSelect: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex && i != 0),
                     items: [
-                      const KitNavItem(Icons.play_circle_outline_rounded, Icons.play_circle_rounded, 'Reading'),
-                      const KitNavItem(Icons.auto_stories_outlined, Icons.auto_stories_rounded, 'Library'),
-                      KitNavItem(Icons.book_outlined, Icons.book_rounded, 'Notebook', badge: due),
-                      const KitNavItem(Icons.event_note_outlined, Icons.event_note_rounded, 'Journal'),
-                      const KitNavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
+                      KitNavItem(Icons.play_circle_outline_rounded, Icons.play_circle_rounded, tr('Reading')),
+                      KitNavItem(Icons.auto_stories_outlined, Icons.auto_stories_rounded, tr('Library')),
+                      KitNavItem(Icons.book_outlined, Icons.book_rounded, tr('Notebook'), badge: due),
+                      KitNavItem(Icons.event_note_outlined, Icons.event_note_rounded, tr('Journal')),
+                      KitNavItem(Icons.person_outline_rounded, Icons.person_rounded, tr('Profile')),
                     ],
                   ),
                 ),

@@ -6,6 +6,7 @@ import '../../data/settings.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/typography.dart';
+import '../../l10n/l10n.dart';
 
 /// Classic continuous reading of one chapter (DESIGN.md §2.3). Shares the
 /// sentence-ID position model with the reel feed. Returns the sentence ID to
@@ -93,7 +94,7 @@ class _PageModeViewState extends State<PageModeView> {
             child: Row(children: [
               KitIconButton(
                 icon: Icons.view_carousel_rounded,
-                semanticLabel: 'Back to reels',
+                semanticLabel: tr('Back to reels'),
                 onPressed: () => Navigator.of(context).pop(_resumeSid),
               ),
               const SizedBox(width: 8),
@@ -126,10 +127,10 @@ class _PageModeViewState extends State<PageModeView> {
             const SizedBox(height: 24),
             Row(children: [
               if (_chapter > 0)
-                KitButton.ghost(label: 'Previous', icon: Icons.chevron_left_rounded, compact: true, onPressed: () => _goChapter(_chapter - 1)),
+                KitButton.ghost(label: tr('Previous'), icon: Icons.chevron_left_rounded, compact: true, onPressed: () => _goChapter(_chapter - 1)),
               const Spacer(),
               if (_chapter < widget.book.chapters.length - 1)
-                KitButton(label: 'Next chapter', icon: Icons.chevron_right_rounded, compact: true, onPressed: () => _goChapter(_chapter + 1)),
+                KitButton(label: tr('Next chapter'), icon: Icons.chevron_right_rounded, compact: true, onPressed: () => _goChapter(_chapter + 1)),
             ]),
           ]),
         ),

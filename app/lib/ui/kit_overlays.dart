@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'haptics.dart';
 import 'kit.dart';
+import '../l10n/l10n.dart';
 
 // ---------------------------------------------------------------- sheets
 
@@ -58,7 +59,7 @@ class _KitSheetRoute<T> extends PopupRoute<T> {
   bool get barrierDismissible => dismissible;
 
   @override
-  String? get barrierLabel => 'Close${label == null ? '' : ' $label'}';
+  String? get barrierLabel => label == null ? tr('Close') : tr('Close {label}', {'label': label});
 
   @override
   Duration get transitionDuration => const Duration(milliseconds: 320);
@@ -280,13 +281,13 @@ Future<bool> showKitConfirm(
   BuildContext context, {
   required String title,
   String? message,
-  String confirm = 'OK',
-  String cancel = 'Cancel',
+  String? confirm,
+  String? cancel,
   bool destructive = false,
 }) async {
   final ok = await showKitDialog<bool>(context, title: title, message: message, actions: [
-    KitDialogAction(cancel, value: false),
-    KitDialogAction(confirm, value: true, primary: true, destructive: destructive),
+    KitDialogAction(cancel ?? tr('Cancel'), value: false),
+    KitDialogAction(confirm ?? tr('OK'), value: true, primary: true, destructive: destructive),
   ]);
   return ok ?? false;
 }
@@ -305,7 +306,7 @@ class _KitDialogRoute<T> extends PopupRoute<T> {
   bool get barrierDismissible => dismissible;
 
   @override
-  String? get barrierLabel => 'Close';
+  String? get barrierLabel => tr('Close');
 
   @override
   Duration get transitionDuration => const Duration(milliseconds: 240);
@@ -396,7 +397,7 @@ Future<String?> showKitPrompt(
   String initial = '',
   String? hint,
   int maxLines = 1,
-  String confirm = 'Save',
+  String? confirm,
   int? maxLength,
   TextCapitalization capitalization = TextCapitalization.sentences,
 }) {
@@ -408,7 +409,7 @@ Future<String?> showKitPrompt(
       initial: initial,
       hint: hint,
       maxLines: maxLines,
-      confirm: confirm,
+      confirm: confirm ?? tr('Save'),
       maxLength: maxLength,
       capitalization: capitalization,
     ),
@@ -463,7 +464,7 @@ class _PromptBodyState extends State<_PromptBody> {
       ),
       const SizedBox(height: 16),
       Row(children: [
-        Expanded(child: KitButton.secondary(label: 'Cancel', expand: true, onPressed: () => Navigator.of(context).pop())),
+        Expanded(child: KitButton.secondary(label: tr('Cancel'), expand: true, onPressed: () => Navigator.of(context).pop())),
         const SizedBox(width: 10),
         Expanded(child: KitButton(label: widget.confirm, expand: true, onPressed: _done)),
       ]),
@@ -635,10 +636,10 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
 // ---------------------------------------------------------------- time
 
 /// Hour and minute wheels in a sheet (replaces the Material clock dialog).
-Future<TimeOfDay?> showKitTimePicker(BuildContext context, {required TimeOfDay initial, String title = 'Pick a time', String? subtitle}) {
+Future<TimeOfDay?> showKitTimePicker(BuildContext context, {required TimeOfDay initial, String? title, String? subtitle}) {
   return showKitSheet<TimeOfDay>(
     context,
-    title: title,
+    title: title ?? tr('Pick a time'),
     subtitle: subtitle,
     builder: (ctx) => _TimeWheels(initial: initial),
   );
@@ -722,7 +723,7 @@ class _TimeWheelsState extends State<_TimeWheels> {
                 selected: _hour,
                 label: (i) => _hourLabel(i, h24),
                 onChanged: (i) => setState(() => _hour = i),
-                semantic: 'Hour',
+                semantic: tr('Hour'),
               ),
             ),
             Text(':', style: kit.title),
@@ -733,14 +734,14 @@ class _TimeWheelsState extends State<_TimeWheels> {
                 selected: _minute ~/ 5,
                 label: (i) => (i * 5).toString().padLeft(2, '0'),
                 onChanged: (i) => setState(() => _minute = i * 5),
-                semantic: 'Minute',
+                semantic: tr('Minute'),
               ),
             ),
           ]),
         ]),
       ),
       const SizedBox(height: 16),
-      KitButton(label: 'Set time', expand: true, onPressed: () => Navigator.of(context).pop(TimeOfDay(hour: _hour, minute: _minute))),
+      KitButton(label: tr('Set time'), expand: true, onPressed: () => Navigator.of(context).pop(TimeOfDay(hour: _hour, minute: _minute))),
     ]);
   }
 }

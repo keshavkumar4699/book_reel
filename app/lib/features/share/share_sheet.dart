@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/share/quote_limit.dart';
 import '../../data/api_client.dart';
 import '../../ui/kit.dart';
+import '../../l10n/l10n.dart';
 
 enum ShareTemplate { paper, dark, ember, minimal, ocean }
 
@@ -60,14 +61,14 @@ class ProgressShare extends ShareContent {
 
   /// The figures in one line: "24 cards · 3.1k words · 18 min" (a time
   /// carries its own unit).
-  String get statsLine => [for (final (v, l) in stats) l == 'time' ? v : '$v $l'].join(' · ');
+  String get statsLine => [for (final (v, l) in stats) l == tr('time') ? v : '$v $l'].join(' · ');
 }
 
 /// Minutes as "18 min", "1 h 5 min" or "3 h".
 String shareDuration(double minutes) {
   final m = minutes.round();
-  if (m < 60) return '$m min';
-  return m % 60 == 0 ? '${m ~/ 60} h' : '${m ~/ 60} h ${m % 60} min';
+  if (m < 60) return tr('{n} min', {'n': m});
+  return m % 60 == 0 ? tr('{h} h', {'h': m ~/ 60}) : tr('{h} h {m} min', {'h': m ~/ 60, 'm': m % 60});
 }
 
 /// One-tap share sheet with a live preview (UX_DESIGN.md §5.6): the preview is
@@ -75,7 +76,7 @@ String shareDuration(double minutes) {
 Future<void> showShareSheet(BuildContext context, ShareContent content) {
   return showKitSheet<void>(
     context,
-    title: 'Share',
+    title: tr('Share'),
     maxHeight: 0.94,
     builder: (_) => _ShareSheet(content: content),
   );
@@ -99,14 +100,14 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
     final c = widget.content;
     return switch (c) {
       QuoteShare() =>
-        '“${limitQuote(c.sentences, publicDomain: c.publicDomain).text}”\n— ${c.author}, ${c.bookTitle}\n\nRead it on Cloro',
+        '“${limitQuote(c.sentences, publicDomain: c.publicDomain).text}”\n— ${c.author}, ${c.bookTitle}\n\n${tr('Read it on Cloro')}',
       ProgressShare() => [
           '${c.emoji} ${c.headline}',
           ?c.subtitle,
           if (c.stats.isNotEmpty) c.statsLine,
           ...c.lines,
           '',
-          'Reading on Cloro',
+          tr('Reading on Cloro'),
         ].join('\n'),
     };
   }
@@ -157,7 +158,7 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
       await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: 'image/png')], text: text));
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) showKitToast(context, 'Could not share: $e', icon: Icons.error_outline_rounded);
+      if (mounted) showKitToast(context, tr('Could not share: {error}', {'error': e}), icon: Icons.error_outline_rounded);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -202,19 +203,19 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
       Row(children: [
         Expanded(
           child: KitButton.secondary(
-            label: 'Copy text',
+            label: tr('Copy text'),
             icon: Icons.copy_rounded,
             expand: true,
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: _plainText));
-              if (context.mounted) showKitToast(context, 'Copied', icon: Icons.check_rounded);
+              if (context.mounted) showKitToast(context, tr('Copied'), icon: Icons.check_rounded);
             },
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: KitButton(
-            label: _busy ? 'Preparing…' : 'Share',
+            label: _busy ? tr('Preparing…') : tr('Share'),
             leading: _busy ? const SizedBox(width: 18, height: 18, child: KitSpinner(size: 18)) : const ShareArrowIcon(),
             expand: true,
             onPressed: _busy ? null : _share,

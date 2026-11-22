@@ -18,6 +18,7 @@ import 'backdrops.dart';
 import 'haptics.dart';
 import 'theme.dart';
 import 'vibes.dart';
+import '../l10n/l10n.dart';
 
 export 'kit_overlays.dart';
 
@@ -422,7 +423,7 @@ class KitTopBar extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(back ? 10 : 20, 8, 12, 10),
       child: Row(children: [
         if (back) ...[
-          KitIconButton(icon: Icons.arrow_back_rounded, semanticLabel: 'Back', onPressed: () => Navigator.maybePop(context)),
+          KitIconButton(icon: Icons.arrow_back_rounded, semanticLabel: tr('Back'), onPressed: () => Navigator.maybePop(context)),
           const SizedBox(width: 8),
         ],
         if (leading != null && !back) ...[leading!, const SizedBox(width: 12)],
@@ -1184,7 +1185,7 @@ class _KitSpinnerState extends State<KitSpinner> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
     return Semantics(
-      label: 'Loading',
+      label: tr('Loading'),
       child: RotationTransition(
         turns: _c,
         child: CustomPaint(
@@ -1383,7 +1384,7 @@ class KitNavBar extends StatelessWidget {
                   onSelect(i);
                 },
                 selected: i == index,
-                semanticLabel: '${items[i].label} tab',
+                semanticLabel: tr('{tab} tab', {'tab': items[i].label}),
                 excludeSemantics: true,
                 pressedScale: 0.9,
                 // Icons only (the label is for screen readers): the selected

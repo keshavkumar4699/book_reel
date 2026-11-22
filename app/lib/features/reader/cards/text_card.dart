@@ -17,6 +17,7 @@ import '../../../ui/kit.dart';
 import '../../../ui/theme.dart';
 import '../../../ui/typography.dart';
 import '../../../core/text/lyric_layout.dart';
+import '../../../l10n/l10n.dart';
 
 /// A place in the book: a sentence and a character offset in it.
 typedef _Pos = ({String sid, int off});
@@ -462,7 +463,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
     return (startLine: startLine, startOffset: startOffset, endLine: endLine, endOffset: endOffset);
   }
 
-  static const _colorNames = ['Amber', 'Green', 'Blue', 'Pink'];
+  static List<String> get _colorNames => [tr('Amber'), tr('Green'), tr('Blue'), tr('Pink')];
 
   Widget _toolbar() {
     final kit = Kit.of(context);
@@ -483,7 +484,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
           for (var i = 0; i < highlightColorCount; i++)
             KitPressable(
               onTap: () => setState(() => _edit = _edit!.copyWith(color: i)),
-              semanticLabel: '${_colorNames[i]} highlight',
+              semanticLabel: tr('{colour} highlight', {'colour': _colorNames[i]}),
               selected: h.color == i,
               excludeSemantics: true,
               child: Container(
@@ -498,16 +499,16 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
               ),
             ),
           Container(width: 1, height: 26, margin: const EdgeInsets.symmetric(horizontal: 4), color: kit.stroke),
-          action(Icons.edit_note_rounded, 'Add note', () {
+          action(Icons.edit_note_rounded, tr('Add note'), () {
             final saved = _commit();
             if (saved != null) widget.onNoteHighlight(saved);
           }),
-          action(Icons.copy_rounded, 'Copy', () {
+          action(Icons.copy_rounded, tr('Copy'), () {
             Clipboard.setData(ClipboardData(text: h.text));
-            showKitToast(context, 'Copied', icon: Icons.check_rounded);
+            showKitToast(context, tr('Copied'), icon: Icons.check_rounded);
           }),
-          action(Icons.delete_outline_rounded, 'Remove highlight', _removeEdit),
-          action(Icons.check_rounded, 'Done', _commit),
+          action(Icons.delete_outline_rounded, tr('Remove highlight'), _removeEdit),
+          action(Icons.check_rounded, tr('Done'), _commit),
         ]),
       ),
     );
@@ -1185,7 +1186,7 @@ class _ReelTextState extends State<ReelText> {
       height: caret.height + reach,
       child: Semantics(
         container: true,
-        label: start ? 'Start of highlight' : 'End of highlight',
+        label: start ? tr('Start of highlight') : tr('End of highlight'),
         child: RawGestureDetector(
           behavior: HitTestBehavior.translucent,
           gestures: {
@@ -1365,24 +1366,24 @@ class _ActionRail extends StatelessWidget {
           onTap: onTap,
         );
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      b(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, liked ? 'Liked' : 'Like', liked ? 'Unlike' : 'Like', onLike,
+      b(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, liked ? tr('Liked') : tr('Like'), liked ? tr('Unlike') : tr('Like'), onLike,
           color: liked ? ember : null, active: liked),
-      b(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, saved ? 'Saved' : 'Save', saved ? 'Saved' : 'Save', onSave,
+      b(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, saved ? tr('Saved') : tr('Save'), saved ? tr('Saved') : tr('Save'), onSave,
           color: saved ? accent : null, active: saved),
-      b(Icons.edit_note_rounded, 'Note', 'Write a note', onNote),
+      b(Icons.edit_note_rounded, tr('Note'), tr('Write a note'), onNote),
       // The reels-style share arrow (curving up and to the right).
       _RailButton(
         icon: ShareArrowIcon(size: 33, color: ink, shadows: shadows),
-        label: 'Share',
-        semanticLabel: 'Share',
+        label: tr('Share'),
+        semanticLabel: tr('Share'),
         color: ink,
         shadows: shadows,
         onTap: onShare,
       ),
       b(
           preparing ? Icons.graphic_eq_rounded : (listening ? Icons.stop_circle_outlined : Icons.headphones_rounded),
-          preparing ? 'Preparing' : (listening ? 'Stop' : 'Listen'),
-          preparing ? 'Converting text to audio. Stop reading aloud' : (listening ? 'Stop reading aloud' : 'Read aloud'),
+          preparing ? tr('Preparing') : (listening ? tr('Stop') : tr('Listen')),
+          preparing ? tr('Converting text to audio. Stop reading aloud') : (listening ? tr('Stop reading aloud') : tr('Read aloud')),
           onListen,
           color: listening ? accent : null,
           active: listening),
@@ -1391,7 +1392,7 @@ class _ActionRail extends StatelessWidget {
         _RailButton(
           icon: Icon(Icons.local_fire_department_rounded, size: 29, color: streak > 0 ? ember : ink, shadows: shadows),
           label: '$streak',
-          semanticLabel: '$streak day streak. Open streak',
+          semanticLabel: tr('{n} day streak. Open streak', {'n': streak}),
           color: ink,
           shadows: shadows,
           onTap: onStreak!,
@@ -1400,13 +1401,13 @@ class _ActionRail extends StatelessWidget {
         _RailButton(
           icon: Icon(goalDone ? Icons.check_circle_rounded : Icons.flag_rounded, size: 27, color: goalColor ?? ink, shadows: shadows),
           label: goalLabel,
-          semanticLabel: 'Today\'s goal $goalLabel${goalDone ? ', done' : ''}. Open goal',
+          semanticLabel: goalDone ? tr('Today\'s goal {goal}, done. Open goal', {'goal': goalLabel}) : tr('Today\'s goal {goal}. Open goal', {'goal': goalLabel}),
           color: ink,
           shadows: shadows,
           active: goalDone,
           onTap: onGoal!,
         ),
-      if (onOptions != null) b(Icons.more_horiz_rounded, 'More', 'Options', onOptions!),
+      if (onOptions != null) b(Icons.more_horiz_rounded, tr('More'), tr('Options'), onOptions!),
     ]);
   }
 }
@@ -1487,7 +1488,7 @@ class _SwipeHint extends StatelessWidget {
   Widget build(BuildContext context) {
     final armed = reveal >= 1;
     final iconColor = armed ? fill : ink;
-    final label = saving ? (saved ? 'Unsave' : 'Save') : 'Share';
+    final label = saving ? (saved ? tr('Unsave') : tr('Save')) : tr('Share');
     return AnimatedScale(
       scale: armed ? 1.12 : 0.7 + 0.3 * reveal,
       duration: const Duration(milliseconds: 120),

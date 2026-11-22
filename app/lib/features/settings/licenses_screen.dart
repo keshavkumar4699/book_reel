@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../ui/kit.dart';
+import '../../l10n/l10n.dart';
 
 /// Open-source licences (fonts, scene sounds, packages), in the app's own
 /// style instead of the stock licence page.
@@ -34,8 +35,8 @@ class _LicensesScreenState extends State<LicensesScreen> {
       builder: (context, snap) {
         final data = snap.data;
         return KitPage(
-          title: 'Licences',
-          subtitle: 'Fonts, scene sounds, dictionary and code that Cloro is built on',
+          title: tr('Licences'),
+          subtitle: tr('Fonts, scene sounds, dictionary and code that Cloro is built on'),
           children: [
             if (data == null)
               const Padding(padding: EdgeInsets.all(40), child: Center(child: KitSpinner()))
@@ -44,7 +45,7 @@ class _LicensesScreenState extends State<LicensesScreen> {
                 for (final e in data.entries)
                   KitRow(
                     title: e.key,
-                    subtitle: e.value.length == 1 ? null : '${e.value.length} licences',
+                    subtitle: e.value.length == 1 ? null : trn(e.value.length, '{n} licence', '{n} licences'),
                     onTap: () => showKitSheet<void>(
                       context,
                       title: e.key,

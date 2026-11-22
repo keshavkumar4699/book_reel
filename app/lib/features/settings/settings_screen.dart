@@ -17,6 +17,8 @@ import '../../services/read_aloud.dart';
 import '../../services/local_voice.dart';
 import '../../services/music.dart';
 import '../../ui/backdrops.dart';
+import '../../l10n/l10n.dart';
+import '../../ui/haptics.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/typography.dart';
@@ -41,176 +43,182 @@ class SettingsScreen extends ConsumerWidget {
         alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context));
 
     return KitPage(
-      title: 'Settings',
+      title: tr('Settings'),
       children: [
-        KitGroup(label: 'App', children: [
+        KitGroup(label: tr('App'), children: [
           KitRow(
             icon: switch (s.appearance) {
               AppAppearance.system => Icons.brightness_auto_rounded,
               AppAppearance.light => Icons.light_mode_rounded,
               AppAppearance.dark => Icons.dark_mode_rounded,
             },
-            title: 'Appearance',
+            title: tr('Appearance'),
             value: s.appearance.label,
             onTap: () => showKitSheet<void>(context,
-                title: 'Appearance', subtitle: 'For every screen except the reader, which wears its scene', builder: (_) => const AppearanceSettings()),
+                title: tr('Appearance'), subtitle: tr('For every screen except the reader, which wears its scene'), builder: (_) => const AppearanceSettings()),
+          ),
+          KitRow(
+            icon: Icons.translate_rounded,
+            title: tr('Language'),
+            value: s.language.isEmpty ? tr('Phone’s language') : languageFor(s.language).name,
+            onTap: () => showKitSheet<void>(context, title: tr('Language'), builder: (_) => const LanguageSettings()),
           ),
         ]),
-        KitGroup(label: 'Reading', divided: true, children: [
+        KitGroup(label: tr('Reading'), divided: true, children: [
           KitRow(
             icon: Icons.image_outlined,
-            title: 'Backgrounds',
-            value: ownPictures ? 'Your pictures' : 'Painted scenes',
+            title: tr('Backgrounds'),
+            value: ownPictures ? tr('Your pictures') : tr('Painted scenes'),
             onTap: () => showKitSheet<void>(context,
-                title: 'Backgrounds', subtitle: 'A different one each time you open a book', builder: (_) => const BackgroundSettings()),
+                title: tr('Backgrounds'), subtitle: tr('A different one each time you open a book'), builder: (_) => const BackgroundSettings()),
           ),
           KitRow(
             icon: s.music ? Icons.music_note_rounded : Icons.music_off_rounded,
-            title: 'Music',
-            value: s.music ? 'On · ${(s.musicVolume * 100).round()}%' : 'Off',
-            onTap: () => showKitSheet<void>(context, title: 'Music', builder: (_) => const MusicSettings()),
+            title: tr('Music'),
+            value: s.music ? tr('On · {percent}%', {'percent': (s.musicVolume * 100).round()}) : tr('Off'),
+            onTap: () => showKitSheet<void>(context, title: tr('Music'), builder: (_) => const MusicSettings()),
           ),
           KitRow(
             icon: Icons.record_voice_over_rounded,
-            title: 'Read aloud',
+            title: tr('Read aloud'),
             value: s.naturalVoice
-                ? 'Natural · ${speechVoices.where((v) => v.id == s.voiceName).firstOrNull?.label ?? 'Heart'}'
-                : 'Phone voice',
-            onTap: () => showKitSheet<void>(context, title: 'Read aloud', builder: (_) => const VoiceSettings()),
+                ? tr('Natural · {voice}', {'voice': speechVoices.where((v) => v.id == s.voiceName).firstOrNull?.label ?? 'Heart'})
+                : tr('Phone voice'),
+            onTap: () => showKitSheet<void>(context, title: tr('Read aloud'), builder: (_) => const VoiceSettings()),
           ),
           KitRow(
             icon: Icons.text_fields_rounded,
-            title: 'Text & theme',
+            title: tr('Text & theme'),
             value: '${_fontName(s.font)} · ${s.fontSize.round()}',
-            onTap: () => showKitSheet<void>(context, title: 'Text & theme', builder: (_) => const TextSettings()),
+            onTap: () => showKitSheet<void>(context, title: tr('Text & theme'), builder: (_) => const TextSettings()),
           ),
           KitRow(
             icon: Icons.view_agenda_rounded,
-            title: 'Cards',
+            title: tr('Cards'),
             value: '${_lengthName(s.cardLength)} · ${_levelName(s.readingLevel)}',
-            onTap: () => showKitSheet<void>(context, title: 'Cards', builder: (_) => const CardSettings()),
+            onTap: () => showKitSheet<void>(context, title: tr('Cards'), builder: (_) => const CardSettings()),
           ),
           // Paid plans get the same help from Claude.
           if (!s.tier.paid)
             KitRow(
               icon: Icons.auto_awesome_rounded,
-              title: 'On-device AI',
+              title: tr('On-device AI'),
               value: switch (ai.phase) {
                 LocalAiPhase.checking => '…',
-                LocalAiPhase.unsupported => 'Not on this phone',
-                LocalAiPhase.absent => 'Off',
-                LocalAiPhase.downloading => 'Downloading ${ai.progress}%',
-                LocalAiPhase.ready => s.onDeviceAi ? 'On · ${ai.model?.name ?? ''}' : 'Paused',
-                LocalAiPhase.failed => 'Needs attention',
+                LocalAiPhase.unsupported => tr('Not on this phone'),
+                LocalAiPhase.absent => tr('Off'),
+                LocalAiPhase.downloading => tr('Downloading {percent}%', {'percent': ai.progress}),
+                LocalAiPhase.ready => s.onDeviceAi ? tr('On · {model}', {'model': ai.model?.name ?? ''}) : tr('Paused'),
+                LocalAiPhase.failed => tr('Needs attention'),
               },
               onTap: () => showKitSheet<void>(context,
-                  title: 'On-device AI',
-                  subtitle: 'Recaps, quick checks and word meanings, written on your phone',
+                  title: tr('On-device AI'),
+                  subtitle: tr('Recaps, quick checks and word meanings, written on your phone'),
                   builder: (_) => const OnDeviceAiSettings()),
             ),
         ]),
-        KitGroup(label: 'Habit', divided: true, children: [
+        KitGroup(label: tr('Habit'), divided: true, children: [
           KitRow(
             icon: Icons.flag_rounded,
-            title: 'Daily goal',
-            value: '${s.goal.dailyTarget} ${s.goalUnit == GoalUnit.cards ? 'cards' : 'min'}${s.reminderEnabled ? ' · $time' : ''}',
+            title: tr('Daily goal'),
+            value: '${s.goalUnit == GoalUnit.cards ? trn(s.goal.dailyTarget, '{n} card', '{n} cards') : tr('{n} min', {'n': s.goal.dailyTarget})}${s.reminderEnabled ? ' · $time' : ''}',
             onTap: () => showGoalSheet(context),
           ),
         ]),
-        KitGroup(label: 'Comfort & privacy', divided: true, children: [
+        KitGroup(label: tr('Comfort & privacy'), divided: true, children: [
           KitSwitchRow(
             icon: Icons.back_hand_rounded,
-            title: 'Left-handed layout',
+            title: tr('Left-handed layout'),
             value: s.leftHanded,
             onChanged: (v) => n.update((x) => x.copyWith(leftHanded: v)),
           ),
           KitSwitchRow(
             icon: Icons.vibration_rounded,
-            title: 'Vibration',
-            subtitle: 'A light tap when you choose, like, save or finish',
+            title: tr('Vibration'),
+            subtitle: tr('A light tap when you choose, like, save or finish'),
             value: s.haptics,
             onChanged: (v) => n.update((x) => x.copyWith(haptics: v)),
           ),
           KitSwitchRow(
             icon: Icons.visibility_off_rounded,
-            title: 'Hide leaderboards',
-            subtitle: 'No rankings or comparisons',
+            title: tr('Hide leaderboards'),
+            subtitle: tr('No rankings or comparisons'),
             value: s.hideLeaderboards,
             onChanged: (v) => n.update((x) => x.copyWith(hideLeaderboards: v)),
           ),
           if (ref.watch(apiProvider).enabled)
             KitRow(
               icon: Icons.block_rounded,
-              title: 'Blocked readers',
+              title: tr('Blocked readers'),
               onTap: () => showKitSheet<void>(context,
-                  title: 'Blocked readers', subtitle: 'They can’t find, follow or comment on you', builder: (_) => const BlockedReaders()),
+                  title: tr('Blocked readers'), subtitle: tr('They can’t find, follow or comment on you'), builder: (_) => const BlockedReaders()),
             ),
           if (bookreelApi.isNotEmpty)
             KitSwitchRow(
               icon: Icons.bug_report_outlined,
-              title: 'Send crash reports',
-              subtitle: 'What went wrong and where, never your books',
+              title: tr('Send crash reports'),
+              subtitle: tr('What went wrong and where, never your books'),
               value: s.crashReports,
               onChanged: (v) => n.update((x) => x.copyWith(crashReports: v)),
             ),
           if (bookreelApi.isNotEmpty)
             KitSwitchRow(
               icon: s.online ? Icons.cloud_rounded : Icons.cloud_off_rounded,
-              title: 'Online features',
-              subtitle: s.online ? 'Following, the feed, sync, AI cards and share links' : 'Off: everything stays on this phone',
+              title: tr('Online features'),
+              subtitle: s.online ? tr('Following, the feed, sync, AI cards and share links') : tr('Off: everything stays on this phone'),
               value: s.online,
               onChanged: (v) => n.update((x) => x.copyWith(online: v)),
             ),
         ]),
-        KitGroup(label: 'You', divided: true, children: [
+        KitGroup(label: tr('You'), divided: true, children: [
           KitRow(
             icon: Icons.badge_rounded,
-            title: 'Display name',
+            title: tr('Display name'),
             value: s.displayName,
             onTap: () async {
               final v = await showKitPrompt(context,
-                  title: 'Your name', initial: s.displayName == 'Reader' ? '' : s.displayName, capitalization: TextCapitalization.words);
+                  title: tr('Your name'), initial: s.displayName == 'Reader' ? '' : s.displayName, capitalization: TextCapitalization.words);
               if (v != null) n.update((x) => x.copyWith(displayName: v.isEmpty ? 'Reader' : v));
             },
           ),
           KitRow(
             icon: Icons.workspace_premium_rounded,
-            title: 'Plan',
-            value: s.tier.paid ? '${s.tier.label} · ${s.tier.model}' : 'Free',
-            onTap: () => showKitSheet<void>(context, title: 'Plan', subtitle: 'Each plan reads your books with a stronger model', builder: (_) => const PlanPicker()),
+            title: tr('Plan'),
+            value: s.tier.paid ? '${s.tier.label} · ${s.tier.model}' : tr('Free'),
+            onTap: () => showKitSheet<void>(context, title: tr('Plan'), subtitle: tr('Each plan reads your books with a stronger model'), builder: (_) => const PlanPicker()),
           ),
           KitRow(
             icon: Icons.download_rounded,
-            title: 'Download my data',
-            subtitle: 'Everything Cloro keeps about you, as one file',
+            title: tr('Download my data'),
+            subtitle: tr('Everything Cloro keeps about you, as one file'),
             chevron: false,
             onTap: () => _downloadData(context, ref),
           ),
           if (ref.watch(apiProvider).enabled)
             KitRow(
               icon: Icons.delete_forever_rounded,
-              title: 'Delete account',
+              title: tr('Delete account'),
               destructive: true,
               chevron: false,
               onTap: () => _deleteAccount(context, ref),
             ),
         ]),
-        KitGroup(label: 'About', divided: true, children: [
+        KitGroup(label: tr('About'), divided: true, children: [
           KitRow(
             icon: Icons.mail_outline_rounded,
-            title: 'Send feedback',
-            subtitle: 'An idea, a problem, anything',
+            title: tr('Send feedback'),
+            subtitle: tr('An idea, a problem, anything'),
             onTap: () => showFeedbackSheet(context),
           ),
-          KitRow(icon: Icons.privacy_tip_outlined, title: 'Privacy policy', onTap: () => context.push('/legal/privacy')),
-          KitRow(icon: Icons.gavel_rounded, title: 'Terms of use', onTap: () => context.push('/legal/terms')),
+          KitRow(icon: Icons.privacy_tip_outlined, title: tr('Privacy policy'), onTap: () => context.push('/legal/privacy')),
+          KitRow(icon: Icons.gavel_rounded, title: tr('Terms of use'), onTap: () => context.push('/legal/terms')),
           KitRow(
             icon: Icons.description_rounded,
-            title: 'Licences',
-            subtitle: 'Fonts (OFL), music, WordNet, wordfreq',
+            title: tr('Licences'),
+            subtitle: tr('Fonts (OFL), music, WordNet, wordfreq'),
             onTap: () => context.push('/licenses'),
           ),
-          KitRow(icon: Icons.info_outline_rounded, title: 'Version', value: appVersionLabel()),
+          KitRow(icon: Icons.info_outline_rounded, title: tr('Version'), value: appVersionLabel()),
         ]),
       ],
     );
@@ -241,9 +249,9 @@ class _OnDeviceAiSettingsState extends ConsumerState<OnDeviceAiSettings> {
     Widget column(List<Widget> children) =>
         Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
           Text(
-            'A small AI model on your phone writes a recap and a quick check every few minutes of reading, a teaser '
+            tr('A small AI model on your phone writes a recap and a quick check every few minutes of reading, a teaser '
             'for each chapter, and what a tapped word means in its sentence. It\'s free and private: your books never '
-            'leave your phone, and it works offline.',
+            'leave your phone, and it works offline.'),
             style: kit.caption,
           ),
           const SizedBox(height: 14),
@@ -255,20 +263,20 @@ class _OnDeviceAiSettingsState extends ConsumerState<OnDeviceAiSettings> {
         return column([const Center(child: KitSpinner())]);
       case LocalAiPhase.unsupported:
         return column([
-          KitPanel(child: Text(ai.message ?? 'This phone can\'t run it.', style: kit.body)),
+          KitPanel(child: Text(ai.message ?? tr('This phone can\'t run it.'), style: kit.body)),
           const SizedBox(height: 10),
-          Text('Free reading keeps working with on-device rules.', style: kit.caption),
+          Text(tr('Free reading keeps working with on-device rules.'), style: kit.caption),
         ]);
       case LocalAiPhase.downloading:
         final m = ai.model!;
         return column([
-          Text('Downloading ${m.name}… ${ai.progress}%', style: kit.strong),
+          Text(tr('Downloading {model}… {percent}%', {'model': m.name, 'percent': ai.progress}), style: kit.strong),
           const SizedBox(height: 10),
           KitProgress(value: ai.progress / 100),
           const SizedBox(height: 10),
-          Text('${m.sizeLabel} in all. Keep reading: it switches on when it\'s done.', style: kit.caption),
+          Text(tr('{size} in all. Keep reading: it switches on when it\'s done.', {'size': m.sizeLabel}), style: kit.caption),
           const SizedBox(height: 14),
-          KitButton.secondary(label: 'Cancel', expand: true, onPressed: ctl.cancelDownload),
+          KitButton.secondary(label: tr('Cancel'), expand: true, onPressed: ctl.cancelDownload),
         ]);
       case LocalAiPhase.ready:
         final m = ai.model!;
@@ -276,20 +284,20 @@ class _OnDeviceAiSettingsState extends ConsumerState<OnDeviceAiSettings> {
           KitGroup(children: [
             KitSwitchRow(
               icon: Icons.auto_awesome_rounded,
-              title: 'Use on-device AI',
-              subtitle: '${m.name} · ${m.sizeLabel} on your phone',
+              title: tr('Use on-device AI'),
+              subtitle: tr('{model} · {size} on your phone', {'model': m.name, 'size': m.sizeLabel}),
               value: s.onDeviceAi,
               onChanged: (v) => ref.read(settingsProvider.notifier).update((x) => x.copyWith(onDeviceAi: v)),
             ),
           ]),
           const SizedBox(height: 12),
           KitButton(
-            label: 'Remove model (frees ${m.sizeLabel})',
+            label: tr('Remove model (frees {size})', {'size': m.sizeLabel}),
             kind: KitButtonKind.danger,
             expand: true,
             onPressed: () async {
               final ok = await showKitConfirm(context,
-                  title: 'Remove ${m.name}?', message: 'You can download it again any time.', confirm: 'Remove', destructive: true);
+                  title: tr('Remove {model}?', {'model': m.name}), message: tr('You can download it again any time.'), confirm: tr('Remove'), destructive: true);
               if (ok) await ctl.remove();
             },
           ),
@@ -304,27 +312,27 @@ class _OnDeviceAiSettingsState extends ConsumerState<OnDeviceAiSettings> {
           ],
           if (ai.phase == LocalAiPhase.failed && installed != null) ...[
             // Downloaded, but it would not load.
-            KitButton(label: 'Try again', expand: true, onPressed: ctl.retry),
+            KitButton(label: tr('Try again'), expand: true, onPressed: ctl.retry),
             const SizedBox(height: 8),
-            KitButton.secondary(label: 'Remove model', expand: true, onPressed: ctl.remove),
+            KitButton.secondary(label: tr('Remove model'), expand: true, onPressed: ctl.remove),
           ] else ...[
             KitGroup(children: [
               for (final o in localModels)
                 KitRow(
                   title: o.name,
                   subtitle: ai.fits(o)
-                      ? '${o.sizeLabel} · ${o.blurb}'
-                      : '${o.sizeLabel} · Needs a phone with ${_gb(o.minRamBytes)} GB of memory or more.',
+                      ? '${o.sizeLabel} · ${tr(o.blurb)}'
+                      : '${o.sizeLabel} · ${tr('Needs a phone with {gb} GB of memory or more.', {'gb': _gb(o.minRamBytes)})}',
                   selected: choice.id == o.id,
                   chevron: false,
                   onTap: ai.fits(o) ? () => setState(() => _choice = o) : null,
                 ),
             ]),
             const SizedBox(height: 10),
-            Text('A one-time download (Wi-Fi is best). Open model weights under the ${choice.licence} licence.', style: kit.caption),
+            Text(tr('A one-time download (Wi-Fi is best). Open model weights under the {licence} licence.', {'licence': choice.licence}), style: kit.caption),
             const SizedBox(height: 14),
             KitButton(
-              label: 'Download · ${choice.sizeLabel}',
+              label: tr('Download · {size}', {'size': choice.sizeLabel}),
               icon: Icons.download_rounded,
               expand: true,
               onPressed: ai.fits(choice) ? () => ctl.download(choice) : null,
@@ -351,7 +359,7 @@ class AppearanceSettings extends ConsumerWidget {
             AppAppearance.dark => Icons.dark_mode_rounded,
           },
           title: a.label,
-          subtitle: a == AppAppearance.system ? 'Follow the phone’s light or dark mode' : null,
+          subtitle: a == AppAppearance.system ? tr('Follow the phone’s light or dark mode') : null,
           selected: s.appearance == a,
           chevron: false,
           onTap: () {
@@ -368,22 +376,22 @@ class AppearanceSettings extends ConsumerWidget {
 /// One line on what a font is good for.
 String _fontNote(ReadingFont f) => switch (f) {
       ReadingFont.book => '',
-      ReadingFont.literata => 'Made for long reading on screens (Google Play Books).',
-      ReadingFont.merriweather => 'Sturdy and open, designed for reading on screens.',
-      ReadingFont.sourceSerif => 'A crisp modern serif in the old-style tradition.',
-      ReadingFont.ebGaramond => 'The classic book face, after Garamond’s 16th-century type.',
-      ReadingFont.crimsonPro => 'An elegant book serif, light on the page.',
-      ReadingFont.lora => 'A calligraphic serif, warm for stories.',
-      ReadingFont.libreBaskerville => 'Baskerville’s classic, tuned for screens.',
-      ReadingFont.alegreya => 'A lively literary serif with a calligraphic rhythm.',
-      ReadingFont.newsreader => 'Made for long reads on screens, newspaper-style.',
-      ReadingFont.bitter => 'A friendly slab serif, very clear at small sizes.',
-      ReadingFont.inter => 'A clean, neutral sans.',
-      ReadingFont.lexend => 'A sans made to reduce visual stress and help reading fluency.',
-      ReadingFont.nunito => 'A soft, rounded sans.',
-      ReadingFont.atkinson => 'Designed for low vision: every letter easy to tell apart.',
-      ReadingFont.openDyslexic => 'Weighted letters some readers with dyslexia find easier.',
-      ReadingFont.system => 'Your phone’s own font.',
+      ReadingFont.literata => tr('Made for long reading on screens (Google Play Books).'),
+      ReadingFont.merriweather => tr('Sturdy and open, designed for reading on screens.'),
+      ReadingFont.sourceSerif => tr('A crisp modern serif in the old-style tradition.'),
+      ReadingFont.ebGaramond => tr('The classic book face, after Garamond’s 16th-century type.'),
+      ReadingFont.crimsonPro => tr('An elegant book serif, light on the page.'),
+      ReadingFont.lora => tr('A calligraphic serif, warm for stories.'),
+      ReadingFont.libreBaskerville => tr('Baskerville’s classic, tuned for screens.'),
+      ReadingFont.alegreya => tr('A lively literary serif with a calligraphic rhythm.'),
+      ReadingFont.newsreader => tr('Made for long reads on screens, newspaper-style.'),
+      ReadingFont.bitter => tr('A friendly slab serif, very clear at small sizes.'),
+      ReadingFont.inter => tr('A clean, neutral sans.'),
+      ReadingFont.lexend => tr('A sans made to reduce visual stress and help reading fluency.'),
+      ReadingFont.nunito => tr('A soft, rounded sans.'),
+      ReadingFont.atkinson => tr('Designed for low vision: every letter easy to tell apart.'),
+      ReadingFont.openDyslexic => tr('Weighted letters some readers with dyslexia find easier.'),
+      ReadingFont.system => tr('Your phone’s own font.'),
     };
 
 String _fontName(ReadingFont f) => switch (f) {
@@ -403,20 +411,20 @@ String _fontName(ReadingFont f) => switch (f) {
       ReadingFont.nunito => 'Nunito',
       ReadingFont.atkinson => 'Atkinson Hyperlegible',
       ReadingFont.openDyslexic => 'OpenDyslexic',
-      ReadingFont.system => 'System font',
+      ReadingFont.system => tr('System font'),
     };
 
 String _lengthName(CardLength l) => switch (l) {
-      CardLength.snack => 'Snack',
-      CardLength.bite => 'Bite',
-      CardLength.standard => 'Standard',
-      CardLength.deep => 'Deep',
+      CardLength.snack => tr('Snack'),
+      CardLength.bite => tr('Bite'),
+      CardLength.standard => tr('Standard'),
+      CardLength.deep => tr('Deep'),
     };
 
 String _levelName(ReadingLevel l) => switch (l) {
-      ReadingLevel.beginner => 'Beginner words',
-      ReadingLevel.intermediate => 'Middle words',
-      ReadingLevel.advanced => 'Advanced words',
+      ReadingLevel.beginner => tr('Beginner words'),
+      ReadingLevel.intermediate => tr('Middle words'),
+      ReadingLevel.advanced => tr('Advanced words'),
     };
 
 String _capital(String s) => s[0].toUpperCase() + s.substring(1);
@@ -474,9 +482,10 @@ class BackgroundSettings extends ConsumerWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Text(
         own > 0
-            ? 'Each book opens on one of your $own picture${own == 1 ? '' : 's'}, picked at random. While reading, tap the screen and pick another from the row at the top.'
-            : 'Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. '
-                'Pictures added to the app’s backgrounds folder replace the scenes.',
+            ? trn(own, 'Each book opens on your picture. While reading, tap the screen to pick a scene from the row at the top.',
+                'Each book opens on one of your {n} pictures, picked at random. While reading, tap the screen and pick another from the row at the top.')
+            : tr('Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. '
+                'Pictures added to the app’s backgrounds folder replace the scenes.'),
         style: kit.caption,
       ),
       if (own == 0) ...[
@@ -484,8 +493,8 @@ class BackgroundSettings extends ConsumerWidget {
         KitGroup(divided: true, children: [
           KitSwitchRow(
             icon: Icons.animation_rounded,
-            title: 'Moving scenes',
-            subtitle: 'Gentle motion. Off when the phone’s “Remove animations” is on.',
+            title: tr('Moving scenes'),
+            subtitle: tr('Gentle motion. Off when the phone’s “Remove animations” is on.'),
             value: s.animatedBackground,
             onChanged: (v) => n.update((x) => x.copyWith(animatedBackground: v)),
           ),
@@ -509,23 +518,23 @@ class MusicSettings extends ConsumerWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Text(
         own > 0
-            ? 'Each book starts one of your $own track${own == 1 ? '' : 's'} at random, then plays on through them. '
-                'While reading, tap the screen for previous, pause and next at the bottom.'
-            : 'There’s no music in the app yet: tracks added to its sounds folder play while you read.',
+            ? trn(own, 'Your track plays while you read. While reading, tap the screen for pause and play at the bottom.',
+                'Each book starts one of your {n} tracks at random, then plays on through them. While reading, tap the screen for previous, pause and next at the bottom.')
+            : tr('There’s no music in the app yet: tracks added to its sounds folder play while you read.'),
         style: kit.caption,
       ),
       const SizedBox(height: 12),
       KitGroup(divided: true, children: [
         KitSwitchRow(
           icon: Icons.music_note_rounded,
-          title: 'Play music while reading',
-          subtitle: s.music ? null : 'Books open in silence; play is a tap away.',
+          title: tr('Play music while reading'),
+          subtitle: s.music ? null : tr('Books open in silence; play is a tap away.'),
           value: s.music,
           onChanged: (v) => n.update((x) => x.copyWith(music: v)),
         ),
       ]),
       _SliderField(
-        label: 'Volume',
+        label: tr('Volume'),
         value: s.musicVolume,
         min: 0.05,
         max: 1,
@@ -557,8 +566,8 @@ class _LocalVoicePanel extends ConsumerWidget {
         return Row(children: [
           Icon(Icons.offline_pin_rounded, size: 20, color: kit.ink),
           const SizedBox(width: 8),
-          Expanded(child: Text('On this phone · ${formatBytes(LocalVoiceModel.installedBytes)}', style: kit.strong.copyWith(fontSize: 14))),
-          KitButton.ghost(label: 'Remove', compact: true, onPressed: voice.remove),
+          Expanded(child: Text(tr('On this phone · {size}', {'size': formatBytes(LocalVoiceModel.installedBytes)}), style: kit.strong.copyWith(fontSize: 14))),
+          KitButton.ghost(label: tr('Remove'), compact: true, onPressed: voice.remove),
         ]);
       case LocalVoicePhase.downloading:
       case LocalVoicePhase.unpacking:
@@ -566,10 +575,10 @@ class _LocalVoicePanel extends ConsumerWidget {
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             Expanded(
-              child: Text(unpacking ? 'Getting the voice ready…' : 'Downloading the voice · ${local.progress}%',
+              child: Text(unpacking ? tr('Getting the voice ready…') : tr('Downloading the voice · {percent}%', {'percent': local.progress}),
                   style: kit.strong.copyWith(fontSize: 14)),
             ),
-            if (!unpacking) KitButton.ghost(label: 'Cancel', compact: true, onPressed: voice.cancelDownload),
+            if (!unpacking) KitButton.ghost(label: tr('Cancel'), compact: true, onPressed: voice.cancelDownload),
           ]),
           const SizedBox(height: 8),
           KitProgress(value: unpacking ? 1 : local.progress / 100, height: 4, color: kit.ink, track: kit.field),
@@ -582,7 +591,7 @@ class _LocalVoicePanel extends ConsumerWidget {
             const SizedBox(height: 8),
           ],
           KitButton(
-            label: 'Download the natural voice ($localVoiceDownloadSize)',
+            label: tr('Download the natural voice ({size})', {'size': localVoiceDownloadSize}),
             icon: Icons.download_rounded,
             expand: true,
             onPressed: voice.download,
@@ -596,6 +605,7 @@ class _LocalVoicePanel extends ConsumerWidget {
 class VoiceSettings extends ConsumerWidget {
   const VoiceSettings({super.key});
 
+  // Read in English: the natural voices are English voices.
   static const sample = 'Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do.';
 
   @override
@@ -610,22 +620,22 @@ class VoiceSettings extends ConsumerWidget {
       KitSegmented<bool>(
         values: const [true, false],
         selected: s.naturalVoice,
-        label: (v) => v ? 'Natural AI voice' : 'Phone voice',
+        label: (v) => v ? tr('Natural AI voice') : tr('Phone voice'),
         onChanged: (v) => n.update((x) => x.copyWith(naturalVoice: v)),
       ),
       const SizedBox(height: 10),
       Text(
         !s.naturalVoice
-            ? 'Your phone\'s own voice: works offline and costs nothing. We pick the most natural one it has installed.'
+            ? tr('Your phone\'s own voice: works offline and costs nothing. We pick the most natural one it has installed.')
             : local.ready
-                ? 'A neural voice that sounds close to a person reading, running on your phone: free, unlimited and '
-                    'offline. Nothing you read is sent anywhere.'
+                ? tr('A neural voice that sounds close to a person reading, running on your phone: free, unlimited and '
+                    'offline. Nothing you read is sent anywhere.')
                 : server
-                    ? 'A neural voice that sounds close to a person reading, from the Cloro server. Free: about 25 '
+                    ? tr('A neural voice that sounds close to a person reading, from the Cloro server. Free: about 25 '
                         'minutes of new listening a day; paid plans: hours. Download it to your phone and it\'s '
-                        'unlimited, offline too.'
-                    : 'A neural voice that sounds close to a person reading. Download it once ($localVoiceDownloadSize) '
-                        'and it runs on your phone: free, unlimited and offline. Until then, your phone\'s own voice reads.',
+                        'unlimited, offline too.')
+                    : tr('A neural voice that sounds close to a person reading. Download it once ({size}) '
+                        'and it runs on your phone: free, unlimited and offline. Until then, your phone\'s own voice reads.', {'size': localVoiceDownloadSize}),
         style: kit.caption,
       ),
       if (s.naturalVoice) ...[
@@ -636,7 +646,7 @@ class VoiceSettings extends ConsumerWidget {
           for (final v in speechVoices)
             KitRow(
               title: v.label,
-              subtitle: v.description,
+              subtitle: tr(v.description),
               selected: s.voiceName == v.id,
               chevron: false,
               onTap: () {
@@ -647,7 +657,7 @@ class VoiceSettings extends ConsumerWidget {
         ]),
       ],
       _SliderField(
-        label: 'Speed',
+        label: tr('Speed'),
         value: s.voiceSpeed,
         min: 0.8,
         max: 1.3,
@@ -656,7 +666,7 @@ class VoiceSettings extends ConsumerWidget {
         onChanged: (v) => n.update((x) => x.copyWith(voiceSpeed: double.parse(v.toStringAsFixed(2)))),
       ),
       const SizedBox(height: 14),
-      KitButton.secondary(label: 'Play a sample', icon: Icons.play_arrow_rounded, expand: true, onPressed: play),
+      KitButton.secondary(label: tr('Play a sample'), icon: Icons.play_arrow_rounded, expand: true, onPressed: play),
     ]);
   }
 }
@@ -690,7 +700,7 @@ class TextSettings extends ConsumerWidget {
         ),
       ),
       const SizedBox(height: 16),
-      Text('FONT', style: kit.label),
+      Text(tr('FONT'), style: kit.label),
       const SizedBox(height: 8),
       // Each font's name in its own face.
       Wrap(spacing: 8, runSpacing: 8, children: [
@@ -706,13 +716,13 @@ class TextSettings extends ConsumerWidget {
       Text(
         s.font == ReadingFont.book
             ? (s.tier.paid
-                ? 'Each book gets fonts that fit it, chosen by the AI from its genre and opening pages.'
-                : 'Each book gets fonts that fit its genre (fantasy, mystery, sci-fi, romance, non-fiction…).')
-            : '${_fontNote(s.font)} Used for every book.',
+                ? tr('Each book gets fonts that fit it, chosen by the AI from its genre and opening pages.')
+                : tr('Each book gets fonts that fit its genre (fantasy, mystery, sci-fi, romance, non-fiction…).'))
+            : '${_fontNote(s.font)} ${tr('Used for every book.')}',
         style: kit.caption,
       ),
       _SliderField(
-        label: 'Text size',
+        label: tr('Text size'),
         value: s.fontSize,
         min: 14,
         max: 32,
@@ -721,7 +731,7 @@ class TextSettings extends ConsumerWidget {
         onChanged: (v) => n.update((x) => x.copyWith(fontSize: v)),
       ),
       _SliderField(
-        label: 'Line spacing',
+        label: tr('Line spacing'),
         value: s.lineHeight,
         min: 1.2,
         max: 2.0,
@@ -730,8 +740,8 @@ class TextSettings extends ConsumerWidget {
         onChanged: (v) => n.update((x) => x.copyWith(lineHeight: v)),
       ),
       _SliderField(
-        label: 'Letter spacing',
-        help: 'Wider spacing can make reading easier, especially with dyslexia.',
+        label: tr('Letter spacing'),
+        help: tr('Wider spacing can make reading easier, especially with dyslexia.'),
         value: s.letterSpacing,
         min: 0,
         max: 2,
@@ -740,9 +750,9 @@ class TextSettings extends ConsumerWidget {
         onChanged: (v) => n.update((x) => x.copyWith(letterSpacing: v, wordSpacing: v * 2)),
       ),
       const SizedBox(height: 18),
-      Text('PAPER THEME', style: kit.label),
+      Text(tr('PAPER THEME'), style: kit.label),
       const SizedBox(height: 2),
-      Text('For the Paper scene and page mode', style: kit.caption),
+      Text(tr('For the Paper scene and page mode'), style: kit.caption),
       const SizedBox(height: 8),
       Wrap(spacing: 8, runSpacing: 8, children: [
         for (final t in ReadingThemeId.values)
@@ -752,8 +762,8 @@ class TextSettings extends ConsumerWidget {
       KitGroup(divided: true, children: [
         KitSwitchRow(
           icon: Icons.dark_mode_rounded,
-          title: 'Dark with the phone',
-          subtitle: 'Use the dark theme when the phone is in dark mode',
+          title: tr('Dark with the phone'),
+          subtitle: tr('Use the dark theme when the phone is in dark mode'),
           value: s.followSystemDark,
           onChanged: (v) => n.update((x) => x.copyWith(followSystemDark: v)),
         ),
@@ -773,28 +783,28 @@ class CardSettings extends ConsumerWidget {
     final n = ref.read(settingsProvider.notifier);
     Widget label(String t) => Padding(padding: const EdgeInsets.only(top: 14, bottom: 8), child: Text(t, style: kit.label));
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      label('CARD LENGTH'),
+      label(tr('CARD LENGTH')),
       KitSegmented<CardLength>(
         values: CardLength.values,
         selected: s.cardLength,
         label: _lengthName,
         onChanged: (v) => n.update((x) => x.copyWith(cardLength: v)),
       ),
-      label('KEY POINTS'),
+      label(tr('KEY POINTS')),
       KitSegmented<KeyPointStyle>(
         values: KeyPointStyle.values,
         selected: s.keyPointStyle,
         label: (v) => _capital(v.name),
         onChanged: (v) => n.update((x) => x.copyWith(keyPointStyle: v)),
       ),
-      label('VOCABULARY LEVEL'),
+      label(tr('VOCABULARY LEVEL')),
       KitSegmented<ReadingLevel>(
         values: ReadingLevel.values,
         selected: s.readingLevel,
         label: (v) => switch (v) {
-          ReadingLevel.beginner => 'Beginner',
-          ReadingLevel.intermediate => 'Middle',
-          ReadingLevel.advanced => 'Advanced',
+          ReadingLevel.beginner => tr('Beginner'),
+          ReadingLevel.intermediate => tr('Middle'),
+          ReadingLevel.advanced => tr('Advanced'),
         },
         onChanged: (v) => n.update((x) => x.copyWith(readingLevel: v)),
       ),
@@ -802,28 +812,28 @@ class CardSettings extends ConsumerWidget {
       KitGroup(divided: true, children: [
         KitSwitchRow(
           icon: Icons.format_underlined_rounded,
-          title: 'Underline hard words',
+          title: tr('Underline hard words'),
           value: s.underlineHardWords,
           onChanged: (v) => n.update((x) => x.copyWith(underlineHardWords: v)),
         ),
         KitSwitchRow(
           icon: Icons.title_rounded,
-          title: 'AI card titles',
-          subtitle: 'Shown when AI cards are available',
+          title: tr('AI card titles'),
+          subtitle: tr('Shown when AI cards are available'),
           value: s.showAiTitles,
           onChanged: (v) => n.update((x) => x.copyWith(showAiTitles: v)),
         ),
         KitSwitchRow(
           icon: Icons.quiz_rounded,
-          title: 'Quick-check cards',
-          subtitle: 'A one-tap recall check every ~10 cards',
+          title: tr('Quick-check cards'),
+          subtitle: tr('A one-tap recall check every ~10 cards'),
           value: s.recallCards,
           onChanged: (v) => n.update((x) => x.copyWith(recallCards: v)),
         ),
         KitSwitchRow(
           icon: Icons.psychology_alt_rounded,
-          title: 'Reflect cards',
-          subtitle: 'One question at the end of each chapter',
+          title: tr('Reflect cards'),
+          subtitle: tr('One question at the end of each chapter'),
           value: s.reflectCards,
           onChanged: (v) => n.update((x) => x.copyWith(reflectCards: v)),
         ),
@@ -839,11 +849,11 @@ class PlanPicker extends ConsumerStatefulWidget {
   const PlanPicker({super.key});
 
   static String blurb(Tier t) => switch (t) {
-        Tier.free => 'Cards cut on your phone. Every scene, sound and streak.',
-        Tier.lite => 'Claude Haiku reads your books: AI emphasis, Auto scenes and book fonts.',
-        Tier.plus => 'Claude Sonnet: sharper cuts, recaps and quick checks.',
-        Tier.pro => 'Claude Opus: the deepest reading of dense and difficult books.',
-        Tier.scholar => 'Claude Fable: our most capable model, for the books that matter most.',
+        Tier.free => tr('Cards cut on your phone. Every scene, sound and streak.'),
+        Tier.lite => tr('Claude Haiku reads your books: AI emphasis, Auto scenes and book fonts.'),
+        Tier.plus => tr('Claude Sonnet: sharper cuts, recaps and quick checks.'),
+        Tier.pro => tr('Claude Opus: the deepest reading of dense and difficult books.'),
+        Tier.scholar => tr('Claude Fable: our most capable model, for the books that matter most.'),
       };
 
   @override
@@ -864,7 +874,7 @@ class _PlanPickerState extends ConsumerState<PlanPicker> {
         KitGroup(children: [
           for (final t in Tier.values)
             KitRow(
-              title: t.paid ? '${t.label} · \$${t.usdPerMonth.toStringAsFixed(2)}/mo' : 'Free',
+              title: t.paid ? tr('{plan} · \${price}/mo', {'plan': t.label, 'price': t.usdPerMonth.toStringAsFixed(2)}) : tr('Free'),
               subtitle: PlanPicker.blurb(t),
               selected: s.tier == t,
               chevron: false,
@@ -874,9 +884,9 @@ class _PlanPickerState extends ConsumerState<PlanPicker> {
         const SizedBox(height: 10),
         Text(
           bookreelApi.isEmpty
-              ? 'AI cards need the Cloro server. This build has none configured, so on-device cards are used.'
-              : 'Google Play subscriptions aren\u2019t set up for this build, so choosing a plan here only switches '
-                  'which AI model the server uses. US prices; local prices are shown at checkout.',
+              ? tr('AI cards need the Cloro server. This build has none configured, so on-device cards are used.')
+              : tr('Google Play subscriptions aren\u2019t set up for this build, so choosing a plan here only switches '
+                  'which AI model the server uses. US prices; local prices are shown at checkout.'),
           style: kit.caption,
         ),
       ]);
@@ -886,22 +896,22 @@ class _PlanPickerState extends ConsumerState<PlanPicker> {
       KitSegmented<bool>(
         values: const [false, true],
         selected: _yearly,
-        label: (y) => y ? 'Yearly' : 'Monthly',
+        label: (y) => y ? tr('Yearly') : tr('Monthly'),
         onChanged: (y) => setState(() => _yearly = y),
       ),
       const SizedBox(height: 12),
       KitGroup(divided: true, children: [
-        KitRow(title: 'Free', subtitle: PlanPicker.blurb(Tier.free), selected: s.tier == Tier.free, chevron: false),
+        KitRow(title: tr('Free'), subtitle: PlanPicker.blurb(Tier.free), selected: s.tier == Tier.free, chevron: false),
         for (final t in Tier.values.where((t) => t.paid))
           Builder(builder: (context) {
             final offer = billing.offer(t, yearly: _yearly);
             final current = s.tier == t;
             return KitRow(
-              title: offer == null ? t.label : '${t.label} · ${offer.price}/${_yearly ? 'yr' : 'mo'}',
-              subtitle: [PlanPicker.blurb(t), if (offer?.trial != null && !current) 'Try it free for ${offer!.trial}.'].join(' '),
+              title: offer == null ? t.label : (_yearly ? tr('{plan} · {price}/yr', {'plan': t.label, 'price': offer.price}) : tr('{plan} · {price}/mo', {'plan': t.label, 'price': offer.price})),
+              subtitle: [PlanPicker.blurb(t), if (offer?.trial != null && !current) tr('Try it free for {trial}.', {'trial': offer!.trial})].join(' '),
               selected: current,
               chevron: false,
-              trailing: current || offer == null ? null : Text(s.tier.paid ? 'Switch' : 'Subscribe', style: kit.strong.copyWith(decoration: TextDecoration.underline)),
+              trailing: current || offer == null ? null : Text(s.tier.paid ? tr('Switch') : tr('Subscribe'), style: kit.strong.copyWith(decoration: TextDecoration.underline)),
               onTap: current || offer == null || billing.busy ? null : () => store.buy(offer),
             );
           }),
@@ -914,13 +924,13 @@ class _PlanPickerState extends ConsumerState<PlanPicker> {
       Text(
         [
           if (s.tier.paid && expires != null)
-            'Your ${s.tier.label} plan renews or ends on ${MaterialLocalizations.of(context).formatMediumDate(expires.toLocal())}.',
-          'Subscriptions renew automatically until you cancel in Google Play. Switching plans credits the time left on the old one.',
+            tr('Your {plan} plan renews or ends on {date}.', {'plan': s.tier.label, 'date': MaterialLocalizations.of(context).formatMediumDate(expires.toLocal())}),
+          tr('Subscriptions renew automatically until you cancel in Google Play. Switching plans credits the time left on the old one.'),
         ].join(' '),
         style: kit.caption,
       ),
       const SizedBox(height: 6),
-      KitButton.ghost(label: 'Restore purchases', icon: Icons.restore_rounded, onPressed: billing.busy ? null : store.restore),
+      KitButton.ghost(label: tr('Restore purchases'), icon: Icons.restore_rounded, onPressed: billing.busy ? null : store.restore),
     ]);
   }
 }
@@ -928,12 +938,12 @@ class _PlanPickerState extends ConsumerState<PlanPicker> {
 /// Download my data: a JSON file with what's on this phone and what the
 /// server keeps, handed to the share sheet (save it, email it…).
 Future<void> _downloadData(BuildContext context, WidgetRef ref) async {
-  showKitToast(context, 'Preparing your data…', icon: Icons.download_rounded, duration: const Duration(milliseconds: 1400));
+  showKitToast(context, tr('Preparing your data…'), icon: Icons.download_rounded, duration: const Duration(milliseconds: 1400));
   try {
     final file = await ref.read(accountProvider).exportFile();
-    await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: 'application/json')], subject: 'My Cloro data'));
+    await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: 'application/json')], subject: tr('My Cloro data')));
   } catch (_) {
-    if (context.mounted) showKitToast(context, 'Couldn’t prepare the file. Try again.', icon: Icons.error_outline_rounded);
+    if (context.mounted) showKitToast(context, tr('Couldn’t prepare the file. Try again.'), icon: Icons.error_outline_rounded);
   }
 }
 
@@ -942,21 +952,50 @@ Future<void> _downloadData(BuildContext context, WidgetRef ref) async {
 Future<void> _deleteAccount(BuildContext context, WidgetRef ref) async {
   final ok = await showKitConfirm(
     context,
-    title: 'Delete your account?',
-    message: 'This erases your profile, followers and following, reading activity, comments, kudos, synced notes and share links '
+    title: tr('Delete your account?'),
+    message: tr('This erases your profile, followers and following, reading activity, comments, kudos, synced notes and share links '
         'from Cloro’s servers. It can’t be undone.\n\n'
         'Your books and notes stay on this phone, and online features turn off. '
-        'Subscriptions are managed in Google Play. You can download your data first.',
-    confirm: 'Delete',
+        'Subscriptions are managed in Google Play. You can download your data first.'),
+    confirm: tr('Delete'),
     destructive: true,
   );
   if (!ok || !context.mounted) return;
   try {
     await ref.read(accountProvider).deleteAccount();
-    if (context.mounted) showKitToast(context, 'Your account is deleted', icon: Icons.check_rounded);
+    if (context.mounted) showKitToast(context, tr('Your account is deleted'), icon: Icons.check_rounded);
   } catch (_) {
     if (context.mounted) {
-      showKitToast(context, 'Couldn’t reach Cloro, so nothing was deleted. Try again.', icon: Icons.cloud_off_rounded);
+      showKitToast(context, tr('Couldn’t reach Cloro, so nothing was deleted. Try again.'), icon: Icons.cloud_off_rounded);
     }
+  }
+}
+
+/// The app's language: the phone's (when the app has it), or one of the
+/// nine, each named in its own language.
+class LanguageSettings extends ConsumerWidget {
+  const LanguageSettings({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kit = Kit.of(context);
+    final chosen = ref.watch(settingsProvider.select((s) => s.language));
+    final phone = resolveLanguage('', WidgetsBinding.instance.platformDispatcher.locales);
+    void pick(String code) {
+      Haptics.select();
+      ref.read(settingsProvider.notifier).update((x) => x.copyWith(language: code));
+      Navigator.of(context).pop();
+    }
+
+    Widget row(String code, String title, String? subtitle) => KitRow(
+          title: title,
+          subtitle: subtitle,
+          trailing: chosen == code ? Icon(Icons.check_rounded, color: kit.ink) : null,
+          onTap: () => pick(code),
+        );
+    return KitGroup(divided: true, children: [
+      row('', tr('Phone’s language'), languageFor(phone).name),
+      for (final l in appLanguages) row(l.code, l.name, l.name == l.english ? null : l.english),
+    ]);
   }
 }

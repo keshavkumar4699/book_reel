@@ -9,6 +9,7 @@ import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import '../data/api_client.dart';
 import '../data/settings.dart';
 import '../data/settings_provider.dart';
+import '../l10n/l10n.dart';
 
 /// Google Play subscription products (each with "monthly" and "yearly" base
 /// plans), matching server/src/billing/play.ts.
@@ -71,8 +72,12 @@ class PlayStoreGateway implements StoreGateway {
     final m = RegExp(r'^P(\d+)([DWMY])$').firstMatch(iso);
     if (m == null) return null;
     final n = int.parse(m.group(1)!);
-    final unit = switch (m.group(2)) { 'D' => 'day', 'W' => 'week', 'M' => 'month', _ => 'year' };
-    return '$n $unit${n == 1 ? '' : 's'}';
+    return switch (m.group(2)) {
+      'D' => trn(n, '{n} day', '{n} days'),
+      'W' => trn(n, '{n} week', '{n} weeks'),
+      'M' => trn(n, '{n} month', '{n} months'),
+      _ => trn(n, '{n} year', '{n} years'),
+    };
   }
 
   @override
@@ -225,21 +230,21 @@ class BillingController extends Notifier<BillingState> {
     for (final p in list) {
       switch (p.state) {
         case PurchaseState.pending:
-          state = state.copyWith(busy: true, message: 'Waiting for the payment to go through…');
+          state = state.copyWith(busy: true, message: tr('Waiting for the payment to go through…'));
         case PurchaseState.canceled:
           state = state.copyWith(busy: false, clearMessage: true);
         case PurchaseState.error:
-          state = state.copyWith(busy: false, message: p.error ?? 'The purchase did not go through.');
+          state = state.copyWith(busy: false, message: p.error ?? tr('The purchase did not go through.'));
         case PurchaseState.owned:
           try {
             _apply(await ref.read(apiProvider).verifyPurchase(productId: p.productId, purchaseToken: p.token));
             _active = p;
             state = state.copyWith(busy: false, clearMessage: true);
           } on ApiException catch (e) {
-            state = state.copyWith(busy: false, message: 'We couldn’t confirm this purchase (${e.status}). Try Restore later.');
+            state = state.copyWith(busy: false, message: tr('We couldn’t confirm this purchase ({code}). Try Restore later.', {'code': e.status}));
             continue;
           } catch (_) {
-            state = state.copyWith(busy: false, message: 'Offline: the plan will switch on once you’re back online.');
+            state = state.copyWith(busy: false, message: tr('Offline: the plan will switch on once you’re back online.'));
             continue;
           }
           // Acknowledge only what the server confirmed: an unacknowledged
@@ -256,7 +261,7 @@ class BillingController extends Notifier<BillingState> {
     try {
       await store.buy(offer, replacing: _active);
     } catch (e) {
-      state = state.copyWith(busy: false, message: 'Couldn’t open Google Play: $e');
+      state = state.copyWith(busy: false, message: tr('Couldn’t open Google Play: {error}', {'error': e}));
     }
   }
 

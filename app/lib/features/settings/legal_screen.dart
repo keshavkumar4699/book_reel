@@ -3,16 +3,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ui/kit.dart';
+import '../../l10n/l10n.dart';
 
 /// The privacy policy or the terms (Production plan A5), from the app's own
 /// copy in assets/legal (the server shows the same files at /privacy and
 /// /terms), so they can be read offline.
 enum LegalDoc {
-  privacy('Privacy policy'),
-  terms('Terms of use');
+  privacy,
+  terms;
 
-  const LegalDoc(this.title);
-  final String title;
+  String get title => switch (this) {
+        LegalDoc.privacy => tr('Privacy policy'),
+        LegalDoc.terms => tr('Terms of use'),
+      };
 
   static LegalDoc? byName(String name) => LegalDoc.values.where((d) => d.name == name).firstOrNull;
 }
@@ -32,7 +35,7 @@ class LegalScreen extends ConsumerWidget {
       children: [
         text.when(
           loading: () => const Padding(padding: EdgeInsets.all(40), child: Center(child: KitSpinner())),
-          error: (e, _) => Text('Couldn’t open it.', style: kit.caption),
+          error: (e, _) => Text(tr('Couldn’t open it.'), style: kit.caption),
           // The first heading is the page title already.
           data: (md) => MarkdownText(md.replaceFirst(RegExp(r'^# .*\n'), '')),
         ),
