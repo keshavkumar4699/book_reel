@@ -124,6 +124,13 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (v) => n.update((x) => x.copyWith(leftHanded: v)),
           ),
           KitSwitchRow(
+            icon: Icons.vibration_rounded,
+            title: 'Vibration',
+            subtitle: 'A light tap when you choose, like, save or finish',
+            value: s.haptics,
+            onChanged: (v) => n.update((x) => x.copyWith(haptics: v)),
+          ),
+          KitSwitchRow(
             icon: Icons.visibility_off_rounded,
             title: 'Hide leaderboards',
             subtitle: 'No rankings or comparisons',

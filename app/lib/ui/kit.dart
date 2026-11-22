@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 
 import '../data/settings.dart';
 import 'backdrops.dart';
+import 'haptics.dart';
 import 'theme.dart';
 import 'vibes.dart';
 
@@ -165,6 +166,42 @@ class Kit extends ThemeExtension<Kit> {
 
   /// Text and icons on an [ink] fill (primary buttons, selected chips).
   Color get inverse => dark ? const Color(0xFF000000) : const Color(0xFFFFFFFF);
+
+  // Informational accents, as in Google Fit: used sparingly, only where a
+  // colour carries meaning, so they stay easy to read at a glance.
+  //
+  // * Blue is how much: reading time, cards, words, this week, how far into
+  //   a book, a goal on its way.
+  // * Green is keeping at it: streaks, a goal met, a book finished.
+  //
+  // The logo red stays for the flame, the liked heart and badges. Each has a
+  // light and a dark tone with at least 4.5:1 contrast on the page behind
+  // it, and a soft tint for tracks and backgrounds.
+
+  /// Blue: how much you read.
+  Color get activity => activityTone(dark: dark);
+
+  /// A faint blue for tracks, empty days and light backgrounds.
+  Color get activitySoft => dark ? const Color(0xFF1C2738) : const Color(0xFFE8F0FE);
+
+  /// Green: keeping at it.
+  Color get growth => growthTone(dark: dark);
+
+  /// A faint green behind a goal met or a streak.
+  Color get growthSoft => dark ? const Color(0xFF17291E) : const Color(0xFFE6F4EA);
+
+  /// The blue for light text on dark ([dark]) or dark text on light, for
+  /// places that know their text colour but not their [Kit] (the reader).
+  static Color activityTone({required bool dark}) => dark ? const Color(0xFF8AB4F8) : const Color(0xFF1A73E8);
+
+  /// The green, likewise.
+  static Color growthTone({required bool dark}) => dark ? const Color(0xFF81C995) : const Color(0xFF188038);
+
+  /// Streak days from none to most, in GitHub's contribution greens.
+  List<Color> get streakScale => dark ? _streakDark : _streakLight;
+
+  static const _streakLight = [Color(0xFFEBEDF0), Color(0xFF9BE9A8), Color(0xFF40C463), Color(0xFF30A14E), Color(0xFF216E39)];
+  static const _streakDark = [Color(0xFF161B22), Color(0xFF0E4429), Color(0xFF006D32), Color(0xFF26A641), Color(0xFF39D353)];
 
   SystemUiOverlayStyle get statusBar => dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark;
 
@@ -463,7 +500,7 @@ class _KitPressableState extends State<KitPressable> {
         onTap: widget.onTap == null
             ? null
             : () {
-                if (widget.haptic) HapticFeedback.selectionClick();
+                if (widget.haptic) Haptics.tap();
                 widget.onTap!();
               },
         onLongPress: widget.onLongPress,
@@ -816,7 +853,7 @@ class KitSwitch extends StatelessWidget {
         onTap: onChanged == null
             ? null
             : () {
-                HapticFeedback.selectionClick();
+                Haptics.select();
                 onChanged!(!value);
               },
         child: AnimatedContainer(
@@ -873,7 +910,7 @@ class KitSwitchRow extends StatelessWidget {
         chevron: false,
         trailing: KitSwitch(value: value, onChanged: onChanged),
         onTap: () {
-          HapticFeedback.selectionClick();
+          Haptics.select();
           onChanged(!value);
         },
       ),
@@ -902,7 +939,7 @@ class KitSegmented<T> extends StatelessWidget {
             child: KitPressable(
               onTap: () {
                 if (v != selected) {
-                  HapticFeedback.selectionClick();
+                  Haptics.select();
                   onChanged(v);
                 }
               },
@@ -951,7 +988,7 @@ class KitChip extends StatelessWidget {
       onTap: onTap == null
           ? null
           : () {
-              HapticFeedback.selectionClick();
+              Haptics.select();
               onTap!();
             },
       selected: onTap == null ? null : selected,
@@ -1032,7 +1069,7 @@ class KitSlider extends StatelessWidget {
         void update(Offset local) {
           final v = _snap(min + ((local.dx - knob / 2) / (w - knob)).clamp(0.0, 1.0) * (max - min));
           if ((v - value).abs() > 1e-9) {
-            if (divisions != null) HapticFeedback.selectionClick();
+            if (divisions != null) Haptics.select();
             onChanged(v);
           }
         }
@@ -1338,7 +1375,7 @@ class KitNavBar extends StatelessWidget {
             Expanded(
               child: KitPressable(
                 onTap: () {
-                  HapticFeedback.selectionClick();
+                  Haptics.select();
                   onSelect(i);
                 },
                 selected: i == index,

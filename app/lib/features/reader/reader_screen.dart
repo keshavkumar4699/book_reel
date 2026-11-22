@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,6 +31,7 @@ import '../../services/on_device_ai.dart';
 import '../../services/music.dart';
 import '../../services/read_aloud.dart';
 import '../../ui/backdrops.dart';
+import '../../ui/haptics.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/typography.dart';
@@ -106,6 +109,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   int _page = 0;
   DateTime _shownAt = ReaderScreen.clock();
   bool _tts = false;
+
+  /// The reel being read aloud is still being turned into audio.
+  bool _preparing = false;
+
+  void _onWaiting() {
+    final preparing = _readAloud.waiting.value != null;
+    if (preparing != _preparing && mounted) setState(() => _preparing = preparing);
+  }
   int _textCardsThisSession = 0;
 
   /// Kept from initState: `ref` must not be used in dispose(), where the last
@@ -130,13 +141,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// The chapter and block of cards the on-device model last wrote ahead for.
   (int, int)? _localBlock;
 
-  /// The controls (top bar, rail, tab bar) are showing. A tap on empty
-  /// space shows them, or hides them again; they hide on their own a few
-  /// seconds after the last touch, so the reel is left alone.
+  /// The controls that come and go (the top bar and pictures, the music at
+  /// the bottom, the tab bar) are showing; the rail of actions always is. A
+  /// tap on empty space shows them, or hides them again; they hide on their
+  /// own six seconds after the last touch, so the reel is left alone.
   bool _chrome = false;
   late final ReaderChrome _chromeFlag;
   Timer? _chromeTimer;
-  static const chromeFor = Duration(seconds: 4);
+  static const chromeFor = Duration(seconds: 6);
 
   void _setChrome(bool on) {
     _chromeTimer?.cancel();
@@ -176,6 +188,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _library = ref.read(libraryProvider.notifier);
     _music = ref.read(musicProvider.notifier);
     _readAloud = ref.read(readAloudProvider);
+    _readAloud.waiting.addListener(_onWaiting);
     // A random track for this book (providers can change once the frame is built).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_music.start(this));
@@ -206,7 +219,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// Music on or off (options sheet): the setting, and the player with it.
   void _toggleMusic() {
     final on = !ref.read(settingsProvider).music;
-    HapticFeedback.selectionClick();
+    Haptics.select();
     ref.read(settingsProvider.notifier).update((x) => x.copyWith(music: on));
     if (on != ref.read(musicProvider).playing) unawaited(_music.toggle());
   }
@@ -215,7 +228,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// shows with the wrong ones.
   Future<void> _setBackdrop(Backdrop b) async {
     if (b == _backdrop) return;
-    HapticFeedback.selectionClick();
+    Haptics.select();
     final asset = b.asset;
     if (asset != null) {
       try {
@@ -256,6 +269,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     WidgetsBinding.instance.removeObserver(this);
     _chromeTimer?.cancel();
     _pager?.dispose();
+    _readAloud.waiting.removeListener(_onWaiting);
     unawaited(_readAloud.stop());
     super.dispose();
   }
@@ -542,7 +556,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _leave();
     _page = index;
     _shownAt = ReaderScreen.clock();
-    HapticFeedback.selectionClick();
+    Haptics.tick();
     if (_feed[index].kind == CardKind.text) _textCardsThisSession++;
     setState(() {});
   }
@@ -577,7 +591,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// undisturbed), with the full celebration a tap away.
   void _celebrate(CardRecord record, BookContent book) {
     ReminderService.instance.cancelStreakNudge();
-    HapticFeedback.mediumImpact();
+    Haptics.success();
     showKitToast(
       _ui,
       record.milestone != null ? '${record.milestone}-day streak! Goal done' : 'Goal done · ${record.streak}-day streak',
@@ -617,7 +631,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           ),
         );
       case SessionChoice.done:
-        context.go('/today');
+        context.go('/journal');
       case SessionChoice.keepReading:
       case null:
         break;
@@ -638,9 +652,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     return null;
   }
 
-  /// The text of the next reel that has words, to fetch its audio early.
-  String? _nextReelText(int from) {
-    for (var i = from + 1; i < _feed.length && i <= from + 3; i++) {
+  /// The texts of the next [count] reels that have words (looking a few
+  /// reels on), to make their audio early.
+  List<String> _reelTextsAhead(int from, {int count = 2}) => [
+        for (var i = from + 1; i < _feed.length && i <= from + count + 4; i++)
+          if (_feed[i].kind == CardKind.text && _feed[i].card != null) _reelText(_feed[i]),
+      ].take(count).toList();
+
+  /// The text of the reel with words before [from], if one is near.
+  String? _reelTextBehind(int from) {
+    for (var i = from - 1; i >= 0 && i >= from - 4; i--) {
       if (_feed[i].kind == CardKind.text && _feed[i].card != null) return _reelText(_feed[i]);
     }
     return null;
@@ -650,7 +671,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _spoken = item;
     final text = _reelText(item);
     _music.duck(true);
-    _readAloud.speak(text, next: _nextReelText(_page), onDone: () {
+    // The next two reels and the one before are made ready while this one plays.
+    _readAloud.speak(text, ahead: _reelTextsAhead(_page), behind: _reelTextBehind(_page), onDone: () {
       _music.duck(false);
       if (mounted && _tts && _pager != null && _page < _feed.length - 1) {
         _pager!.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
@@ -700,7 +722,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       text: [for (final sid in item.shownSids) _sentences[sid]?.sentence.text ?? ''].join(' '),
       createdAt: DateTime.now(),
     ));
-    HapticFeedback.lightImpact();
+    Haptics.tap();
     // A saved line from a public-domain book goes on the session's card.
     if (saved && (_meta?.isPublicDomain ?? false)) {
       _sessions.quote(widget.bookId, [for (final sid in item.shownSids) _sentences[sid]?.sentence.text ?? ''].join(' '));
@@ -960,6 +982,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     final goal = s.goal;
     final padding = MediaQuery.paddingOf(context);
     final chromeColor = t.text;
+    // The rail and the music sit above the tab bar while it shows, and glide
+    // down into its room as it hides.
+    final lift = widget.embedded && _chrome ? KitNavBar.reservedHeight - 10 : 0.0;
+    final glide = Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 320);
+    final current = _feed.isEmpty ? null : _feed[_page.clamp(0, _feed.length - 1)];
+    final goalMet = today.meets(goal);
 
     // A pager rebuilt from scratch (after a spinner, say) starts on the reel the reader is on.
     if (_pager == null || (!_pager!.hasClients && _pager!.initialPage != _page)) _newPager(_page);
@@ -992,28 +1020,49 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           itemBuilder: (context, i) => _buildItem(book, meta, s, t, type, lexicon, notebook, _feed[i], i == _page, padding),
         ),
       ),
-      // Today's goal as one thin line that fills as you read: always there, never in the way.
+      // Today's goal as one thin line that fills as you read: always there,
+      // never in the way. While a reel is being turned into audio to read
+      // aloud, a progress bar takes its place.
       Positioned(
         top: padding.top + 6,
         left: 16,
         right: 16,
-        child: _GoalLine(progress: today.progress(goal), color: chromeColor, track: chromeColor.withValues(alpha: 0.22)),
+        child: SpeechProgress(
+          waiting: _readAloud.waiting,
+          // With the controls up, the chapter's name is there: the rail's
+          // Listen button says it instead.
+          showLabel: !_chrome,
+          color: railTone(chromeColor, Kit.activityTone(dark: t.isDark)),
+          track: chromeColor.withValues(alpha: 0.22),
+          ink: chromeColor,
+          shadows: t.textShadows,
+          // Blue as it fills, green once met (mixed with the text colour, so
+          // it shows on any picture).
+          child: _GoalLine(
+            progress: today.progress(goal),
+            color: railTone(chromeColor, goalMet ? Kit.growthTone(dark: t.isDark) : Kit.activityTone(dark: t.isDark)),
+            track: chromeColor.withValues(alpha: 0.22),
+          ),
+        ),
       ),
-      // With the controls: where you are, the music, and the pictures to read on.
+      // With the controls: where you are, and the pictures to read on.
       Positioned(
         top: padding.top + 10,
         left: 0,
         right: 0,
         child: FadeChrome(
           visible: _chrome,
+          slide: const Offset(0, -0.25),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Padding(
-              padding: const EdgeInsets.only(left: 16, right: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _TopBar(
                 color: chromeColor,
                 shadows: t.textShadows,
-                title: _feed.isEmpty ? book.title : book.chapters[_feed[_page.clamp(0, _feed.length - 1)].chapterIndex].title,
-                music: _MusicControls(color: chromeColor, shadows: t.textShadows),
+                title: current == null ? book.title : book.chapters[current.chapterIndex].title,
+                subtitle: current?.cardsInChapter == null
+                    ? book.title
+                    : '${book.title} · ${(current!.cardIndexInChapter ?? 0) + 1} / ${current.cardsInChapter}',
               ),
             ),
             if (backdrops.isNotEmpty)
@@ -1025,6 +1074,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
                 onPick: _setBackdrop,
               ),
           ]),
+        ),
+      ),
+      // With the controls: the music, at the bottom left (where a reel's
+      // account line would be), beside the rail.
+      AnimatedPositioned(
+        duration: glide,
+        curve: Curves.easeOutCubic,
+        left: s.leftHanded ? 72 : 16,
+        right: s.leftHanded ? 16 : 72,
+        bottom: padding.bottom + 22 + lift,
+        child: FadeChrome(
+          visible: _chrome,
+          slide: const Offset(0, 0.5),
+          child: _MusicBar(color: chromeColor, shadows: t.textShadows),
         ),
       ),
       if (!s.gestureTutorialSeen && _feed.isNotEmpty)
@@ -1063,10 +1126,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           lines: item.lines,
           spotlight: item.spotlight,
           type: type,
-          bookTitle: book.title,
-          chapterTitle: book.chapters[card.chapterIndex].title,
-          position: '${(item.cardIndexInChapter ?? 0) + 1} / ${item.cardsInChapter ?? 0}',
-          coverPath: meta?.coverPath,
           settings: s,
           theme: t,
           lexicon: lexicon,
@@ -1076,6 +1135,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           liked: notebook.liked.contains('${widget.bookId}|${item.anchorSid}'),
           saved: notebook.isSaved(widget.bookId, item.anchorSid!),
           listening: _tts,
+          preparing: _tts && _preparing,
           highlightsIn: (sid) => notebook.highlightsIn(widget.bookId, sid),
           onCreateHighlight: (sentence) => ref
               .read(notebookProvider.notifier)
@@ -1087,7 +1147,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           onRemoveHighlight: (id) => ref.read(notebookProvider.notifier).removeHighlight(id),
           onNoteHighlight: _editNote,
           onSelecting: _setSelecting,
-          chrome: _chrome,
           streak: ref.read(habitProvider.notifier).displayStreak(),
           goalLabel: s.goal.unit == GoalUnit.cards
               ? '${today.verifiedCards}/${s.goal.dailyTarget}'
@@ -1098,7 +1157,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           onOptions: () => _options(book, s, t),
           onTapEmpty: () => _setChrome(!_chrome),
           // In the Reading tab the tab bar shows with the controls: keep the rail above it.
-          railLift: widget.embedded && _chrome ? KitNavBar.reservedHeight - 10 : 0,
+          railLift: widget.embedded && _chrome ? KitNavBar.reservedHeight - 10 : 0.0,
           onLongPressEmpty: () => _options(book, s, t),
           onTapWord: (word, sentence) {
             final meaning = card.hardWords
@@ -1154,7 +1213,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           type: type,
           question: item.recall,
           revealSentences: [for (final sid in item.recallSids ?? const <String>[]) _sentences[sid]?.sentence.text ?? ''],
-          onAnswered: (_) => HapticFeedback.selectionClick(),
+          onAnswered: (_) => Haptics.select(),
         );
       case CardKind.reflect:
         return ReflectCardView(
@@ -1209,6 +1268,126 @@ class _ReelPagePhysics extends PageScrollPhysics {
   double get dragStartDistanceMotionThreshold => 6;
 }
 
+/// While a reel is turned into audio to read aloud: a bar across the top
+/// that slides along over the time it should take (it slows as it nears the
+/// end rather than stopping, and fills once the audio starts), with a line
+/// saying what's happening. Otherwise [child] (today's goal line).
+class SpeechProgress extends StatefulWidget {
+  const SpeechProgress({
+    super.key,
+    required this.waiting,
+    required this.color,
+    required this.track,
+    required this.ink,
+    required this.child,
+    this.shadows,
+    this.showLabel = true,
+  });
+
+  final ValueListenable<SpeechWait?> waiting;
+
+  /// Say what's happening under the bar.
+  final bool showLabel;
+  final Color color;
+  final Color track;
+  final Color ink;
+  final List<Shadow>? shadows;
+  final Widget child;
+
+  /// How far along the bar is [elapsed] into a wait [expected] to take this
+  /// long: most of the way at the expected time, never quite at the end.
+  static double progressAt(Duration elapsed, Duration expected) {
+    final t = elapsed.inMicroseconds / math.max(1, expected.inMicroseconds);
+    return 0.95 * (1 - math.exp(-2.2 * t));
+  }
+
+  @override
+  State<SpeechProgress> createState() => _SpeechProgressState();
+}
+
+class _SpeechProgressState extends State<SpeechProgress> with SingleTickerProviderStateMixin {
+  late final Ticker _ticker = createTicker(_tick);
+  SpeechWait? _wait;
+  double _value = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.waiting.addListener(_changed);
+    _changed();
+  }
+
+  @override
+  void didUpdateWidget(SpeechProgress old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.waiting, widget.waiting)) {
+      old.waiting.removeListener(_changed);
+      widget.waiting.addListener(_changed);
+      _changed();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.waiting.removeListener(_changed);
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  void _changed() {
+    final wait = widget.waiting.value;
+    if (wait == _wait) return;
+    _ticker.stop();
+    if (wait != null) _ticker.start();
+    if (mounted) {
+      setState(() {
+        _wait = wait;
+        _value = 0;
+      });
+    }
+  }
+
+  void _tick(Duration elapsed) {
+    final wait = _wait;
+    if (wait == null) return;
+    setState(() => _value = SpeechProgress.progressAt(elapsed, wait.expected));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final wait = _wait;
+    return AnimatedSwitcher(
+      duration: Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 250),
+      layoutBuilder: (current, previous) => Stack(alignment: Alignment.topCenter, children: [...previous, ?current]),
+      child: wait == null
+          ? KeyedSubtree(key: const ValueKey('goal'), child: widget.child)
+          : Semantics(
+              key: const ValueKey('speech'),
+              liveRegion: true,
+              label: 'Converting text to audio',
+              value: '${(_value * 100).round()}%',
+              excludeSemantics: true,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                KitProgress(value: _value, height: 3, color: widget.color, track: widget.track),
+                if (widget.showLabel) ...[
+                  const SizedBox(height: 5),
+                  Row(children: [
+                    Icon(Icons.graphic_eq_rounded, size: 14, color: widget.ink, shadows: widget.shadows),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text('Converting text to audio…',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: widget.ink, fontSize: 12, fontWeight: FontWeight.w700, shadows: widget.shadows)),
+                    ),
+                  ]),
+                ],
+              ]),
+            ),
+    );
+  }
+}
+
 /// Today's goal as one continuous line that fills as you read.
 class _GoalLine extends StatelessWidget {
   const _GoalLine({required this.progress, required this.color, required this.track});
@@ -1229,37 +1408,36 @@ class _GoalLine extends StatelessWidget {
       );
 }
 
-/// With the controls showing: the chapter you're in and the music. (No
-/// close button: switch tabs to leave.)
+/// With the controls showing: the chapter you're in, and the book with your
+/// place in the chapter. (No close button: switch tabs to leave.)
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.color, required this.shadows, required this.title, required this.music});
+  const _TopBar({required this.color, required this.shadows, required this.title, required this.subtitle});
 
   final Color color;
   final List<Shadow>? shadows;
   final String title;
-  final Widget music;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) => SizedBox(
         height: 52,
-        child: Row(children: [
-          Expanded(
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 15, shadows: shadows)),
-              _TrackName(color: color, shadows: shadows),
-            ]),
-          ),
-          music,
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 15, shadows: shadows)),
+          Text(subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: color.withValues(alpha: 0.85), fontSize: 12.5, fontWeight: FontWeight.w600, shadows: shadows)),
         ]),
       );
 }
 
-/// What's playing, under the chapter's name.
-class _TrackName extends ConsumerWidget {
-  const _TrackName({required this.color, required this.shadows});
+/// What's playing, at the bottom: a note, the track and its artist, then
+/// previous, play/pause and next. Nothing when there's no music.
+class _MusicBar extends ConsumerWidget {
+  const _MusicBar({required this.color, required this.shadows});
 
   final Color color;
   final List<Shadow>? shadows;
@@ -1269,14 +1447,32 @@ class _TrackName extends ConsumerWidget {
     final track = ref.watch(musicProvider.select((m) => m.track));
     if (track == null) return const SizedBox.shrink();
     return Row(children: [
-      Icon(Icons.music_note_rounded, size: 13, color: color.withValues(alpha: 0.85), shadows: shadows),
-      const SizedBox(width: 3),
-      Flexible(
-        child: Text(track.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: color.withValues(alpha: 0.85), fontSize: 12.5, fontWeight: FontWeight.w600, shadows: shadows)),
+      Container(
+        width: 34,
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color.withValues(alpha: 0.7), width: 1.5)),
+        child: Icon(Icons.music_note_rounded, size: 18, color: color, shadows: shadows),
       ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Semantics(
+          label: 'Playing ${track.label}',
+          excludeSemantics: true,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(track.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 14.5, shadows: shadows)),
+            if (track.artist != null)
+              Text(track.artist!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 12.5, shadows: shadows)),
+          ]),
+        ),
+      ),
+      _MusicControls(color: color, shadows: shadows),
     ]);
   }
 }
@@ -1298,7 +1494,7 @@ class _MusicControls extends ConsumerWidget {
           icon: icon,
           semanticLabel: label,
           onPressed: () {
-            HapticFeedback.selectionClick();
+            Haptics.select();
             onTap();
           },
           glass: false,
@@ -1324,7 +1520,7 @@ class _GestureGuide extends StatelessWidget {
     const rows = [
       (Icons.swipe_up_outlined, 'Swipe up', 'Next reel'),
       (Icons.translate, 'Tap a word', 'Its meaning'),
-      (Icons.touch_app_outlined, 'Tap empty space', 'Show the buttons for a few seconds'),
+      (Icons.touch_app_outlined, 'Tap empty space', 'Show the music, pictures and tabs for a few seconds'),
       (Icons.border_color_rounded, 'Long-press a word', 'Highlight it, then drag the handles'),
       (Icons.more_horiz_rounded, 'Long-press empty space', 'Theme, sound, contents and more'),
       (Icons.favorite, 'Double-tap', 'Like'),

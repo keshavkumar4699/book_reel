@@ -20,7 +20,7 @@ Future<void> showGoalSetup(BuildContext context) => showKitSheet<void>(
     );
 
 /// Today's goal: type, size, reminder and habit anchor. Opened from the
-/// reader's flag pill, the Today ring and Settings.
+/// reader's flag pill, the Journal ring and Settings.
 Future<void> showGoalSheet(BuildContext context) => showKitSheet<void>(
       context,
       title: 'Daily goal',
@@ -28,7 +28,7 @@ Future<void> showGoalSheet(BuildContext context) => showKitSheet<void>(
     );
 
 /// The streak in detail: this week, best run, freezes. Opened from the
-/// reader's flame pill and Today.
+/// reader's flame pill and Journal.
 Future<void> showStreakSheet(BuildContext context) => showKitSheet<void>(
       context,
       title: 'Your streak',
@@ -136,12 +136,21 @@ class _GoalEditor extends ConsumerWidget {
     final cards = s.goalUnit == GoalUnit.cards;
     final done = cards ? '${today.verifiedCards}' : '${today.minutes.floor()}';
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      // Blue on its way, green once met (as the Journal's ring).
       Row(children: [
-        Expanded(child: Text(today.meets(goal) ? 'Done for today ✓' : '$done of ${goal.dailyTarget} ${cards ? 'cards' : 'min'} today', style: kit.strong)),
-        Text('${(today.progress(goal) * 100).round()}%', style: kit.strong),
+        Expanded(
+          child: Text(today.meets(goal) ? 'Done for today ✓' : '$done of ${goal.dailyTarget} ${cards ? 'cards' : 'min'} today',
+              style: kit.strong.copyWith(color: today.meets(goal) ? kit.growth : null)),
+        ),
+        Text('${(today.progress(goal) * 100).round()}%', style: kit.strong.copyWith(color: today.meets(goal) ? kit.growth : kit.activity)),
       ]),
       const SizedBox(height: 8),
-      KitProgress(value: today.progress(goal), height: 8),
+      KitProgress(
+        value: today.progress(goal),
+        height: 8,
+        color: today.meets(goal) ? kit.growth : kit.activity,
+        track: today.meets(goal) ? kit.growthSoft : kit.activitySoft,
+      ),
       const SizedBox(height: 20),
       KitSegmented<GoalMode>(
         values: GoalMode.values,
@@ -271,13 +280,18 @@ class _StreakDetails extends ConsumerWidget {
             return Semantics(
               label: '${names[d]}: ${met ? 'goal met' : future ? 'to come' : 'not yet'}',
               child: Column(children: [
+                // A day the goal was met is green, as on the Profile's
+                // calendar; today, still to do, is ringed in blue.
                 Container(
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: met ? kit.ink : kit.field,
-                    border: Border.all(color: isToday ? kit.ink : kit.stroke, width: isToday ? 2 : 1),
+                    color: met ? kit.growth : kit.field,
+                    border: Border.all(
+                      color: met ? kit.growth : (isToday ? kit.activity : kit.stroke),
+                      width: isToday ? 2 : 1,
+                    ),
                   ),
                   alignment: Alignment.center,
                   child: met

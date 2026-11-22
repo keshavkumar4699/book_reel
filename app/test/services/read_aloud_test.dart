@@ -49,6 +49,17 @@ class FakeLocalEngine implements LocalSpeechEngine {
   Future<void> close() async {}
 }
 
+/// A voice on the phone that takes its time: nothing is made until [gate] opens.
+class GatedLocalEngine extends FakeLocalEngine {
+  final gate = Completer<void>();
+
+  @override
+  Future<void> synthesize({required String text, required int speaker, required double speed, required String path}) async {
+    await gate.future;
+    return super.synthesize(text: text, speaker: speaker, speed: speed, path: path);
+  }
+}
+
 class InstalledVoice implements LocalVoiceInstaller {
   @override
   Future<bool> isInstalled(Directory dir) async => true;
@@ -88,7 +99,7 @@ void main() {
     c.read(settingsProvider.notifier).update((s) => s.copyWith(voiceName: 'bf_emma', voiceSpeed: 1.1));
     final read = c.read(readAloudProvider);
     var done = 0;
-    await read.speak('Down the rabbit hole.', next: 'Curiouser and curiouser!', onDone: () => done++);
+    await read.speak('Down the rabbit hole.', ahead: ['Curiouser and curiouser!'], onDone: () => done++);
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(server.speechRequests.map((r) => r['text']), ['Down the rabbit hole.', 'Curiouser and curiouser!']);
     expect(server.speechRequests.first, containsPair('voice', 'bf_emma'));
@@ -173,11 +184,12 @@ void main() {
     var done = 0;
     const first = 'Alice was beginning to get very tired of sitting by her sister on the bank.';
     const second = 'Once or twice she had peeped into the book her sister was reading.';
-    await read.speak('$first $second', next: 'So she was considering in her own mind. And more.', onDone: () => done++);
+    await read.speak('$first $second', ahead: ['So she was considering in her own mind. And more.'], onDone: () => done++);
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(player.played, hasLength(1), reason: 'the first part plays as soon as it is ready');
     expect(File(player.played.single).readAsStringSync(), 'RIFF 9 1.1 $first', reason: 'George, at the chosen speed');
-    expect(engine.spoken, [first, second], reason: 'the second part is made while the first plays');
+    expect(engine.spoken, [first, second, 'So she was considering in her own mind. And more.'],
+        reason: 'the second part is made while the first plays, then the next reel');
     player.finish();
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(player.played, hasLength(2));
@@ -192,6 +204,63 @@ void main() {
     await read.speak('$first $second', onDone: () {});
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(engine.spoken, hasLength(made));
+  });
+
+  test('while a reel plays, the next two and the one before are made ready, nearest first', () async {
+    final engine = FakeLocalEngine();
+    LocalVoiceController.installer = InstalledVoice();
+    LocalVoiceController.root = () async => dir;
+    LocalSpeech.factory = (_) => engine;
+    c.read(localVoiceProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    final read = c.read(readAloudProvider);
+    const now = 'This is the reel on screen now, read aloud.';
+    const next = 'The next reel comes after this one.';
+    const after = 'And the one after that, two along.';
+    const before = 'The reel before the one on screen.';
+    await read.speak(now, ahead: [next, after], behind: before, onDone: () {});
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(engine.spoken, [now, next, after, before]);
+    // Moving on, or back, plays at once: nothing is made again.
+    await read.speak(next, ahead: [after], behind: now, onDone: () {});
+    await read.speak(before, ahead: [now, next], onDone: () {});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(engine.spoken, hasLength(4));
+    expect(player.played, hasLength(3));
+  });
+
+  test('a reel that takes a moment to make says so, with the time it should take', () async {
+    final engine = GatedLocalEngine();
+    LocalVoiceController.installer = InstalledVoice();
+    LocalVoiceController.root = () async => dir;
+    LocalSpeech.factory = (_) => engine;
+    final wasAfter = ReadAloud.showWaitAfter;
+    ReadAloud.showWaitAfter = const Duration(milliseconds: 5);
+    addTearDown(() => ReadAloud.showWaitAfter = wasAfter);
+    c.read(localVoiceProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    final read = c.read(readAloudProvider);
+    const text = 'Alice was beginning to get very tired of sitting by her sister on the bank.';
+    final speaking = read.speak(text, onDone: () {});
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(read.waiting.value, isNotNull);
+    expect(read.waiting.value!.chars, text.length);
+    expect(read.waiting.value!.expected, greaterThan(const Duration(milliseconds: 500)));
+    expect(player.played, isEmpty);
+    engine.gate.complete();
+    await speaking;
+    expect(read.waiting.value, isNull, reason: 'gone once the audio starts');
+    expect(player.played, hasLength(1));
+    // Stopping clears it too.
+    final again = GatedLocalEngine();
+    LocalSpeech.factory = (_) => again;
+    c.invalidate(localSpeechProvider);
+    unawaited(read.speak('Once or twice she had peeped into the book her sister was reading.', onDone: () {}));
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(read.waiting.value, isNotNull);
+    await read.stop();
+    expect(read.waiting.value, isNull);
+    again.gate.complete();
   });
 
   test('a voice that won’t load on this phone says so, and the server voice reads instead', () async {

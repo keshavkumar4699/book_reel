@@ -133,6 +133,7 @@ class AppSettings {
     this.musicVolume = 0.6,
     this.online = true,
     this.crashReports = true,
+    this.haptics = true,
   });
 
   final ReadingThemeId theme;
@@ -213,6 +214,9 @@ class AppSettings {
   /// Send error details (never book text on purpose) to help fix crashes.
   final bool crashReports;
 
+  /// A light vibration when you choose, like, save or finish something.
+  final bool haptics;
+
   GoalConfig get goal => GoalConfig(
         unit: goalUnit,
         dailyTarget: dailyGoal,
@@ -271,6 +275,7 @@ class AppSettings {
     double? musicVolume,
     bool? online,
     bool? crashReports,
+    bool? haptics,
   }) =>
       AppSettings(
         theme: theme ?? this.theme,
@@ -321,6 +326,7 @@ class AppSettings {
         musicVolume: musicVolume ?? this.musicVolume,
         online: online ?? this.online,
         crashReports: crashReports ?? this.crashReports,
+        haptics: haptics ?? this.haptics,
       );
 
   Map<String, dynamic> toJson() => {
@@ -372,6 +378,7 @@ class AppSettings {
         'musicVolume': musicVolume,
         'online': online,
         'crashReports': crashReports,
+        'haptics': haptics,
         'planVersion': currentPlanVersion,
       };
 
@@ -449,6 +456,7 @@ class AppSettings {
       musicVolume: num_(j['musicVolume'] ?? j['sceneSoundVolume'], d.musicVolume).clamp(0.0, 1.0),
       online: (j['online'] as bool?) ?? d.online,
       crashReports: (j['crashReports'] as bool?) ?? d.crashReports,
+      haptics: (j['haptics'] as bool?) ?? d.haptics,
     );
   }
 }

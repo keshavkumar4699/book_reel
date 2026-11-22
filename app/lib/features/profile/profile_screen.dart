@@ -17,6 +17,7 @@ import '../../data/notebook.dart';
 import '../../data/settings.dart';
 import '../../data/settings_provider.dart';
 import '../../data/sync_service.dart';
+import '../../ui/haptics.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
@@ -30,7 +31,8 @@ import 'avatar_cropper.dart';
 /// photo, name, pronouns, follower counts, bio, the book you're reading and
 /// up to 3 genres; then this week, your streak, stats, trophies, books and
 /// saved quotes in one scroll. Progress shows growth (UX §5.8); nothing here
-/// ranks you against anyone.
+/// ranks you against anyone. Colour carries meaning, sparingly (UX §6.6):
+/// blue is how much you read, green is keeping at it.
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -39,8 +41,8 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  /// Stats for this year (or all time).
-  bool _thisYear = true;
+  /// The stats' period.
+  StatsPeriod _period = StatsPeriod.month;
 
   @override
   Widget build(BuildContext context) {
@@ -127,8 +129,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             notebook: notebook,
             books: books,
             now: now,
-            thisYear: _thisYear,
-            onChanged: (v) => setState(() => _thisYear = v),
+            period: _period,
+            onChanged: (v) => setState(() => _period = v),
           ),
         ),
         _Section(title: 'Trophies', child: _Trophies(habit: habit, books: books)),
@@ -167,11 +169,13 @@ class _Section extends StatelessWidget {
   }
 }
 
-/// A number and what it counts.
+/// A number and what it counts; the headline number of a section in its
+/// accent colour.
 class _Figure extends StatelessWidget {
-  const _Figure(this.value, this.label);
+  const _Figure(this.value, this.label, {this.color});
   final String value;
   final String label;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -181,73 +185,177 @@ class _Figure extends StatelessWidget {
       label: '$value $label',
       excludeSemantics: true,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(value, style: kit.title.copyWith(fontSize: 22)),
+        Text(value, style: kit.title.copyWith(fontSize: 22, color: color)),
         Text(label, style: kit.caption.copyWith(fontSize: 12.5)),
       ]),
     );
   }
 }
 
-/// Minutes per day this week as bars, with the week's totals.
-class _ThisWeek extends StatelessWidget {
+/// This week, Strava-style: a blue circle round each day whose area grows
+/// with the minutes read that day (the week's best day is the largest), the
+/// week's totals above, and the figures of the day you tap below.
+class _ThisWeek extends StatefulWidget {
   const _ThisWeek({required this.habit, required this.books, required this.now});
   final HabitState habit;
   final List<BookMeta> books;
   final DateTime now;
 
   @override
+  State<_ThisWeek> createState() => _ThisWeekState();
+}
+
+class _ThisWeekState extends State<_ThisWeek> {
+  /// The day tapped (0 is Monday); today until then.
+  int? _picked;
+
+  static const _letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  static const _names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
+    final now = widget.now;
     final monday = parseDateKey(weekKey(now));
     final days = [for (var d = 0; d < 7; d++) DateTime(monday.year, monday.month, monday.day + d)];
-    final stats = [for (final d in days) habit.stats[dateKey(d)] ?? const DailyStat()];
+    final stats = [for (final d in days) widget.habit.stats[dateKey(d)] ?? const DailyStat()];
     final minutes = stats.fold(0.0, (s, d) => s + d.minutes);
     final cards = stats.fold(0, (s, d) => s + d.verifiedCards);
     final words = stats.fold(0, (s, d) => s + d.words);
-    final read = books.where((b) => b.lastReadAt != null && !b.lastReadAt!.isBefore(monday)).length;
+    final read = widget.books.where((b) => b.lastReadAt != null && !b.lastReadAt!.isBefore(monday)).length;
     final top = stats.fold(0.0, (m, d) => math.max(m, d.minutes));
-    const letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final today = now.weekday - 1;
+    final picked = _picked ?? today;
+    final day = stats[picked];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
-        Expanded(child: _Figure('${minutes.round()}', 'minutes')),
+        Expanded(child: _Figure('${minutes.round()}', 'minutes', color: kit.activity)),
         Expanded(child: _Figure('$cards', 'cards')),
         Expanded(child: _Figure(compactCount(words), 'words')),
         Expanded(child: _Figure('$read', read == 1 ? 'book' : 'books')),
       ]),
-      const SizedBox(height: 16),
-      Semantics(
-        container: true,
-        label: 'Minutes read each day this week: ${[for (var i = 0; i < 7; i++) '${letters[i]} ${stats[i].minutes.round()}'].join(', ')}',
-        excludeSemantics: true,
-        child: SizedBox(
-          height: 92,
-          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            for (var i = 0; i < 7; i++)
-              Expanded(
-                child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  Container(
-                    height: top == 0 ? 3 : math.max(3, 64 * stats[i].minutes / top),
-                    margin: const EdgeInsets.symmetric(horizontal: 7),
-                    decoration: BoxDecoration(
-                      color: stats[i].minutes > 0 ? kit.ink : kit.field,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    letters[i],
-                    style: kit.caption.copyWith(
-                      fontSize: 12,
-                      color: dateKey(days[i]) == dateKey(now) ? kit.ink : kit.inkSoft,
-                      fontWeight: dateKey(days[i]) == dateKey(now) ? FontWeight.w800 : FontWeight.w500,
-                    ),
-                  ),
-                ]),
-              ),
+      const SizedBox(height: 14),
+      Row(children: [
+        for (var i = 0; i < 7; i++)
+          Expanded(
+            child: DayCircle(
+              letter: _letters[i],
+              minutes: stats[i].minutes,
+              most: top,
+              today: i == today,
+              future: i > today,
+              picked: i == picked,
+              semanticLabel: '${_names[i]}${i == today ? ', today' : ''}: ${stats[i].minutes.round()} minutes, ${stats[i].verifiedCards} cards',
+              onTap: () {
+                Haptics.select();
+                setState(() => _picked = i);
+              },
+            ),
+          ),
+      ]),
+      const SizedBox(height: 8),
+      ExcludeSemantics(
+        child: Text.rich(
+          TextSpan(children: [
+            TextSpan(text: picked == today ? 'Today' : _names[picked], style: TextStyle(color: kit.ink, fontWeight: FontWeight.w700)),
+            const TextSpan(text: '  ·  '),
+            TextSpan(text: '${day.minutes.round()} min', style: TextStyle(color: kit.activity, fontWeight: FontWeight.w800)),
+            TextSpan(text: '  ·  ${day.verifiedCards} ${day.verifiedCards == 1 ? 'card' : 'cards'}'),
+            if (day.words > 0) TextSpan(text: '  ·  ${compactCount(day.words)} words'),
           ]),
+          textAlign: TextAlign.center,
+          style: kit.caption.copyWith(fontSize: 13),
         ),
       ),
     ]);
+  }
+}
+
+/// A day of the week inside a blue circle sized by the minutes read: its
+/// area grows in proportion, from [smallest] across (a minute) to [largest]
+/// (the week's best day). A day without reading is an empty ring; today is
+/// ringed in blue until you read; the day picked has a dot below.
+class DayCircle extends StatelessWidget {
+  const DayCircle({
+    super.key,
+    required this.letter,
+    required this.minutes,
+    required this.most,
+    required this.semanticLabel,
+    this.today = false,
+    this.future = false,
+    this.picked = false,
+    this.onTap,
+  });
+
+  static const smallest = 26.0;
+  static const largest = 44.0;
+
+  final String letter;
+  final double minutes;
+
+  /// The most minutes read on a day this week.
+  final double most;
+  final String semanticLabel;
+  final bool today;
+  final bool future;
+  final bool picked;
+  final VoidCallback? onTap;
+
+  /// The circle's diameter: its area in proportion to [minutes] over [most].
+  static double diameterFor(double minutes, double most) {
+    if (minutes <= 0 || most <= 0) return smallest;
+    final share = (minutes / most).clamp(0.0, 1.0);
+    return math.sqrt(smallest * smallest + (largest * largest - smallest * smallest) * share);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final kit = Kit.of(context);
+    final read = minutes > 0;
+    final size = diameterFor(minutes, most);
+    final still = MediaQuery.disableAnimationsOf(context);
+    return KitPressable(
+      onTap: onTap,
+      selected: picked,
+      semanticLabel: semanticLabel,
+      excludeSemantics: true,
+      pressedScale: 0.9,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(
+          height: largest + 2,
+          child: Center(
+            child: AnimatedContainer(
+              duration: Duration(milliseconds: still ? 0 : 320),
+              curve: Curves.easeOutCubic,
+              width: size,
+              height: size,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: read ? kit.activity : null,
+                border: read ? null : Border.all(color: today ? kit.activity : kit.stroke, width: today ? 2 : 1),
+              ),
+              child: Text(
+                letter,
+                style: kit.caption.copyWith(
+                  fontSize: 12.5,
+                  height: 1,
+                  fontWeight: today ? FontWeight.w800 : FontWeight.w600,
+                  color: read ? kit.inverse : (future ? kit.inkSoft.withValues(alpha: 0.45) : kit.inkSoft),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        AnimatedOpacity(
+          opacity: picked ? 1 : 0,
+          duration: Duration(milliseconds: still ? 0 : 200),
+          child: Container(width: 4, height: 4, decoration: BoxDecoration(color: kit.ink, shape: BoxShape.circle)),
+        ),
+      ]),
+    );
   }
 }
 
@@ -264,63 +372,103 @@ class _StreakSection extends StatelessWidget {
     final weekly = settings.goalMode == GoalMode.weekly;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
-        Expanded(child: _Figure('$streak', weekly ? 'week streak' : 'day streak')),
+        Expanded(child: _Figure('$streak', weekly ? 'week streak' : 'day streak', color: streak > 0 ? kit.growth : null)),
         Expanded(child: _Figure('${habit.streak.best}', 'best')),
         Expanded(child: _Figure('$freezes', freezes == 1 ? 'freeze left' : 'freezes left')),
       ]),
       const SizedBox(height: 16),
-      _Heatmap(stats: habit.stats, goal: settings.goal),
-      const SizedBox(height: 6),
-      Text('Last 12 weeks', style: kit.caption.copyWith(fontSize: 12.5)),
+      StreakCalendar(stats: habit.stats, goal: settings.goal, now: DateTime.now()),
+      const SizedBox(height: 8),
+      // GitHub's key: from no reading to the goal met.
+      Row(children: [
+        Expanded(child: Text('Last 12 weeks', style: kit.caption.copyWith(fontSize: 12.5))),
+        ExcludeSemantics(
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text('Less', style: kit.caption.copyWith(fontSize: 11.5)),
+            const SizedBox(width: 4),
+            for (final c in kit.streakScale)
+              Container(
+                width: 11,
+                height: 11,
+                margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2.5)),
+              ),
+            const SizedBox(width: 4),
+            Text('More', style: kit.caption.copyWith(fontSize: 11.5)),
+          ]),
+        ),
+      ]),
     ]);
   }
 }
 
-/// This year or all time: minutes, cards, books, reading days and more.
+/// The stats' period on the Profile.
+enum StatsPeriod {
+  month('This month'),
+  year('This year'),
+  all('All time');
+
+  const StatsPeriod(this.label);
+  final String label;
+
+  /// Whether a day (a date key) falls in the period around [now].
+  bool covers(String day, DateTime now) => switch (this) {
+        StatsPeriod.month => day.startsWith('${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-'),
+        StatsPeriod.year => day.startsWith('${now.year.toString().padLeft(4, '0')}-'),
+        StatsPeriod.all => true,
+      };
+}
+
+/// This month, this year or all time: minutes, cards, books, reading days
+/// and more. Reading time is in blue, books finished and reading days in
+/// green; the rest stay plain.
 class _StatsSection extends StatelessWidget {
   const _StatsSection({
     required this.habit,
     required this.notebook,
     required this.books,
     required this.now,
-    required this.thisYear,
+    required this.period,
     required this.onChanged,
   });
   final HabitState habit;
   final NotebookState notebook;
   final List<BookMeta> books;
   final DateTime now;
-  final bool thisYear;
-  final ValueChanged<bool> onChanged;
+  final StatsPeriod period;
+  final ValueChanged<StatsPeriod> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final year = '${now.year}-';
+    final kit = Kit.of(context);
     final days = [
       for (final e in habit.stats.entries)
-        if (!thisYear || e.key.startsWith(year)) e.value,
+        if (period.covers(e.key, now)) e.value,
     ];
     final minutes = days.fold(0.0, (s, d) => s + d.minutes);
     final cards = days.fold(0, (s, d) => s + d.verifiedCards);
     final words = days.fold(0, (s, d) => s + d.words);
     final skimmed = days.fold(0, (s, d) => s + d.skimmedCards);
     final readingDays = days.where((d) => d.minutes > 0 || d.verifiedCards > 0).length;
-    final finished = thisYear
-        ? books.where((b) => b.finishedAt?.year == now.year).length
-        : math.max(habit.booksFinished, books.where((b) => b.finishedAt != null).length);
+    final finished = period == StatsPeriod.all
+        ? math.max(habit.booksFinished, books.where((b) => b.finishedAt != null).length)
+        : books.where((b) => b.finishedAt != null && period.covers(dateKey(b.finishedAt!), now)).length;
     final figures = [
-      _Figure(_duration(minutes), 'reading time'),
+      _Figure(_duration(minutes), 'reading time', color: kit.activity),
       _Figure('$cards', 'cards'),
       _Figure(compactCount(words), 'words read'),
       // Honest about it: reels flicked past too fast to read count toward nothing.
       _Figure('$skimmed', skimmed == 1 ? 'reel skimmed (not counted)' : 'reels skimmed (not counted)'),
-      _Figure('$finished', finished == 1 ? 'book finished' : 'books finished'),
-      _Figure('$readingDays', readingDays == 1 ? 'reading day' : 'reading days'),
+      _Figure('$finished', finished == 1 ? 'book finished' : 'books finished', color: finished > 0 ? kit.growth : null),
+      _Figure('$readingDays', readingDays == 1 ? 'reading day' : 'reading days', color: readingDays > 0 ? kit.growth : null),
       _Figure(readingDays == 0 ? '0' : '${(minutes / readingDays).round()}', 'minutes a reading day'),
-      if (thisYear) _Figure('${habit.wpm.round()}', 'words a minute') else _Figure('${notebook.words.length}', 'words learned'),
+      if (period == StatsPeriod.all)
+        _Figure('${notebook.words.length}', 'words learned')
+      else
+        _Figure('${habit.wpm.round()}', 'words a minute'),
     ];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      KitSegmented<bool>(values: const [true, false], selected: thisYear, label: (y) => y ? 'This year' : 'All time', onChanged: onChanged),
+      KitSegmented<StatsPeriod>(values: StatsPeriod.values, selected: period, label: (p) => p.label, onChanged: onChanged),
       const SizedBox(height: 14),
       for (var i = 0; i < figures.length; i += 2)
         Padding(
@@ -403,7 +551,8 @@ class _Trophies extends StatelessWidget {
                     width: 56,
                     height: 56,
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: kit.field, shape: BoxShape.circle),
+                    // Earned on a faint green (keeping at it); the next one plain.
+                    decoration: BoxDecoration(color: t.earned ? kit.growthSoft : kit.field, shape: BoxShape.circle),
                     child: Text(t.emoji, style: const TextStyle(fontSize: 26)),
                   ),
                   const SizedBox(height: 6),
@@ -474,7 +623,7 @@ class _BooksSection extends StatelessWidget {
 }
 
 /// The reader's picture: their photo, an emoji, or their initial; with a
-/// ring once today's goal is done (like a story ring).
+/// green ring once today's goal is done (like a story ring).
 class ReaderAvatar extends StatelessWidget {
   const ReaderAvatar({super.key, required this.settings, this.size = 40, this.ring = false});
 
@@ -505,7 +654,7 @@ class ReaderAvatar extends StatelessWidget {
     if (!ring) return avatar;
     return Container(
       padding: EdgeInsets.all(size * 0.04),
-      decoration: BoxDecoration(shape: BoxShape.circle, color: kit.ink),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: kit.growth),
       child: Container(
         padding: EdgeInsets.all(size * 0.035),
         decoration: BoxDecoration(shape: BoxShape.circle, color: kit.base),
@@ -528,7 +677,7 @@ class _ShelfCircle extends StatelessWidget {
       width: size,
       height: size,
       child: CustomPaint(
-        painter: _ProgressRing(progress: b.progress.clamp(0.0, 1.0), color: kit.ink, track: kit.ink.withValues(alpha: 0.16)),
+        painter: _ProgressRing(progress: b.progress.clamp(0.0, 1.0), color: kit.activity, track: kit.activitySoft),
         child: Padding(
           padding: const EdgeInsets.all(5),
           child: ClipOval(child: FittedBox(fit: BoxFit.cover, child: BookCover(book: b, width: 64))),
@@ -618,40 +767,69 @@ class _QuotesGrid extends StatelessWidget {
   }
 }
 
-class _Heatmap extends StatelessWidget {
-  const _Heatmap({required this.stats, required this.goal});
+/// How much of a day's goal was read, as GitHub's contribution levels: 0
+/// for no reading, 1–3 for under a third, two thirds or the whole goal,
+/// and 4 once the goal is met.
+int streakLevel(DailyStat? day, GoalConfig goal) {
+  if (day == null) return 0;
+  if (day.meets(goal)) return 4;
+  final p = day.progress(goal);
+  if (p <= 0) return day.minutes > 0 || day.verifiedCards > 0 ? 1 : 0;
+  return p < 1 / 3 ? 1 : (p < 2 / 3 ? 2 : 3);
+}
+
+/// The last 12 weeks, a column a week from Monday, in GitHub's contribution
+/// greens: the deeper the green, the more of the day's goal was read. Days
+/// still to come this week are left blank.
+class StreakCalendar extends StatelessWidget {
+  const StreakCalendar({super.key, required this.stats, required this.goal, required this.now});
   final Map<String, DailyStat> stats;
   final GoalConfig goal;
+  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
-    final empty = Kit.of(context).field;
-    final monday = parseDateKey(weekKey(DateTime.now()));
+    final scale = Kit.of(context).streakScale;
+    final monday = parseDateKey(weekKey(now));
     final start = DateTime(monday.year, monday.month, monday.day - 7 * 11);
+    final today = DateTime(now.year, now.month, now.day);
+    var reading = 0, met = 0;
+    for (var i = 0; i < 84; i++) {
+      final level = streakLevel(stats[dateKey(DateTime(start.year, start.month, start.day + i))], goal);
+      if (level > 0) reading++;
+      if (level == 4) met++;
+    }
     return Semantics(
-      label: 'Reading calendar for the last 12 weeks',
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          for (var w = 0; w < 12; w++)
-            Column(children: [
-              for (var d = 0; d < 7; d++)
-                Builder(builder: (context) {
-                  final day = DateTime(start.year, start.month, start.day + w * 7 + d);
-                  final p = stats[dateKey(day)]?.progress(goal) ?? 0;
-                  return Container(
-                    margin: const EdgeInsets.all(1.5),
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: p == 0 ? empty : Color.lerp(Kit.of(context).ink.withValues(alpha: 0.2), Kit.of(context).ink, p),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  );
-                }),
-            ]),
-        ],
-      ),
+      container: true,
+      label: 'Reading calendar for the last 12 weeks: $reading ${reading == 1 ? 'day' : 'days'} with reading, '
+          'the goal met on $met',
+      excludeSemantics: true,
+      child: LayoutBuilder(builder: (context, c) {
+        // Twelve columns across the width, square cells with a small gap.
+        final cell = math.min(18.0, (c.maxWidth / 12) - 3);
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            for (var w = 0; w < 12; w++)
+              Column(children: [
+                for (var d = 0; d < 7; d++)
+                  Builder(builder: (context) {
+                    final day = DateTime(start.year, start.month, start.day + w * 7 + d);
+                    final future = day.isAfter(today);
+                    return Container(
+                      margin: const EdgeInsets.all(1.5),
+                      width: cell,
+                      height: cell,
+                      decoration: BoxDecoration(
+                        color: future ? null : scale[streakLevel(stats[dateKey(day)], goal)],
+                        borderRadius: BorderRadius.circular(cell * 0.22),
+                      ),
+                    );
+                  }),
+              ]),
+          ],
+        );
+      }),
     );
   }
 }

@@ -135,7 +135,7 @@ class BookReelApi {
   Future<List<Map<String, dynamic>>> friendsBoard() async =>
       (((await _send('GET', '/v1/leaderboards/friends')) as Map<String, dynamic>)['rows'] as List).cast<Map<String, dynamic>>();
 
-  /// The Today feed, newest first, 20 at a time; [before] (an activity's
+  /// The Journal feed, newest first, 20 at a time; [before] (an activity's
   /// `at`) loads the next page.
   Future<List<Map<String, dynamic>>> feed({String? before}) async => (((await _send(
               'GET', before == null ? '/v1/feed' : '/v1/feed?before=${Uri.encodeQueryComponent(before)}')) as Map<String, dynamic>)['items']

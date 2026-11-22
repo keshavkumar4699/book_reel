@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/api_client.dart';
+import '../../ui/haptics.dart';
 import '../../ui/kit.dart';
 import 'people_screen.dart';
-import '../today/feed.dart' show todayFeedProvider;
+import '../journal/feed.dart' show journalFeedProvider;
 import 'profile_header.dart';
 import 'safety.dart';
 
@@ -68,7 +68,7 @@ class _ReaderProfileScreenState extends ConsumerState<ReaderProfileScreen> {
               name: (p['display_name'] as String?) ?? 'this reader',
               onBlocked: () {
                 refreshSocial(ref);
-                ref.invalidate(todayFeedProvider);
+                ref.invalidate(journalFeedProvider);
                 if (context.mounted) Navigator.of(context).maybePop();
               },
             ),
@@ -118,7 +118,7 @@ class _ReaderProfileScreenState extends ConsumerState<ReaderProfileScreen> {
   }
 
   Future<void> _toggle(String id, bool following) async {
-    HapticFeedback.selectionClick();
+    Haptics.tap();
     setState(() => _following = !following);
     try {
       final api = ref.read(apiProvider);

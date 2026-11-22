@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,13 +8,14 @@ import '../../data/library.dart';
 import '../../data/sessions.dart';
 import '../../data/settings_provider.dart';
 import '../../data/sync_service.dart';
+import '../../ui/haptics.dart';
 import '../../ui/kit.dart';
 import '../../ui/widgets.dart';
 import '../profile/profile_screen.dart' show ReaderAvatar;
 import '../social/profile_header.dart' show PersonAvatar;
 import '../social/safety.dart';
 
-/// One card in the Today feed (Cloro plan §10): a reading session or a
+/// One card in the Journal feed (Cloro plan §10): a reading session or a
 /// milestone, yours or from a reader you follow.
 class FeedEntry {
   const FeedEntry({
@@ -117,10 +117,10 @@ class FeedPage {
   final bool more;
 }
 
-/// The Today feed: from the server (your sessions and milestones and those of
+/// The Journal feed: from the server (your sessions and milestones and those of
 /// readers you follow, newest first, 20 at a time), or offline your own
 /// sessions from the phone.
-class TodayFeed extends AsyncNotifier<FeedPage> {
+class JournalFeed extends AsyncNotifier<FeedPage> {
   static const pageSize = 20;
   bool _loadingMore = false;
 
@@ -187,7 +187,7 @@ class TodayFeed extends AsyncNotifier<FeedPage> {
   void setComments(String id, int count) => _replace(id, (x) => x.copyWith(comments: count));
 }
 
-final todayFeedProvider = AsyncNotifierProvider.autoDispose<TodayFeed, FeedPage>(TodayFeed.new);
+final journalFeedProvider = AsyncNotifierProvider.autoDispose<JournalFeed, FeedPage>(JournalFeed.new);
 
 /// "now", "5 min", "3 h", "Yesterday", "Tue", "12 Nov".
 String timeAgo(DateTime at, DateTime now) {
@@ -256,7 +256,7 @@ class ActivityCard extends ConsumerWidget {
             id: e.id,
             userId: e.userId,
             name: e.name,
-            onBlocked: () => ref.invalidate(todayFeedProvider),
+            onBlocked: () => ref.invalidate(journalFeedProvider),
           ),
         ),
     ]);
@@ -265,11 +265,13 @@ class ActivityCard extends ConsumerWidget {
     if (e.type == 'session') {
       final quote = e.data['quote'] as String?;
       final progress = (e.data['progress'] as num?)?.toDouble() ?? 0;
-      Widget stat(String value, String label) => Padding(
+      // Time read is the one figure in colour (blue: how much), as in the
+      // Profile's week; the cover's outline shows how far into the book.
+      Widget stat(String value, String label, {Color? color}) => Padding(
             padding: const EdgeInsets.only(right: 22),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(label, style: kit.caption),
-              Text(value, style: kit.strong.copyWith(fontSize: 17)),
+              Text(value, style: kit.strong.copyWith(fontSize: 17, color: color)),
             ]),
           );
       body = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -280,11 +282,11 @@ class ActivityCard extends ConsumerWidget {
               if ('${book?['author'] ?? ''}'.isNotEmpty) Text('${book!['author']}', style: kit.caption),
             ]),
           ),
-          if (cover != null) ...[const SizedBox(width: 12), BookCover(book: cover, width: 40)],
+          if (cover != null) ...[const SizedBox(width: 12), ProgressCover(book: cover, width: 40, progress: progress, stroke: 2.5)],
         ]),
         const SizedBox(height: 12),
         Wrap(runSpacing: 8, children: [
-          stat('${_minutes((e.data['minutes'] as num?) ?? 0)} min', 'Time'),
+          stat('${_minutes((e.data['minutes'] as num?) ?? 0)} min', 'Time', color: kit.activity),
           stat('${e.data['cards'] ?? 0}', 'Cards'),
           if (progress > 0) stat('${(progress * 100).round()}%', 'Book'),
         ]),
@@ -319,8 +321,8 @@ class ActivityCard extends ConsumerWidget {
                 onTap: e.mine || e.gaveKudos
                     ? null
                     : () async {
-                        HapticFeedback.lightImpact();
-                        if (!await ref.read(todayFeedProvider.notifier).giveKudos(e) && context.mounted) {
+                        Haptics.tap();
+                        if (!await ref.read(journalFeedProvider.notifier).giveKudos(e) && context.mounted) {
                           showKitToast(context, 'Couldn’t send kudos. Check your connection.', icon: Icons.cloud_off_rounded);
                         }
                       },
@@ -394,7 +396,7 @@ class _CommentsState extends ConsumerState<_Comments> {
         _items = items;
         _failed = false;
       });
-      ref.read(todayFeedProvider.notifier).setComments(widget.entry.id, items.length);
+      ref.read(journalFeedProvider.notifier).setComments(widget.entry.id, items.length);
     } catch (_) {
       if (mounted) setState(() => _failed = true);
     }
@@ -464,7 +466,7 @@ class _CommentsState extends ConsumerState<_Comments> {
                     name: '${c['name']}',
                     onBlocked: () {
                       _load();
-                      ref.invalidate(todayFeedProvider);
+                      ref.invalidate(journalFeedProvider);
                     },
                   ),
                 ),
@@ -492,7 +494,7 @@ class _FeedLoadMoreState extends ConsumerState<FeedLoadMore> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(todayFeedProvider.notifier).loadMore();
+      if (mounted) ref.read(journalFeedProvider.notifier).loadMore();
     });
   }
 

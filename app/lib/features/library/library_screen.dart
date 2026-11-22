@@ -119,7 +119,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   LayoutBuilder(builder: (context, c) => BookCover(book: b, width: c.maxWidth)),
                   const SizedBox(height: 8),
-                  KitProgress(value: b.progress, height: 4),
+                  // Blue while you read it, green once it's finished.
+                  KitProgress(
+                    value: b.finishedAt != null ? 1 : b.progress,
+                    height: 4,
+                    color: b.finishedAt != null ? kit.growth : kit.activity,
+                    track: b.finishedAt != null ? kit.growthSoft : kit.activitySoft,
+                  ),
                   const SizedBox(height: 6),
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(
@@ -129,7 +135,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           b.finishedAt != null ? 'Finished ✓' : '${(b.progress * 100).round()}% · ${b.author}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: kit.caption.copyWith(fontSize: 12.5),
+                          style: kit.caption.copyWith(fontSize: 12.5, color: b.finishedAt != null ? kit.growth : null),
                         ),
                       ]),
                     ),

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/api_client.dart';
+import '../../ui/haptics.dart';
 import '../friends/friends_screen.dart' show InviteCard;
 import '../../ui/kit.dart';
 import 'profile_header.dart';
@@ -137,7 +137,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
         showKitToast(context, 'No reader is called @$name.');
         return;
       }
-      HapticFeedback.selectionClick();
+      Haptics.tap();
       showKitToast(context, 'You now follow ${user['display_name']}');
       refreshSocial(ref);
       setState(() => _tab = PeopleTab.following);
@@ -207,7 +207,7 @@ class _PersonRowState extends ConsumerState<_PersonRow> {
   Future<void> _toggle() async {
     final id = widget.person['user_id'] as String;
     final follow = !_following;
-    HapticFeedback.selectionClick();
+    Haptics.tap();
     setState(() {
       _following = follow;
       _busy = true;

@@ -14,17 +14,19 @@ import '../profile/profile_screen.dart';
 import '../reader/goal_setup_sheet.dart';
 import 'feed.dart';
 
-/// Today (Cloro plan §10), Strava-style: today's goal ring and streak, the
-/// book to continue, then the feed of your reading sessions and milestones
-/// and those of readers you follow, with kudos and comments.
-class TodayScreen extends ConsumerStatefulWidget {
-  const TodayScreen({super.key});
+/// Journal (Cloro plan §10; the tab was called Today), Strava-style: today's
+/// goal ring and streak, the book to continue (its progress drawn round its
+/// cover), then the feed of your reading sessions and milestones and those
+/// of readers you follow, with kudos and comments. Blue is how much you've
+/// read, green is a goal met (UX_DESIGN.md §6.6).
+class JournalScreen extends ConsumerStatefulWidget {
+  const JournalScreen({super.key});
 
   @override
-  ConsumerState<TodayScreen> createState() => _TodayScreenState();
+  ConsumerState<JournalScreen> createState() => _JournalScreenState();
 }
 
-class _TodayScreenState extends ConsumerState<TodayScreen> {
+class _JournalScreenState extends ConsumerState<JournalScreen> {
   @override
   void initState() {
     super.initState();
@@ -56,15 +58,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final freezes = notifier.freezesLeft();
 
     final api = ref.watch(apiProvider);
-    final feed = ref.watch(todayFeedProvider);
+    final feed = ref.watch(journalFeedProvider);
     return KitPage(
       back: false,
       backdrop: false,
       dock: true,
-      onRefresh: () => ref.refresh(todayFeedProvider.future),
+      onRefresh: () => ref.refresh(journalFeedProvider.future),
       leading: const CloroLogo(size: 40),
-      title: '${_greeting()}${settings.displayName == 'Reader' ? '' : ','}',
-      subtitle: settings.displayName == 'Reader' ? 'A few calm minutes with a book' : settings.displayName,
+      title: 'Journal',
+      subtitle: settings.displayName == 'Reader' ? '${_greeting()} · a few calm minutes with a book' : '${_greeting()}, ${settings.displayName}',
       actions: [
         KitIconButton(
           icon: Icons.person_outline_rounded,
@@ -106,7 +108,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(today.meets(goal) ? 'Goal done ✓' : 'Tap to see your week',
-                      style: kit.strong.copyWith(fontSize: 14, color: today.meets(goal) ? kit.ink : kit.ink)),
+                      style: kit.strong.copyWith(fontSize: 14, color: today.meets(goal) ? kit.growth : kit.ink)),
                 ]),
               ),
             ),
@@ -115,17 +117,24 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         if (current != null)
           KitPanel(
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              BookCover(book: current, width: 76),
+              // How far you are, drawn round the cover.
+              ProgressCover(book: current, width: 76),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(current.title, style: kit.heading, maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
-                  Text('${(current.progress * 100).round()}% · ~${_minutesLeft(current.wordCount, current.progress, habit.wpm)} min left',
-                      style: kit.caption),
-                  const SizedBox(height: 10),
-                  KitProgress(value: current.progress),
-                  const SizedBox(height: 16),
+                  Text.rich(
+                    TextSpan(children: [
+                      TextSpan(
+                        text: '${(current.progress * 100).round()}%',
+                        style: TextStyle(color: kit.activity, fontWeight: FontWeight.w800),
+                      ),
+                      TextSpan(text: ' read · ~${_minutesLeft(current.wordCount, current.progress, habit.wpm)} min left'),
+                    ]),
+                    style: kit.caption,
+                  ),
+                  const SizedBox(height: 18),
                   KitButton(
                     label: 'Continue reading',
                     icon: Icons.play_arrow_rounded,
@@ -190,7 +199,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               emoji: '☁️',
               title: 'Can’t reach Cloro right now',
               message: 'Your reading is saved and will sync later.',
-              action: KitButton.secondary(label: 'Try again', onPressed: () => ref.invalidate(todayFeedProvider)),
+              action: KitButton.secondary(label: 'Try again', onPressed: () => ref.invalidate(journalFeedProvider)),
             ),
           ],
           data: (page) => page.items.isEmpty
@@ -200,7 +209,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     title: api.enabled ? 'Your feed is quiet' : 'Your reading shows here',
                     message: api.enabled
                         ? 'Read a few cards, or follow readers to see their reading, kudos and comments here.'
-                        : 'Each reading session appears here: the book, minutes, cards and your mood.',
+                        : 'Each reading session appears here: the book, minutes and cards.',
                     action: api.enabled
                         ? KitButton.secondary(label: 'Find people', onPressed: () => context.push('/people/me?tab=following'))
                         : null,

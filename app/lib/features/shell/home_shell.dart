@@ -7,7 +7,7 @@ import '../../ui/kit.dart';
 import '../reader/reader_screen.dart';
 
 /// Five tabs and a floating dock (Cloro plan §9): Reading (the reels of the
-/// current book, wearing its scene), Library, Notebook, Today and Profile in
+/// current book, wearing its scene), Library, Notebook, Journal and Profile in
 /// the app's light or dark theme. While reading, the dock hides with the
 /// reader's other controls (focus mode).
 class HomeShell extends ConsumerWidget {
@@ -46,7 +46,7 @@ class HomeShell extends ConsumerWidget {
                       const KitNavItem(Icons.play_circle_outline_rounded, Icons.play_circle_rounded, 'Reading'),
                       const KitNavItem(Icons.auto_stories_outlined, Icons.auto_stories_rounded, 'Library'),
                       KitNavItem(Icons.book_outlined, Icons.book_rounded, 'Notebook', badge: due),
-                      const KitNavItem(Icons.wb_sunny_outlined, Icons.wb_sunny_rounded, 'Today'),
+                      const KitNavItem(Icons.event_note_outlined, Icons.event_note_rounded, 'Journal'),
                       const KitNavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
                     ],
                   ),

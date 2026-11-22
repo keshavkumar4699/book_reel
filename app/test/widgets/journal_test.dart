@@ -5,8 +5,8 @@ import 'package:book_reel/data/json_store.dart';
 import 'package:book_reel/data/sessions.dart';
 import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
-import 'package:book_reel/features/today/feed.dart';
-import 'package:book_reel/features/today/today_screen.dart';
+import 'package:book_reel/features/journal/feed.dart';
+import 'package:book_reel/features/journal/journal_screen.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,7 +44,7 @@ void main() {
     addTearDown(c.dispose);
     await tester.pumpWidget(UncontrolledProviderScope(
       container: c,
-      child: MaterialApp(theme: buildAppTheme(Kit.appLight), home: const TodayScreen()),
+      child: MaterialApp(theme: buildAppTheme(Kit.appLight), home: const JournalScreen()),
     ));
     return c;
   }
@@ -144,16 +144,16 @@ void main() {
       ]);
     final c = await open(tester, server: server);
     await settle(tester, find.text('Book 0'));
-    expect(c.read(todayFeedProvider).value!.items, hasLength(20));
-    expect(c.read(todayFeedProvider).value!.more, isTrue);
+    expect(c.read(journalFeedProvider).value!.items, hasLength(20));
+    expect(c.read(journalFeedProvider).value!.more, isTrue);
     // Reaching the end of the list loads the next page.
-    for (var i = 0; i < 40 && c.read(todayFeedProvider).value!.items.length < 25; i++) {
+    for (var i = 0; i < 40 && c.read(journalFeedProvider).value!.items.length < 25; i++) {
       await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -600));
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
       await tester.pump();
     }
-    expect(c.read(todayFeedProvider).value!.items, hasLength(25));
-    expect(c.read(todayFeedProvider).value!.more, isFalse);
+    expect(c.read(journalFeedProvider).value!.items, hasLength(25));
+    expect(c.read(journalFeedProvider).value!.more, isFalse);
   });
 
   test('time ago', () {

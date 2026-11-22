@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -13,10 +12,10 @@ import '../../../core/parsing/block_builder.dart';
 import '../../../core/text/lexicon.dart';
 import '../../../data/notebook.dart';
 import '../../../data/settings.dart';
+import '../../../ui/haptics.dart';
 import '../../../ui/kit.dart';
 import '../../../ui/theme.dart';
 import '../../../ui/typography.dart';
-import '../../../ui/widgets.dart';
 import '../../../core/text/lyric_layout.dart';
 
 /// A place in the book: a sentence and a character offset in it.
@@ -43,9 +42,6 @@ class PostCard extends StatefulWidget {
     super.key,
     required this.card,
     required this.sentences,
-    required this.bookTitle,
-    required this.chapterTitle,
-    required this.position,
     required this.settings,
     required this.theme,
     required this.type,
@@ -55,6 +51,7 @@ class PostCard extends StatefulWidget {
     required this.liked,
     required this.saved,
     required this.listening,
+    this.preparing = false,
     required this.highlightsIn,
     required this.onCreateHighlight,
     required this.onSaveHighlight,
@@ -68,7 +65,6 @@ class PostCard extends StatefulWidget {
     required this.onNote,
     required this.onListen,
     required this.onOverscroll,
-    this.chrome = true,
     this.streak = 0,
     this.goalLabel = '',
     this.goalDone = false,
@@ -80,7 +76,6 @@ class PostCard extends StatefulWidget {
     this.railLift = 0,
     this.spotlight = false,
     this.lines,
-    this.coverPath,
   });
 
   final SegmentCard card;
@@ -90,11 +85,6 @@ class PostCard extends StatefulWidget {
 
   /// When the text continues over several reels: the display lines on this one.
   final ({int from, int to})? lines;
-  final String bookTitle;
-  final String chapterTitle;
-
-  /// e.g. "12 / 48" within the chapter.
-  final String position;
   final AppSettings settings;
   final ReadingTheme theme;
 
@@ -111,6 +101,9 @@ class PostCard extends StatefulWidget {
   final bool liked;
   final bool saved;
   final bool listening;
+
+  /// The reel's audio is still being made (read aloud is on).
+  final bool preparing;
   /// Highlights that touch a sentence.
   final List<Highlight> Function(String sid) highlightsIn;
 
@@ -128,8 +121,6 @@ class PostCard extends StatefulWidget {
   /// A tap on a word: its meaning.
   final void Function(String word, Sentence sentence) onTapWord;
 
-  /// The controls (rail, book row) are showing; off in focus mode.
-  final bool chrome;
   final int streak;
   final String goalLabel;
   final bool goalDone;
@@ -145,7 +136,8 @@ class PostCard extends StatefulWidget {
   /// A long press on empty space (the options sheet).
   final VoidCallback? onLongPressEmpty;
 
-  /// Extra room under the rail (the tab bar is showing).
+  /// Extra room under the rail (the tab bar is showing): the rail glides
+  /// up or down as it changes.
   final double railLift;
   final VoidCallback onLike;
   final VoidCallback onSave;
@@ -156,7 +148,6 @@ class PostCard extends StatefulWidget {
 
   /// Show the (single) sentence as a spotlight line.
   final bool spotlight;
-  final String? coverPath;
 
   @override
   State<PostCard> createState() => _PostCardState();
@@ -299,7 +290,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       return;
     }
     final (sentence, from, to) = word;
-    HapticFeedback.selectionClick();
+    Haptics.select();
     widget.onTapWord(sentence.text.substring(from, to), sentence);
   }
 
@@ -373,7 +364,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
     final (start, end) = before ? (moving, fixed) : (fixed, moving);
     if (_cmp(start, end) >= 0) return;
     if (_cmp(start, _startOf(h)) == 0 && _cmp(end, _endOf(h)) == 0) return;
-    HapticFeedback.selectionClick();
+    Haptics.tick();
     final next = h.withRange(sid: start.sid, endSid: end.sid, start: start.off, end: end.off, text: h.text);
     setState(() => _edit = next.copyWith(text: _textOf(next)));
   }
@@ -523,7 +514,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   }
 
   void _onDoubleTap() {
-    HapticFeedback.mediumImpact();
+    Haptics.tap();
     if (!widget.liked) widget.onLike();
     final at = _doubleTapAt;
     final box = context.findRenderObject() as RenderBox?;
@@ -546,12 +537,12 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
   void _onLongPress(LongPressStartDetails d) {
     final word = _wordAt(d.globalPosition);
     if (word == null) {
-      HapticFeedback.mediumImpact();
+      Haptics.press();
       widget.onLongPressEmpty?.call();
       return;
     }
     final (sentence, from, to) = word;
-    HapticFeedback.selectionClick();
+    Haptics.press();
     final existing = widget.highlightsIn(sentence.id).where((h) => _covers(h, sentence.id, from)).firstOrNull;
     final Highlight edit;
     if (existing != null) {
@@ -582,7 +573,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
     if (armed != _armed) {
       _armed = armed;
       // A tick when the swipe will act (and when it no longer will).
-      HapticFeedback.selectionClick();
+      Haptics.select();
     }
   }
 
@@ -596,7 +587,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       _settle(v);
       return;
     }
-    HapticFeedback.mediumImpact();
+    Haptics.tap();
     if (MediaQuery.disableAnimationsOf(context)) {
       _dx.value = 0;
       save ? widget.onSave() : widget.onShare();
@@ -739,56 +730,42 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
             ),
           ),
         ),
-        // Book row (bottom-left, like the account line on a reel): only with the controls.
-        Positioned(
-          left: leftHanded ? railWidth : 16,
-          right: leftHanded ? 16 : railWidth,
-          bottom: padding.bottom + 22 + widget.railLift,
-          child: FadeChrome(
-            visible: widget.chrome,
-            child: _BookRow(
-            title: widget.bookTitle,
-            subtitle: '${widget.chapterTitle} · ${widget.position}',
-            coverPath: widget.coverPath,
-            ink: t.text,
-            accent: t.accent,
-            shadows: t.textShadows,
-          ),
-          ),
-        ),
-        // Action rail (bottom-right; mirrored for left-handed readers): only with the controls.
-        Positioned(
+        // Action rail (bottom-right; mirrored for left-handed readers):
+        // always there, gliding down into the room the tab bar leaves when
+        // the other controls hide.
+        AnimatedPositioned(
+          duration: Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 320),
+          curve: Curves.easeOutCubic,
           right: leftHanded ? null : 4,
           left: leftHanded ? 4 : null,
           bottom: padding.bottom + 16 + widget.railLift,
           width: railWidth - 8,
-          child: FadeChrome(
-            visible: widget.chrome,
-            child: _ActionRail(
+          child: _ActionRail(
             ink: t.text,
             accent: t.accent,
             shadows: t.textShadows,
             liked: widget.liked,
             saved: widget.saved,
             listening: widget.listening,
+            preparing: widget.preparing,
             streak: widget.streak,
             goalLabel: widget.goalLabel,
             goalDone: widget.goalDone,
+            goalColor: widget.goalDone ? railTone(t.text, Kit.growthTone(dark: t.isDark)) : null,
             onStreak: widget.onStreak,
             onGoal: widget.onGoal,
             onOptions: widget.onOptions,
             onLike: () {
-              HapticFeedback.lightImpact();
+              Haptics.tap();
               widget.onLike();
             },
             onSave: () {
-              HapticFeedback.lightImpact();
+              Haptics.tap();
               widget.onSave();
             },
             onNote: widget.onNote,
             onShare: widget.onShare,
             onListen: widget.onListen,
-          ),
           ),
         ),
         for (final b in _bursts) _HeartBurstView(burst: b, color: ember),
@@ -1227,7 +1204,7 @@ class _ReelTextState extends State<ReelText> {
     final stack = _stackKey.currentContext!.findRenderObject()! as RenderBox;
     // Keep the caret where it was relative to the finger, not under it.
     final grab = stack.localToGlobal(Offset(caret.left, caret.center.dy)) - pointer;
-    HapticFeedback.selectionClick();
+    Haptics.select();
     return _HandleDrag(
       onUpdate: (global) => widget.onHandleDrag?.call(start, global + grab),
       onEnd: () => widget.onHandleDragEnd?.call(),
@@ -1295,73 +1272,41 @@ class _ReelTextState extends State<ReelText> {
   }
 }
 
-/// Controls that fade out in focus mode (and stop taking taps).
+/// Controls that hide in focus mode (and stop taking taps): they fade as
+/// they slide a little toward their edge of the screen, and come back the
+/// same way.
 class FadeChrome extends StatelessWidget {
-  const FadeChrome({super.key, required this.visible, required this.child});
+  const FadeChrome({super.key, required this.visible, required this.child, this.slide = Offset.zero});
   final bool visible;
   final Widget child;
 
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-        ignoring: !visible,
-        child: AnimatedOpacity(
-          opacity: visible ? 1 : 0,
-          duration: Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 220),
-          child: ExcludeSemantics(excluding: !visible, child: child),
-        ),
-      );
-}
-
-class _BookRow extends StatelessWidget {
-  const _BookRow({
-    required this.title,
-    required this.subtitle,
-    required this.ink,
-    required this.accent,
-    required this.shadows,
-    this.coverPath,
-  });
-
-  final String title;
-  final String subtitle;
-  final Color ink;
-  final Color accent;
-  final List<Shadow>? shadows;
-  final String? coverPath;
+  /// Where it slides as it hides, as a share of its own size: up for the
+  /// top bar, down for the music at the bottom.
+  final Offset slide;
 
   @override
   Widget build(BuildContext context) {
-    final cover = coverPath != null && fileExists(coverPath!) ? FileImage(File(coverPath!)) : null;
-    final initials = title.trim().isEmpty ? '📖' : title.trim()[0].toUpperCase();
-    final shadow = shadows;
-    return Row(children: [
-      Container(
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.4)])),
-        child: Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFF2F3A35),
-            image: cover == null ? null : DecorationImage(image: ResizeImage(cover, width: 108), fit: BoxFit.cover),
-          ),
-          child: cover == null
-              ? Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontFamily: 'Literata'))
-              : null,
+    final duration = Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 320);
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedSlide(
+        offset: visible ? Offset.zero : slide,
+        duration: duration,
+        curve: visible ? Curves.easeOutCubic : Curves.easeInCubic,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: duration,
+          curve: Curves.easeOut,
+          child: ExcludeSemantics(excluding: !visible, child: child),
         ),
       ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 15, shadows: shadow)),
-          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: ink.withValues(alpha: 0.8), fontSize: 12.5, shadows: shadow)),
-        ]),
-      ),
-    ]);
+    );
   }
 }
+
+/// An accent on a picture, mixed with the text colour beside it so it keeps
+/// most of that colour's contrast against the picture.
+Color railTone(Color text, Color accent) => Color.lerp(text, accent, 0.72)!;
 
 class _ActionRail extends StatelessWidget {
   const _ActionRail({
@@ -1371,6 +1316,7 @@ class _ActionRail extends StatelessWidget {
     required this.liked,
     required this.saved,
     required this.listening,
+    this.preparing = false,
     required this.onLike,
     required this.onSave,
     required this.onNote,
@@ -1379,6 +1325,7 @@ class _ActionRail extends StatelessWidget {
     this.streak = 0,
     this.goalLabel = '',
     this.goalDone = false,
+    this.goalColor,
     this.onStreak,
     this.onGoal,
     this.onOptions,
@@ -1390,6 +1337,7 @@ class _ActionRail extends StatelessWidget {
   final bool liked;
   final bool saved;
   final bool listening;
+  final bool preparing;
   final VoidCallback onLike;
   final VoidCallback onSave;
   final VoidCallback onNote;
@@ -1398,6 +1346,9 @@ class _ActionRail extends StatelessWidget {
   final int streak;
   final String goalLabel;
   final bool goalDone;
+
+  /// The goal button's colour once met (green, kept legible on the picture).
+  final Color? goalColor;
   final VoidCallback? onStreak;
   final VoidCallback? onGoal;
   final VoidCallback? onOptions;
@@ -1428,10 +1379,14 @@ class _ActionRail extends StatelessWidget {
         shadows: shadows,
         onTap: onShare,
       ),
-      b(listening ? Icons.stop_circle_outlined : Icons.headphones_rounded, listening ? 'Stop' : 'Listen',
-          listening ? 'Stop reading aloud' : 'Read aloud', onListen,
-          color: listening ? accent : null, active: listening),
-      // The streak (the flame is the one coloured thing) and today's goal.
+      b(
+          preparing ? Icons.graphic_eq_rounded : (listening ? Icons.stop_circle_outlined : Icons.headphones_rounded),
+          preparing ? 'Preparing' : (listening ? 'Stop' : 'Listen'),
+          preparing ? 'Converting text to audio. Stop reading aloud' : (listening ? 'Stop reading aloud' : 'Read aloud'),
+          onListen,
+          color: listening ? accent : null,
+          active: listening),
+      // The streak (its flame in the logo's red) and today's goal (green once met).
       if (onStreak != null)
         _RailButton(
           icon: Icon(Icons.local_fire_department_rounded, size: 29, color: streak > 0 ? ember : ink, shadows: shadows),
@@ -1443,11 +1398,12 @@ class _ActionRail extends StatelessWidget {
         ),
       if (onGoal != null)
         _RailButton(
-          icon: Icon(goalDone ? Icons.check_circle_rounded : Icons.flag_rounded, size: 27, color: ink, shadows: shadows),
+          icon: Icon(goalDone ? Icons.check_circle_rounded : Icons.flag_rounded, size: 27, color: goalColor ?? ink, shadows: shadows),
           label: goalLabel,
           semanticLabel: 'Today\'s goal $goalLabel${goalDone ? ', done' : ''}. Open goal',
           color: ink,
           shadows: shadows,
+          active: goalDone,
           onTap: onGoal!,
         ),
       if (onOptions != null) b(Icons.more_horiz_rounded, 'More', 'Options', onOptions!),

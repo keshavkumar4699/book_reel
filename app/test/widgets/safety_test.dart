@@ -7,7 +7,7 @@ import 'package:book_reel/data/store_provider.dart';
 import 'package:book_reel/features/settings/settings_screen.dart';
 import 'package:book_reel/features/social/reader_profile_screen.dart';
 import 'package:book_reel/features/social/safety.dart';
-import 'package:book_reel/features/today/today_screen.dart';
+import 'package:book_reel/features/journal/journal_screen.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -78,7 +78,7 @@ void main() {
 
   testWidgets('report a post in the feed: pick a reason, it is sent', (tester) async {
     final server = FakeServer();
-    await open(tester, server, const TodayScreen());
+    await open(tester, server, const JournalScreen());
     await until(tester, find.text('Walden'));
     await tester.tap(find.bySemanticsLabel('More: report or block').first);
     await tester.pumpAndSettle();
@@ -94,7 +94,7 @@ void main() {
 
   testWidgets('a comment the server refuses says why: links, or too many too fast', (tester) async {
     final server = FakeServer();
-    await open(tester, server, const TodayScreen());
+    await open(tester, server, const JournalScreen());
     await until(tester, find.text('Walden'));
     Future<void> comment(String text) async {
       await tester.tap(find.bySemanticsLabel('1 comment. Open'));

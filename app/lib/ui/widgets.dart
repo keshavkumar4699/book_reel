@@ -2,9 +2,9 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../core/models/book.dart';
+import 'haptics.dart';
 import 'kit.dart';
 import 'theme.dart';
 
@@ -20,15 +20,18 @@ class GoalRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
+    // Blue on its way, green once met.
+    final met = progress >= 1;
     return Semantics(
-      label: 'Daily goal $label${sublabel == null ? '' : ' $sublabel'}',
+      label: 'Daily goal $label${sublabel == null ? '' : ' $sublabel'}${met ? ', done' : ''}',
       child: SizedBox(
         width: size,
         height: size,
         child: CustomPaint(
-          painter: _RingPainter(progress: progress, track: kit.ink.withValues(alpha: 0.16), color: kit.ink),
+          painter: _RingPainter(progress: progress, track: met ? kit.growthSoft : kit.activitySoft, color: met ? kit.growth : kit.activity),
           child: Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (met) Icon(Icons.check_rounded, size: size * 0.16, color: kit.growth),
               Text(label, style: kit.title.copyWith(fontSize: size * 0.17)),
               if (sublabel != null) Text(sublabel!, style: kit.caption.copyWith(fontSize: 12.5)),
             ]),
@@ -139,6 +142,89 @@ class BookCover extends StatelessWidget {
   }
 }
 
+/// A book's cover with how far you've read drawn round it: an outline that
+/// runs clockwise from the top centre, blue while you read and green once
+/// the book is finished, over a faint track of the same colour.
+class ProgressCover extends StatelessWidget {
+  const ProgressCover({super.key, required this.book, this.width = 76, this.progress, this.stroke = 3});
+  final BookMeta book;
+  final double width;
+
+  /// How far (0–1); the book's own progress if not given.
+  final double? progress;
+  final double stroke;
+
+  @override
+  Widget build(BuildContext context) {
+    final kit = Kit.of(context);
+    final p = book.finishedAt != null ? 1.0 : (progress ?? book.progress).clamp(0.0, 1.0);
+    final done = p >= 1;
+    final gap = stroke + 2.5;
+    return Semantics(
+      value: done ? 'finished' : '${(p * 100).round()}% read',
+      child: CustomPaint(
+        foregroundPainter: CoverOutlinePainter(
+          progress: p,
+          color: done ? kit.growth : kit.activity,
+          // A thin line needs a firmer track than a ring to read as one outline.
+          track: Color.alphaBlend((done ? kit.growth : kit.activity).withValues(alpha: 0.2), kit.base),
+          stroke: stroke,
+          // Concentric with the cover's own rounded corners.
+          radius: 8 + gap - stroke / 2,
+        ),
+        child: Padding(padding: EdgeInsets.all(gap), child: BookCover(book: book, width: width)),
+      ),
+    );
+  }
+}
+
+/// A rounded outline filled clockwise from the top centre to [progress].
+class CoverOutlinePainter extends CustomPainter {
+  CoverOutlinePainter({required this.progress, required this.color, required this.track, required this.stroke, required this.radius});
+  final double progress;
+  final Color color;
+  final Color track;
+  final double stroke;
+  final double radius;
+
+  /// The outline from the top centre, clockwise and back.
+  static Path outline(Rect r, double radius) {
+    final c = Radius.circular(radius);
+    return Path()
+      ..moveTo(r.center.dx, r.top)
+      ..lineTo(r.right - radius, r.top)
+      ..arcToPoint(Offset(r.right, r.top + radius), radius: c)
+      ..lineTo(r.right, r.bottom - radius)
+      ..arcToPoint(Offset(r.right - radius, r.bottom), radius: c)
+      ..lineTo(r.left + radius, r.bottom)
+      ..arcToPoint(Offset(r.left, r.bottom - radius), radius: c)
+      ..lineTo(r.left, r.top + radius)
+      ..arcToPoint(Offset(r.left + radius, r.top), radius: c)
+      ..lineTo(r.center.dx, r.top);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = outline((Offset.zero & size).deflate(stroke / 2), radius);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(path, paint..color = track);
+    if (progress <= 0) return;
+    if (progress >= 1) {
+      canvas.drawPath(path, paint..color = color);
+      return;
+    }
+    final metric = path.computeMetrics().first;
+    canvas.drawPath(metric.extractPath(0, metric.length * progress), paint..color = color);
+  }
+
+  @override
+  bool shouldRepaint(CoverOutlinePainter old) =>
+      old.progress != progress || old.color != color || old.track != track || old.stroke != stroke || old.radius != radius;
+}
+
 /// A short celebration: scales in once, with haptics. Collapses to a static
 /// icon when the system asks for reduced motion (UX_DESIGN.md §6.4).
 class Celebration extends StatefulWidget {
@@ -155,7 +241,7 @@ class _CelebrationState extends State<Celebration> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    HapticFeedback.mediumImpact();
+    Haptics.success();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (MediaQuery.of(context).disableAnimations) {
@@ -177,7 +263,8 @@ class _CelebrationState extends State<Celebration> with SingleTickerProviderStat
     final size = widget.big ? 96.0 : 72.0;
     return ScaleTransition(
       scale: CurvedAnimation(parent: _c, curve: Curves.elasticOut),
-      child: Icon(widget.big ? Icons.local_fire_department : Icons.check_circle, size: size, color: widget.big ? ember : Kit.of(context).ink),
+      // The goal done is green (a streak milestone keeps its flame).
+      child: Icon(widget.big ? Icons.local_fire_department : Icons.check_circle, size: size, color: widget.big ? ember : Kit.of(context).growth),
     );
   }
 }

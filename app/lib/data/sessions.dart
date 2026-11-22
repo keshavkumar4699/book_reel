@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'store_provider.dart';
 
-/// One reading session for the Today feed (Cloro plan §10): what you read,
+/// One reading session for the Journal feed (Cloro plan §10): what you read,
 /// for how long, how far you got and how you felt.
 class ReadingSession {
   const ReadingSession({
@@ -123,7 +123,7 @@ String sessionQuote(String text) {
 
 /// Your reading sessions, newest last. Built from the reader's card records:
 /// cards read in the same book within 30 minutes of each other are one
-/// session. Today shows them at once (offline too), and sync uploads them to
+/// session. Journal shows them at once (offline too), and sync uploads them to
 /// the feed of readers who follow you.
 class SessionLog extends Notifier<List<ReadingSession>> {
   /// Injectable clock for tests.

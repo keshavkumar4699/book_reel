@@ -29,6 +29,18 @@ const speechVoices = [
   SpeechVoiceInfo('bm_george', 'George', 'Deep, British'),
 ];
 
+/// A passage being turned into audio before it can play: since when, and
+/// about how long it should take (learned from how fast earlier passages
+/// were made), for the reader's progress bar.
+@immutable
+class SpeechWait {
+  const SpeechWait({required this.chars, required this.expected});
+
+  /// How long the passage is.
+  final int chars;
+  final Duration expected;
+}
+
 /// Plays one audio file at a time and says when it finished.
 abstract class SpeechPlayer {
   Future<void> playFile(String path);
@@ -63,8 +75,10 @@ class JustAudioSpeechPlayer implements SpeechPlayer {
 ///    starts as soon as its first sentence is ready;
 /// 2. the natural voice from the Cloro server, the same model;
 /// 3. the phone's most natural installed voice.
-/// Each passage's audio is kept on the phone, so replays are instant, and the
-/// next reel is made while this one plays, so listening flows without gaps.
+/// Each passage's audio is kept on the phone, so replays are instant. While
+/// a reel plays, the reels around it are made ready, nearest first (the next
+/// two, then the one before), so moving on or back plays at once. When a
+/// reel isn't ready yet, [waiting] says so, for the reader's progress bar.
 class ReadAloud {
   ReadAloud(this._ref);
 
@@ -76,6 +90,18 @@ class ReadAloud {
 
   /// At most this many passages are kept (about 20–40 MB).
   static const keep = 300;
+
+  /// A passage is being turned into audio before it can play (null when
+  /// nothing is waiting).
+  final ValueNotifier<SpeechWait?> waiting = ValueNotifier(null);
+
+  /// About how many characters a second each voice turns into audio,
+  /// learned as it goes (a phone and a connection differ a lot).
+  double _localRate = 30, _serverRate = 160;
+
+  /// A wait shorter than this shows no progress bar (no flash for audio
+  /// that's nearly ready).
+  static Duration showWaitAfter = const Duration(milliseconds: 150);
 
   SpeechPlayer? _playerInstance;
   StreamSubscription<void>? _done;
@@ -112,14 +138,20 @@ class ReadAloud {
     return s.naturalVoice && _ref.read(apiProvider).enabled && (until == null || DateTime.now().isAfter(until));
   }
 
-  /// Reads [text]; [next] (the following reel) is fetched meanwhile.
-  Future<void> speak(String text, {String? next, required VoidCallback onDone}) async {
+  /// Reads [text]. Meanwhile the reels around it are made ready, nearest
+  /// first: [ahead] (the next ones, in order), then [behind] (the one before).
+  Future<void> speak(String text, {List<String> ahead = const [], String? behind, required VoidCallback onDone}) async {
     final turn = ++_turn;
+    waiting.value = null;
     await _stopPlayback();
     final s = _ref.read(settingsProvider);
+    final around = [
+      for (final t in [...ahead, ?behind])
+        if (t.trim().isNotEmpty) t,
+    ];
     if (localActive) {
       try {
-        await _speakLocal(turn, text, next, onDone, s);
+        await _speakLocal(turn, text, around, onDone, s);
         return;
       } on VoiceLoadFailure catch (e) {
         _ref.read(localVoiceProvider.notifier).markBroken(e);
@@ -131,11 +163,17 @@ class ReadAloud {
     }
     if (naturalActive) {
       try {
-        final file = await _audioFor(text, s);
+        final file = await _waitFor(turn, _audioFor(text, s), text.length, local: false);
         if (turn != _turn) return;
         _onDone = onDone;
         await _player.playFile(file.path);
-        if (next != null && next.trim().isNotEmpty) unawaited(_audioFor(next, s).then((_) {}, onError: (_) {}));
+        // The reels around, one at a time while this one plays.
+        unawaited(() async {
+          for (final t in around) {
+            if (turn != _turn) return;
+            await _audioFor(t, s);
+          }
+        }().catchError((Object _) {}));
         return;
       } on ApiException catch (e) {
         // No provider on the server (503) or today's allowance used (429).
@@ -151,6 +189,7 @@ class ReadAloud {
 
   Future<void> stop() async {
     _turn++;
+    waiting.value = null;
     await _stopPlayback();
     await Tts.instance.stop();
   }
@@ -162,17 +201,32 @@ class ReadAloud {
   }
 
   /// Speaks [text] with the voice on the phone, part by part: each part is
-  /// made while the one before plays, and the next reel's first part while
-  /// the last plays. A part that can't be made hands the rest to the phone's
-  /// own voice.
-  Future<void> _speakLocal(int turn, String text, String? next, VoidCallback onDone, AppSettings s) async {
+  /// made while the one before plays. Once the last is made, the reels
+  /// [around] it are made, part by part and nearest first, in the time left
+  /// (one at a time, so the reel you move to never queues behind much). A
+  /// part that can't be made hands the rest to the phone's own voice.
+  Future<void> _speakLocal(int turn, String text, List<String> around, VoidCallback onDone, AppSettings s) async {
     final parts = speechParts(text);
     if (parts.isEmpty) return onDone();
     final made = <int, Future<File>>{};
-    Future<File> make(int i) => made[i] ??= _localAudioFor(parts[i], s);
+    final allMade = Completer<void>();
+    Future<File> make(int i) => made[i] ??= _localAudioFor(parts[i], s)
+      ..then((_) {
+        if (i == parts.length - 1 && !allMade.isCompleted) allMade.complete();
+      }, onError: (Object _) {});
+
+    unawaited(() async {
+      await allMade.future;
+      for (final t in around) {
+        for (final part in speechParts(t)) {
+          if (turn != _turn) return;
+          await _localAudioFor(part, s);
+        }
+      }
+    }().catchError((Object _) {}));
 
     Future<void> playFrom(int i) async {
-      final file = await make(i);
+      final file = await _waitFor(turn, make(i), parts[i].length, local: true);
       if (turn != _turn) return;
       if (i + 1 < parts.length) {
         make(i + 1).ignore();
@@ -182,13 +236,41 @@ class ReadAloud {
             }));
       } else {
         _onDone = onDone;
-        final first = next == null ? null : speechParts(next).firstOrNull;
-        if (first != null) _localAudioFor(first, s).ignore();
       }
       await _player.playFile(file.path);
     }
 
     await playFrom(0);
+  }
+
+  /// Waits for [work] (a passage of [chars] characters being made); if it
+  /// takes more than a moment, [waiting] shows it with the time it should
+  /// take.
+  Future<File> _waitFor(int turn, Future<File> work, int chars, {required bool local}) async {
+    var settled = false;
+    final show = Timer(showWaitAfter, () {
+      if (settled || turn != _turn) return;
+      final seconds = chars / (local ? _localRate : _serverRate);
+      waiting.value = SpeechWait(chars: chars, expected: Duration(milliseconds: (seconds * 1000).round().clamp(600, 60000)));
+    });
+    try {
+      return await work;
+    } finally {
+      settled = true;
+      show.cancel();
+      if (turn == _turn) waiting.value = null;
+    }
+  }
+
+  /// How fast a voice made a passage, folded into what it's expected to do.
+  void _learn({required bool local, required int chars, required Duration took}) {
+    if (took < const Duration(milliseconds: 80) || chars < 20) return;
+    final rate = chars / (took.inMicroseconds / 1e6);
+    if (local) {
+      _localRate = _localRate * 0.6 + rate * 0.4;
+    } else {
+      _serverRate = _serverRate * 0.6 + rate * 0.4;
+    }
   }
 
   Future<File> _localAudioFor(String text, AppSettings s) {
@@ -203,7 +285,9 @@ class ReadAloud {
     final file = File('${dir.path}/$key.wav');
     if (await file.exists()) return file;
     await dir.create(recursive: true);
+    final watch = Stopwatch()..start();
     await _ref.read(localSpeechProvider).synthesize(text: text, speaker: localSpeakerFor(s.voiceName), speed: s.voiceSpeed, path: file.path);
+    _learn(local: true, chars: text.length, took: watch.elapsed);
     unawaited(_prune(dir));
     return file;
   }
@@ -225,7 +309,9 @@ class ReadAloud {
     final dir = Directory('${(await cacheRoot()).path}/speech');
     final file = File('${dir.path}/$key.mp3');
     if (await file.exists()) return file;
+    final watch = Stopwatch()..start();
     final bytes = await _ref.read(apiProvider).speech(text: text.trim(), voice: s.voiceName, speed: s.voiceSpeed, tier: s.tier.name);
+    _learn(local: false, chars: text.length, took: watch.elapsed);
     await dir.create(recursive: true);
     final tmp = File('${file.path}.part');
     await tmp.writeAsBytes(bytes, flush: true);
@@ -255,6 +341,7 @@ class ReadAloud {
 
   Future<void> dispose() async {
     _turn++;
+    waiting.dispose();
     await _done?.cancel();
     await _playerInstance?.dispose();
     _playerInstance = null;

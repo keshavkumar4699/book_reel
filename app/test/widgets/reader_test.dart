@@ -97,12 +97,15 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(find.text('This cut feels wrong'), findsNothing);
 
-    // A tap on empty space shows the controls (there's no eye button any more).
+    // A tap on empty space shows the controls (there's no eye button any more):
+    // the music at the bottom, with its own buttons.
     await tester.tapAt(const Offset(30, 400));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(container.read(readerChromeProvider), isTrue);
     expect(find.bySemanticsLabel('Focus: hide the controls'), findsNothing);
+    expect(find.bySemanticsLabel('Playing First · Artist'), findsOneWidget);
+    expect(tester.getCenter(find.bySemanticsLabel('Next track')).dy, greaterThan(400), reason: 'at the bottom of the screen');
 
     await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
@@ -143,22 +146,24 @@ void main() {
     final thought = container.read(notebookProvider).reflections.single;
     expect(thought.text, 'Curiosity starts the whole story.');
     expect(thought.quote, contains('Alice was beginning'));
-    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(seconds: 6));
 
-    // Four seconds after the last touch the controls hide on their own.
+    // Six seconds after the last touch the controls hide on their own; the rail stays.
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
-    expect(tester.widgetList<FadeChrome>(find.byType(FadeChrome)).every((c) => !c.visible), isTrue, reason: 'rail, book row and top bar hidden');
+    expect(tester.widgetList<FadeChrome>(find.byType(FadeChrome)).every((c) => !c.visible), isTrue, reason: 'top bar, pictures and music hidden');
     expect(container.read(readerChromeProvider), isFalse);
+    expect(find.bySemanticsLabel('Write a note'), findsOneWidget, reason: 'the rail of actions is always there');
+    expect(find.bySemanticsLabel('Like'), findsOneWidget);
 
     // A tap shows them; another tap on empty space hides them at once.
     await tester.tapAt(const Offset(30, 400));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
     expect(container.read(readerChromeProvider), isTrue);
-    // Touching the screen keeps them up: 3 s, a short swipe that springs back, 3 s more.
-    await tester.pump(const Duration(seconds: 3));
+    // Touching the screen keeps them up: 5 s, a short swipe that springs back, 5 s more.
+    await tester.pump(const Duration(seconds: 5));
     await tester.drag(find.byType(PageView), const Offset(0, -60));
-    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 5));
     expect(container.read(readerChromeProvider), isTrue);
     await tester.tapAt(const Offset(30, 400));
     await tester.pump(const Duration(milliseconds: 400));

@@ -30,13 +30,13 @@ final friendsDataProvider = FutureProvider.autoDispose<FriendsData>((ref) async 
   );
 });
 
-/// League (opened from Today): this week's league of similar readers and the
+/// League (opened from Journal): this week's league of similar readers and the
 /// board of readers you follow, plus your invite. The activity feed with
-/// kudos and comments is on Today (Cloro plan §10).
+/// kudos and comments is on Journal (Cloro plan §10).
 class FriendsScreen extends ConsumerWidget {
   const FriendsScreen({super.key, this.asPage = false});
 
-  /// Opened from Profile or Today (a page with a back button), not a tab.
+  /// Opened from Profile or Journal (a page with a back button), not a tab.
   final bool asPage;
 
   @override

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api_client.dart';
+import '../../ui/haptics.dart';
 import '../../ui/kit.dart';
 import 'profile_header.dart';
 
@@ -61,7 +61,7 @@ Future<bool> confirmBlock(BuildContext context, WidgetRef ref, {required String 
   if (!ok || !context.mounted) return false;
   try {
     await ref.read(apiProvider).block(userId);
-    HapticFeedback.mediumImpact();
+    Haptics.press();
     if (context.mounted) showKitToast(context, '$name is blocked', icon: Icons.block_rounded);
     return true;
   } catch (e) {

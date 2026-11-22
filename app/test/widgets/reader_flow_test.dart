@@ -138,13 +138,13 @@ void main() {
     expect(after.animateIn, isFalse, reason: 'it was already on screen: no second fade-in');
   });
 
-  testWidgets('each book opens on a random picture and track; the top of the screen switches both', (tester) async {
+  testWidgets('each book opens on a random picture and track; pictures at the top, music at the bottom', (tester) async {
     final (c, _) = await open(tester);
     Kit kit() => Kit.of(tester.element(find.byType(PageView)));
     expect(kit().backdrop, const Backdrop.scene(Vibe.meadow), reason: 'no pictures added yet: a painted scene');
     expect(c.read(musicProvider).track!.label, 'First · Artist');
 
-    // A tap shows the controls: the chapter, the music, and every picture in a row.
+    // A tap shows the controls: the chapter and every picture in a row at the top, the music at the bottom.
     await tester.tapAt(const Offset(30, 420));
     await tester.pump(const Duration(milliseconds: 400));
     await settle(tester);
@@ -159,9 +159,12 @@ void main() {
     expect(c.read(settingsProvider).lastBackdrop, 'scene:night', reason: 'the next book opens on another');
     expect(c.read(readerChromeProvider), isTrue, reason: 'picking keeps the controls up');
 
+    expect(find.bySemanticsLabel('Playing First · Artist'), findsOneWidget);
+    expect(tester.getCenter(find.bySemanticsLabel('Next track')).dy, greaterThan(tester.getCenter(find.byType(BackdropStrip)).dy));
     await tester.tap(find.bySemanticsLabel('Next track'));
     await tester.pump();
     expect(c.read(musicProvider).track!.label, 'Second · Artist');
+    expect(find.bySemanticsLabel('Playing Second · Artist'), findsOneWidget);
     await tester.tap(find.bySemanticsLabel('Pause music'));
     await tester.pump();
     expect(c.read(musicProvider).playing, isFalse);

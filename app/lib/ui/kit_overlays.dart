@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import 'haptics.dart';
 import 'kit.dart';
 
 // ---------------------------------------------------------------- sheets
@@ -690,7 +690,7 @@ class _TimeWheelsState extends State<_TimeWheels> {
         perspective: 0.004,
         physics: const FixedExtentScrollPhysics(),
         onSelectedItemChanged: (i) {
-          HapticFeedback.selectionClick();
+          Haptics.tick();
           onChanged(i);
         },
         childDelegate: ListWheelChildBuilderDelegate(

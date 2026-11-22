@@ -9,10 +9,24 @@ import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../share/share_sheet.dart';
 
-enum _Tab { saved, highlights, words, reflections }
+enum _Tab { all, saved, highlights, words, reflections }
+
+/// Each kind of note's colour: a very light shade of it behind the note in
+/// All (so kinds tell apart at a glance), and a dot by its name.
+Color _hue(_Tab t) => switch (t) {
+      _Tab.saved => const Color(0xFF1A73E8),
+      _Tab.highlights => const Color(0xFFE8A200),
+      _Tab.words => const Color(0xFF188038),
+      _Tab.reflections => const Color(0xFF9334E6),
+      _Tab.all => const Color(0xFF80868B),
+    };
+
+/// The very light shade of [t]'s colour on the page.
+Color notebookShade(Kit kit, Color hue) => Color.alphaBlend(hue.withValues(alpha: kit.dark ? 0.13 : 0.065), kit.base);
 
 /// Everything the reader kept (UX_DESIGN.md §4): saved cards, highlights,
-/// words and reflections, with Markdown export.
+/// words and reflections, with Markdown export. All shows them together,
+/// newest first, each kind on its own very light shade.
 class NotebookScreen extends ConsumerStatefulWidget {
   const NotebookScreen({super.key});
 
@@ -21,18 +35,20 @@ class NotebookScreen extends ConsumerStatefulWidget {
 }
 
 class _NotebookScreenState extends ConsumerState<NotebookScreen> {
-  _Tab _tab = _Tab.saved;
+  _Tab _tab = _Tab.all;
 
   @override
   Widget build(BuildContext context) {
     final n = ref.watch(notebookProvider);
     final counts = {
+      _Tab.all: n.saved.length + n.highlights.length + n.words.length + n.reflections.length,
       _Tab.saved: n.saved.length,
       _Tab.highlights: n.highlights.length,
       _Tab.words: n.words.length,
       _Tab.reflections: n.reflections.length,
     };
     String label(_Tab t) => switch (t) {
+          _Tab.all => 'All',
           _Tab.saved => 'Saved',
           _Tab.highlights => 'Highlights',
           _Tab.words => 'Words',
@@ -67,12 +83,97 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
       ),
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
       children: switch (_tab) {
+        _Tab.all => _all(context, n),
         _Tab.saved => _saved(context, n.saved),
         _Tab.highlights => _highlights(context, n.highlights),
         _Tab.words => _words(context, n.words),
         _Tab.reflections => _reflections(context, n.reflections),
       },
     );
+  }
+
+  /// Everything, newest first: each note on the very light shade of its
+  /// kind, with the kind named in its colour.
+  List<Widget> _all(BuildContext context, NotebookState n) {
+    final kit = Kit.of(context);
+    final colors = ReadingTheme.of(ReadingThemeId.paper).highlights;
+    final items = <({DateTime at, _Tab kind, String text, String? quote, String source, String? link, Color? mark})>[
+      for (final s in n.saved)
+        (at: s.createdAt, kind: _Tab.saved, text: s.text, quote: null, source: '${s.bookTitle} · ${s.chapterTitle}', link: '/read/${s.bookId}?sid=${s.startSid}', mark: null),
+      for (final h in n.highlights)
+        (
+          at: h.createdAt,
+          kind: _Tab.highlights,
+          text: h.text,
+          quote: h.note != null && h.note!.isNotEmpty ? '📝 ${h.note}' : null,
+          source: h.bookTitle,
+          link: '/read/${h.bookId}?sid=${h.sid}',
+          mark: colors[h.color % colors.length].withValues(alpha: 1),
+        ),
+      for (final w in n.words)
+        (at: w.addedAt, kind: _Tab.words, text: w.word, quote: w.meaning, source: w.bookTitle, link: null, mark: null),
+      for (final r in n.reflections)
+        (at: r.createdAt, kind: _Tab.reflections, text: r.text, quote: r.quote == null ? null : '“${r.quote}”', source: '${r.bookTitle} · ${r.chapterTitle}', link: null, mark: null),
+    ]..sort((a, b) => b.at.compareTo(a.at));
+    if (items.isEmpty) {
+      return const [
+        KitEmpty(emoji: '📓', title: 'Your notebook is empty', message: 'Save a card, highlight a line or look up a word while reading: it all lands here.'),
+      ];
+    }
+    String kind(_Tab t) => switch (t) {
+          _Tab.saved => 'Saved',
+          _Tab.highlights => 'Highlight',
+          _Tab.words => 'Word',
+          _Tab.reflections => 'Reflection',
+          _Tab.all => '',
+        };
+    return [
+      for (final i in items)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: KitPanel(
+            color: notebookShade(kit, _hue(i.kind)),
+            radius: 16,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            onTap: i.link == null ? null : () => context.go(i.link!),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 7, height: 7, decoration: BoxDecoration(color: _hue(i.kind), shape: BoxShape.circle)),
+                const SizedBox(width: 6),
+                Text(kind(i.kind).toUpperCase(), style: kit.label.copyWith(fontSize: 11, letterSpacing: 0.8)),
+              ]),
+              const SizedBox(height: 8),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (i.mark != null) ...[
+                  Container(width: 4, height: 40, decoration: BoxDecoration(color: i.mark, borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Text(
+                    i.text,
+                    maxLines: 5,
+                    overflow: TextOverflow.ellipsis,
+                    style: i.kind == _Tab.words
+                        ? kit.heading.copyWith(fontSize: 17)
+                        : i.kind == _Tab.reflections
+                            ? kit.body
+                            : TextStyle(fontFamily: 'Literata', fontSize: 15.5, height: 1.42, color: kit.ink),
+                  ),
+                ),
+              ]),
+              if (i.quote != null && i.quote!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(i.quote!,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: kit.caption.copyWith(fontStyle: i.kind == _Tab.reflections ? FontStyle.italic : null)),
+              ],
+              const SizedBox(height: 6),
+              Text(i.source, maxLines: 1, overflow: TextOverflow.ellipsis, style: kit.caption.copyWith(fontSize: 12.5)),
+            ]),
+          ),
+        ),
+    ];
   }
 
   List<Widget> _saved(BuildContext context, List<SavedCard> saved) {

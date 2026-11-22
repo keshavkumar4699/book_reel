@@ -12,6 +12,7 @@ import 'package:book_reel/features/profile/profile_screen.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -67,6 +68,17 @@ void main() {
 
   Finder figure(String value, String label) => find.bySemanticsLabel('$value $label');
 
+  /// The haptics played from now on (their Flutter type names).
+  List<String> recordHaptics(WidgetTester tester) {
+    final played = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'HapticFeedback.vibrate') played.add('${call.arguments}');
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    return played;
+  }
+
   testWidgets('header: who you are, followers and following, up to 3 genres', (tester) async {
     c.read(settingsProvider.notifier).update((s) => s.copyWith(
         displayName: 'Asha',
@@ -102,19 +114,52 @@ void main() {
     await open(tester);
     // The page builds as it scrolls: bring each section into view first.
     Future<void> scrollTo(Finder f) => tester.scrollUntilVisible(f, 300, scrollable: find.byType(Scrollable).first);
-    // This week: today's reading only.
+    final kit = Kit.of(tester.element(find.byType(ProfileScreen)));
+    Color? colour(String value, String label) =>
+        tester.widget<Text>(find.descendant(of: figure(value, label).first, matching: find.text(value))).style?.color;
+    // This week: today's reading only; minutes, the headline, in blue.
     expect(figure('30', 'minutes'), findsOneWidget);
-    expect(figure('12', 'cards'), findsNWidgets(2), reason: 'this week, and this year in Stats');
-    expect(find.bySemanticsLabel(RegExp(r'^Minutes read each day this week: .*30')), findsOneWidget);
-    // Streak.
+    expect(colour('30', 'minutes'), kit.activity);
+    expect(figure('12', 'cards'), findsNWidgets(2), reason: 'this week, and this month in Stats');
+    expect(colour('12', 'cards'), isNot(kit.activity), reason: 'one figure in colour, not all');
+    // A circle round each day: today's, the week's best, is the largest; days without reading are empty rings.
+    final today = DateTime.now().weekday - 1;
+    expect(find.byType(DayCircle), findsNWidgets(7));
+    expect(find.bySemanticsLabel(RegExp(r', today: 30 minutes, 12 cards$')), findsOneWidget);
+    double width(int i) => tester.getSize(find.descendant(of: find.byType(DayCircle).at(i), matching: find.byType(AnimatedContainer))).width;
+    expect(width(today), DayCircle.largest);
+    expect(width((today + 1) % 7), DayCircle.smallest);
+    expect(find.textContaining('Today  ·  30 min', findRichText: true), findsOneWidget);
+    // Tap another day: its figures, with a tap you can feel.
+    final haptics = recordHaptics(tester);
+    final other = (today + 1) % 7;
+    const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    await tester.tap(find.byType(DayCircle).at(other));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('${names[other]}  ·  0 min', findRichText: true), findsOneWidget);
+    expect(haptics, ['HapticFeedbackType.lightImpact']);
+    // Streak: the current streak in green, and the calendar in GitHub's greens.
     await scrollTo(find.text('Last 12 weeks'));
     expect(figure('5', 'day streak'), findsOneWidget);
+    expect(colour('5', 'day streak'), kit.growth);
     expect(figure('9', 'best'), findsOneWidget);
     expect(find.text('Last 12 weeks'), findsOneWidget);
-    // Stats: this year, then all time.
+    expect(find.bySemanticsLabel('Reading calendar for the last 12 weeks: 1 day with reading, the goal met on 0'), findsOneWidget);
+    final cells = tester.widgetList<Container>(find.descendant(of: find.byType(StreakCalendar), matching: find.byType(Container)));
+    final greens = cells.map((c) => (c.decoration as BoxDecoration?)?.color).toList();
+    // Today: 12 of 20 cards, over a third of the goal (the deepest green is a goal met).
+    expect(greens.where((g) => g == kit.streakScale[2]), hasLength(1));
+    expect(greens.where((g) => g == kit.streakScale[0]), hasLength(greens.where((g) => g != null).length - 1));
+    // Stats: this month, this year, then all time.
     await scrollTo(find.text('All time'));
+    expect(find.text('This month'), findsOneWidget);
     expect(figure('30 min', 'reading time'), findsOneWidget);
+    expect(colour('30 min', 'reading time'), kit.activity);
     expect(figure('1', 'reading day'), findsOneWidget);
+    expect(colour('1', 'reading day'), kit.growth);
+    await tester.tap(find.text('This year'));
+    await tester.pumpAndSettle();
+    expect(figure('30 min', 'reading time'), findsOneWidget, reason: 'the day last year is not in it');
     await tester.ensureVisible(find.text('All time'));
     await tester.tap(find.text('All time'));
     await tester.pumpAndSettle();
@@ -135,6 +180,26 @@ void main() {
     await scrollTo(find.text('No books yet'));
     await scrollTo(find.text('Simplify, simplify.'));
     expect(find.text('Saved quotes'), findsOneWidget);
+  });
+
+  test('day circles grow by area; streak levels follow the goal', () {
+    expect(DayCircle.diameterFor(0, 30), DayCircle.smallest);
+    expect(DayCircle.diameterFor(30, 30), DayCircle.largest);
+    // Half the best day's minutes: half the extra area.
+    const s = DayCircle.smallest, l = DayCircle.largest;
+    final half = DayCircle.diameterFor(15, 30);
+    expect(half * half, closeTo(s * s + (l * l - s * s) / 2, 1e-6));
+    const goal = GoalConfig(unit: GoalUnit.cards, dailyTarget: 9, mode: GoalMode.daily, weeklyDays: 5);
+    expect(streakLevel(null, goal), 0);
+    expect(streakLevel(const DailyStat(minutes: 2), goal), 1, reason: 'read, though no cards yet');
+    expect(streakLevel(const DailyStat(verifiedCards: 2), goal), 1);
+    expect(streakLevel(const DailyStat(verifiedCards: 4), goal), 2);
+    expect(streakLevel(const DailyStat(verifiedCards: 7), goal), 3);
+    expect(streakLevel(const DailyStat(verifiedCards: 9), goal), 4);
+    expect(StatsPeriod.month.covers('2026-11-03', DateTime(2026, 11, 22)), isTrue);
+    expect(StatsPeriod.month.covers('2026-10-31', DateTime(2026, 11, 22)), isFalse);
+    expect(StatsPeriod.year.covers('2026-01-01', DateTime(2026, 11, 22)), isTrue);
+    expect(StatsPeriod.year.covers('2025-12-31', DateTime(2026, 11, 22)), isFalse);
   });
 
   testWidgets('pronouns: he/him, she/her, they/them, or your own', (tester) async {

@@ -19,7 +19,8 @@ import 'features/reader/reading_tab.dart';
 import 'features/settings/licenses_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/shell/home_shell.dart';
-import 'features/today/today_screen.dart';
+import 'features/journal/journal_screen.dart';
+import 'ui/haptics.dart';
 import 'ui/kit.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -41,7 +42,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/onboarding', builder: (context, state) => const OnboardingScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => HomeShell(shell: shell),
-        // Reading · Library · Notebook · Today · Profile.
+        // Reading · Library · Notebook · Journal · Profile.
         branches: [
           StatefulShellBranch(routes: [
             GoRoute(
@@ -51,10 +52,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           ]),
           StatefulShellBranch(routes: [GoRoute(path: '/library', builder: (c, s) => const LibraryScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/notebook', builder: (c, s) => const NotebookScreen())]),
-          StatefulShellBranch(routes: [GoRoute(path: '/today', builder: (c, s) => const TodayScreen())]),
+          StatefulShellBranch(routes: [GoRoute(path: '/journal', builder: (c, s) => const JournalScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/profile', builder: (c, s) => const ProfileScreen())]),
         ],
       ),
+      // The Journal tab was called Today.
+      GoRoute(path: '/today', redirect: (context, state) => '/journal'),
       // Links to a book (and a passage in it) open it in the Reading tab.
       GoRoute(
         path: '/read/:bookId',
@@ -103,6 +106,8 @@ class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // The Vibration setting, for every haptic in the app.
+    ref.listenManual(settingsProvider.select((s) => s.haptics), (_, on) => Haptics.enabled = on, fireImmediately: true);
     // Background sync with the server, when one is configured.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(syncServiceProvider).start();
