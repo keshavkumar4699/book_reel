@@ -194,4 +194,22 @@ export const MIGRATIONS: string[] = [
   create index reports_open on reports (status, created_at);
   alter table comments add column hidden boolean not null default false;
   `,
+  // Feedback from readers (Production plan B8).
+  `
+  create table feedback (
+    id text primary key,
+    user_id text not null,
+    kind text not null,
+    message text not null,
+    contact text not null default '',
+    app_version text not null default '',
+    platform text not null default '',
+    locale text not null default '',
+    device text not null default '',
+    status text not null default 'open',
+    created_at timestamptz not null default now()
+  );
+  create index feedback_open on feedback (status, created_at);
+  create index feedback_user on feedback (user_id);
+  `,
 ];

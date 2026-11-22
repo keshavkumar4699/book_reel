@@ -46,6 +46,23 @@ class PersonAvatar extends StatelessWidget {
 /// ```
 ///
 /// The counts are left out when they aren't known (offline): no false zeros.
+/// A line of text you can tap, with a touch target at least 48 dp tall.
+class _Tappable extends StatelessWidget {
+  const _Tappable({required this.onTap, required this.child});
+  final VoidCallback? onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Align(alignment: AlignmentDirectional.centerStart, child: child),
+        ),
+      );
+}
+
 class ProfileHeader extends StatelessWidget {
   const ProfileHeader({
     super.key,
@@ -118,10 +135,10 @@ class ProfileHeader extends StatelessWidget {
       if (bio.trim().isNotEmpty)
         Text(bio.trim(), style: kit.body)
       else if (onAddBio != null)
-        GestureDetector(onTap: onAddBio, child: Text('Add a bio: what you love to read, and why', style: kit.caption)),
+        _Tappable(onTap: onAddBio, child: Text('Add a bio: what you love to read, and why', style: kit.caption)),
       if (reading != null && reading!.isNotEmpty) ...[
-        const SizedBox(height: 6),
-        GestureDetector(
+        const SizedBox(height: 2),
+        _Tappable(
           onTap: onReading,
           child: Text.rich(TextSpan(children: [
             TextSpan(text: '📖 Reading: ', style: kit.caption),

@@ -641,7 +641,10 @@ class KitButton extends StatelessWidget {
       child: KitPressable(
         onTap: onPressed,
         haptic: true,
-        child: Container(
+        // A compact button still takes a 48 dp touch target.
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: math.max(0, (48 - h) / 2)),
+          child: Container(
           height: h,
           padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 22),
           decoration: BoxDecoration(
@@ -650,6 +653,7 @@ class KitButton extends StatelessWidget {
             border: border == null ? null : Border.all(color: border),
           ),
           child: content,
+        ),
         ),
       ),
     );

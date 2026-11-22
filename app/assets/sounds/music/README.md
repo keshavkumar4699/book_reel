@@ -5,8 +5,10 @@ Put the music you want while reading in this folder, or straight in
 them; while reading, tap the screen for previous, pause and next.
 
 - **Formats:** MP3, M4A, AAC, OGG, Opus, WAV or FLAC.
-- **Size:** every track is packed into the app, so prefer compressed files
-  (MP3 or M4A at 128 to 192 kbps is about 1 MB a minute).
+- **Size:** every track is packed into the app, so prefer compressed files.
+  128 kbps MP3 is about 1 MB a minute and sounds the same as 320 kbps under
+  narration (the bundled tracks were re-encoded so: 13 MB became 5 MB). To
+  re-encode one: `ffmpeg -i in.mp3 -map_metadata 0 -b:a 128k out.mp3`
 - **Names:** name a file `Artist - Title.mp3` and the player shows
   "Title · Artist"; a leading track number and a note in brackets at the end
   are dropped (`Lukrembo - Jay (freetouse.com).mp3` shows "Jay · Lukrembo").

@@ -29,12 +29,19 @@ class GoalRing extends StatelessWidget {
         height: size,
         child: CustomPaint(
           painter: _RingPainter(progress: progress, track: met ? kit.growthSoft : kit.activitySoft, color: met ? kit.growth : kit.activity),
-          child: Center(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              if (met) Icon(Icons.check_rounded, size: size * 0.16, color: kit.growth),
-              Text(label, style: kit.title.copyWith(fontSize: size * 0.17)),
-              if (sublabel != null) Text(sublabel!, style: kit.caption.copyWith(fontSize: 12.5)),
-            ]),
+          // Large text shrinks to fit inside the ring rather than spill out.
+          child: Padding(
+            padding: EdgeInsets.all(size * 0.16),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  if (met) Icon(Icons.check_rounded, size: size * 0.16, color: kit.growth),
+                  Text(label, style: kit.title.copyWith(fontSize: size * 0.17)),
+                  if (sublabel != null) Text(sublabel!, style: kit.caption.copyWith(fontSize: 12.5)),
+                ]),
+              ),
+            ),
           ),
         ),
       ),
@@ -116,7 +123,9 @@ class BookCover extends StatelessWidget {
           width: width, height: height, fit: BoxFit.cover, cacheWidth: (width * MediaQuery.devicePixelRatioOf(context)).round());
     } else {
       final color = _palette[book.title.hashCode.abs() % _palette.length];
-      child = Container(
+      // Drawn like cover art, at a fixed size: the phone's text size doesn't
+      // apply (the cover's label reads the title to screen readers).
+      child = MediaQuery.withNoTextScaling(child: Container(
         width: width,
         height: height,
         color: color,
@@ -133,7 +142,7 @@ class BookCover extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: Colors.white70, fontSize: width * 0.09)),
         ]),
-      );
+      ));
     }
     return Semantics(
       label: '${book.title} by ${book.author}',

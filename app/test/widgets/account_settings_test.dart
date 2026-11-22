@@ -5,6 +5,7 @@ import 'package:book_reel/data/json_store.dart';
 import 'package:book_reel/data/segments.dart' show deviceIdProvider;
 import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
+import 'package:book_reel/features/settings/feedback_sheet.dart';
 import 'package:book_reel/features/settings/settings_screen.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:flutter/material.dart';
@@ -103,5 +104,33 @@ void main() {
     await open(tester, null);
     expect(find.text('Download my data'), findsOneWidget);
     expect(find.text('Delete account'), findsNothing);
+  });
+
+  testWidgets('Settings → About: send feedback to the server, and see the version', (tester) async {
+    final server = FakeServer();
+    await open(tester, server);
+    expect(find.text('Version'), findsOneWidget);
+    expect(appVersionLabel('1.2.0+57'), '1.2.0 (57)');
+    expect(appVersionLabel('dev'), 'dev');
+    await tester.ensureVisible(find.text('Send feedback'));
+    await tester.tap(find.text('Send feedback'));
+    await tester.pumpAndSettle();
+    // Nothing written yet: asked for a few words.
+    await tester.tap(find.text('Send'));
+    await tester.pump();
+    expect(find.text('Write a few words first.'), findsOneWidget);
+    await tester.tap(find.text('Problem'));
+    await tester.enterText(find.byType(TextField).first, 'The music skips when I swipe fast.');
+    await tester.enterText(find.byType(TextField).at(1), 'asha@example.com');
+    await tester.tap(find.text('Send'));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pumpAndSettle();
+    expect(server.feedback.single, containsPair('kind', 'problem'));
+    expect(server.feedback.single, containsPair('message', 'The music skips when I swipe fast.'));
+    expect(server.feedback.single, containsPair('contact', 'asha@example.com'));
+    expect(server.feedback.single['version'], isNotEmpty);
+    expect(find.text('Thanks! Your feedback was sent.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
   });
 }

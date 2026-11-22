@@ -24,6 +24,7 @@ class FakeServer {
   /// Readers you blocked, and reports sent.
   final Set<String> blocked = {};
   final List<Map<String, dynamic>> reports = [];
+  final List<Map<String, dynamic>> feedback = [];
 
   /// Crash reports received (POST /v1/errors).
   final List<Map<String, dynamic>> errors = [];
@@ -271,6 +272,10 @@ class FakeServer {
         if (path == '/v1/errors') {
           errors.add(body());
           return http.Response('', 204);
+        }
+        if (path == '/v1/feedback') {
+          feedback.add(body());
+          return ok({'ok': true});
         }
         if (path == '/v1/reports') {
           reports.add(body());

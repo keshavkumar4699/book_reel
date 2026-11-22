@@ -22,6 +22,7 @@ import '../../ui/theme.dart';
 import '../../ui/typography.dart';
 import '../reader/goal_setup_sheet.dart';
 import '../social/safety.dart';
+import 'feedback_sheet.dart';
 
 /// Settings, compact (UX_DESIGN.md Revision 6): one short list where each row
 /// shows its current value and opens a focused sheet. Simple on/off options
@@ -195,14 +196,21 @@ class SettingsScreen extends ConsumerWidget {
             ),
         ]),
         KitGroup(label: 'About', divided: true, children: [
+          KitRow(
+            icon: Icons.mail_outline_rounded,
+            title: 'Send feedback',
+            subtitle: 'An idea, a problem, anything',
+            onTap: () => showFeedbackSheet(context),
+          ),
           KitRow(icon: Icons.privacy_tip_outlined, title: 'Privacy policy', onTap: () => context.push('/legal/privacy')),
           KitRow(icon: Icons.gavel_rounded, title: 'Terms of use', onTap: () => context.push('/legal/terms')),
           KitRow(
             icon: Icons.description_rounded,
             title: 'Licences',
-            subtitle: 'Fonts (OFL), scene sounds, WordNet, wordfreq',
+            subtitle: 'Fonts (OFL), music, WordNet, wordfreq',
             onTap: () => context.push('/licenses'),
           ),
+          KitRow(icon: Icons.info_outline_rounded, title: 'Version', value: appVersionLabel()),
         ]),
       ],
     );

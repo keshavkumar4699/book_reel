@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -102,12 +104,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
           )
         else
-          SliverGrid.builder(
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 180,
+          SliverLayoutBuilder(builder: (context, constraints) {
+            // Each tile is as tall as its cover plus its text at the phone's
+            // text size, so large text never spills out of it.
+            const maxWidth = 180.0, spacing = 16.0;
+            final columns = (constraints.crossAxisExtent / (maxWidth + spacing)).ceil().clamp(1, 12);
+            final tile = (constraints.crossAxisExtent - spacing * (columns - 1)) / columns;
+            final scaler = MediaQuery.textScalerOf(context);
+            final text = math.max(scaler.scale(14) * 1.2 * 2 + scaler.scale(12.5) * 1.45, 48.0);
+            return SliverGrid.builder(
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: maxWidth,
               mainAxisSpacing: 20,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.5,
+              crossAxisSpacing: spacing,
+              mainAxisExtent: tile * 1.5 + 8 + 4 + 6 + text + 4,
             ),
             itemCount: books.length,
             itemBuilder: (context, i) {
@@ -143,16 +153,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       onTap: () => _bookMenu(b),
                       semanticLabel: 'More for ${b.title}',
                       excludeSemantics: true,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(6, 0, 0, 6),
-                        child: Icon(Icons.more_vert_rounded, size: 20, color: kit.inkSoft),
+                      // A 48 dp touch target, the dots in its top corner.
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Align(
+                          alignment: AlignmentDirectional.topEnd,
+                          child: Icon(Icons.more_vert_rounded, size: 20, color: kit.inkSoft),
+                        ),
                       ),
                     ),
                   ]),
                 ]),
               );
             },
-          ),
+          );
+          }),
       ],
     );
   }

@@ -179,6 +179,26 @@ class BookReelApi {
       (((await _send('GET', '/v1/social/blocked')) as Map<String, dynamic>)['items'] as List).cast<Map<String, dynamic>>();
 
   /// Reports a reader, an activity or a comment ([type]: user, activity, comment).
+  /// Settings → Send feedback: an idea, a problem or anything else.
+  Future<void> sendFeedback({
+    required String kind,
+    required String message,
+    String contact = '',
+    String version = '',
+    String platform = '',
+    String locale = '',
+    String device = '',
+  }) =>
+      _send('POST', '/v1/feedback', {
+        'kind': kind,
+        'message': message,
+        'contact': contact,
+        'version': version,
+        'platform': platform,
+        'locale': locale,
+        'device': device,
+      });
+
   Future<void> report({required String type, required String id, required String reason, String note = ''}) =>
       _send('POST', '/v1/reports', {'type': type, 'id': id, 'reason': reason, 'note': note});
 

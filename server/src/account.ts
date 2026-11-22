@@ -13,7 +13,7 @@ export class AccountService {
    * is all or nothing): profile, sign-in links, reading days and events,
    * follows both ways, activities with their kudos and comments, comments
    * and kudos given, league places, synced notebook and positions, share
-   * links, usage counters and AI jobs. AI cost records stay for accounting
+   * links, usage counters, AI jobs and feedback sent. AI cost records stay for accounting
    * without the user's id; purchases stay with Google, unlinked from it.
    */
   async delete(userId: string): Promise<boolean> {
@@ -39,6 +39,7 @@ export class AccountService {
          en as (update entitlements set user_id = null where user_id = $1),
          bl as (delete from blocks where blocker = $1 or blocked = $1),
          rp as (delete from reports where reporter = $1 or target_user = $1),
+         fb as (delete from feedback where user_id = $1),
          al as (delete from aliases where user_id = $1)
        delete from users where id = $1 returning id`,
       [userId],
@@ -55,7 +56,7 @@ export class AccountService {
        from users where id = $1`,
     );
     if (!user) return undefined;
-    const [readingDays, following, followers, activities, comments, kudos, notebook, shares, subscriptions, tts, mood, aiBooks] =
+    const [readingDays, following, followers, activities, comments, kudos, notebook, shares, subscriptions, tts, mood, aiBooks, feedback] =
       await Promise.all([
         q("select day, verified_cards, skimmed_cards, minutes, goal_met from reading_days where user_id = $1 order by day"),
         q("select u.id, u.display_name, u.handle, f.created_at from follows f join users u on u.id = f.followee where f.follower = $1 order by f.created_at"),
@@ -69,6 +70,7 @@ export class AccountService {
         q("select day, chars from tts_usage where user_id = $1 order by day"),
         q("select day, calls from mood_usage where user_id = $1 order by day"),
         q("select period, count(*) as books from quota_books where user_id = $1 group by period order by period"),
+        q("select kind, message, contact, app_version, created_at from feedback where user_id = $1 order by created_at"),
       ]);
     return {
       exported_at: new Date().toISOString(),
@@ -83,6 +85,7 @@ export class AccountService {
       shares,
       subscriptions,
       usage: { read_aloud_characters: tts, mood_suggestions: mood, ai_books: aiBooks },
+      feedback,
     };
   }
 }

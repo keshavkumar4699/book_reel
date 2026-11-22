@@ -18,6 +18,7 @@ import { ActivityBatchSchema, ActivityService, CannotFollowSelf, HandleTaken, In
 import { localDateKey, weekKey } from "./habit/engine.js";
 import { CommentSchema, FeedService, NotVisible, SessionSchema } from "./habit/feed.js";
 import { LeagueService } from "./habit/leagues.js";
+import { FeedbackSchema, FeedbackService } from "./feedback.js";
 import { ModerationService, NotAllowed, RateLimited, RateLimiter, ReportSchema, TextFilter, type LimitName } from "./moderation.js";
 import { SegmentRequestSchema } from "./segmentation/schema.js";
 import { QuotaExceeded, SegmentService, TierNotEligible, type Caller } from "./segmentation/service.js";
@@ -90,6 +91,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const feeds = new FeedService(deps.db);
   const accounts = new AccountService(deps.db);
   const moderation = new ModerationService(deps.db);
+  const feedback = new FeedbackService(deps.db);
   const limiter = deps.limiter ?? new RateLimiter();
   const filter = deps.textFilter ?? TextFilter.fromEnv();
   const limit = (name: LimitName, key: string) => limiter.hit(name, key);
@@ -211,6 +213,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const e = AppErrorSchema.parse(req.body);
     app.log.error(errorEvent("cloro-app", e.version, `${e.message}\n${e.stack}`.trim(), { platform: e.platform }), e.message);
     return reply.code(204).send();
+  });
+
+  // Feedback from Settings (Production plan B8). Like crash reports, it
+  // doesn't create an account; it's deleted with one.
+  app.post("/v1/feedback", async (req) => {
+    const c = await auth.resolve(req);
+    limit("feedback", c.userId);
+    const f = FeedbackSchema.parse(req.body);
+    const id = await feedback.add(c.userId, f);
+    app.log.info({ feedback: id, kind: f.kind, version: f.version }, "feedback received");
+    return { ok: true };
   });
 
   // Your data (Production plan A3): download all of it, or delete the account.
@@ -351,6 +364,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     admin(req);
     const action = z.enum(["dismiss", "remove", "hide_user", "restore_user"]).parse(req.body?.action);
     if (!(await moderation.resolve(req.params.id, action))) return reply.code(404).send({ error: "not_found" });
+    return { ok: true };
+  });
+
+  app.get("/v1/admin/feedback", async (req) => {
+    admin(req);
+    return { items: await feedback.open() };
+  });
+  app.post<{ Params: { id: string } }>("/v1/admin/feedback/:id/done", async (req, reply) => {
+    admin(req);
+    if (!(await feedback.markDone(req.params.id))) return reply.code(404).send({ error: "not_found" });
     return { ok: true };
   });
 
