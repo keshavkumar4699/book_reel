@@ -131,6 +131,37 @@ void main() {
     expect(n.toggleHighlight(bookId: 'b', bookTitle: 'Book', sid: 'c0.b0.s0', text: 'A key idea.'), isNull);
   });
 
+  test('notebook: a like keeps the reel’s words; unliked, they go too; they come back after a restart', () {
+    final n = container.read(notebookProvider.notifier);
+    LikedQuote quote(String sid, String text, int day) => LikedQuote(
+        bookId: 'b', sid: sid, bookTitle: 'Walden', author: 'Thoreau', chapterTitle: 'Economy', text: text, likedAt: DateTime(2026, 11, day));
+    expect(n.toggleLike('b', 'c0.b0.s0', quote: () => quote('c0.b0.s0', 'Simplify, simplify.', 2)), isTrue);
+    expect(n.toggleLike('b', 'c0.b1.s0', quote: () => quote('c0.b1.s0', 'Our life is frittered away by detail.', 5)), isTrue);
+    n.like('b', 'c0.b2.s0'); // as an older version kept it: no words
+    var state = container.read(notebookProvider);
+    expect(state.liked, hasLength(3));
+    expect(state.likedNewestFirst.map((q) => q.text), ['Our life is frittered away by detail.', 'Simplify, simplify.'],
+        reason: 'the newest first; a like without words isn’t a quote');
+
+    // Words for the older like, once its book is opened; never over a kept one.
+    n.keepLikedWords([
+      const LikedQuote(bookId: 'b', sid: 'c0.b2.s0', bookTitle: 'Walden', author: 'Thoreau', chapterTitle: 'Economy', text: 'Be still.'),
+      quote('c0.b0.s0', 'Something else.', 9),
+      quote('c0.b9.s0', 'Not liked.', 9),
+    ]);
+    state = container.read(notebookProvider);
+    expect(state.likedNewestFirst.map((q) => q.text), ['Our life is frittered away by detail.', 'Simplify, simplify.', 'Be still.'],
+        reason: 'liked at a time nobody kept: last');
+
+    final back = NotebookState.fromJson(state.toJson());
+    expect(back.likedNewestFirst.map((q) => (q.text, q.likedAt, q.bookTitle)), state.likedNewestFirst.map((q) => (q.text, q.likedAt, q.bookTitle)));
+
+    // Unliked: the words go with it.
+    expect(n.toggleLike('b', 'c0.b0.s0'), isFalse);
+    state = container.read(notebookProvider);
+    expect(state.likedQuotes.keys, unorderedEquals(['b|c0.b1.s0', 'b|c0.b2.s0']));
+  });
+
   test('highlights cover a range of words, possibly over several sentences', () {
     final at = DateTime(2026, 11, 12);
     // "quiet power" inside c0.b1.s2, and from c0.b1.s2[10] to c0.b2.s0[5].

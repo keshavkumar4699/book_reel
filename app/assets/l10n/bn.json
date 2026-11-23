@@ -170,7 +170,6 @@
  "Stats": "পরিসংখ্যান",
  "Trophies": "ট্রফি",
  "Books": "বই",
- "Saved quotes": "সংরক্ষিত উক্তি",
  "{day}, today": "{day}, আজ",
  "Today": "আজ",
  "week streak": "সপ্তাহের স্ট্রিক",
@@ -199,8 +198,6 @@
  "Import a book from the Library.": "লাইব্রেরি থেকে একটি বই ইমপোর্ট করুন।",
  "{title}, {percent}% read": "{title}, {percent}% পড়া",
  "Finished": "শেষ হয়েছে",
- "No quotes yet": "এখনো কোনো উক্তি নেই",
- "Save a card or highlight a line, and it shows up here.": "একটি কার্ড সংরক্ষণ করুন বা একটি লাইন হাইলাইট করুন, এখানে দেখা যাবে।",
  "Reading calendar for the last 12 weeks: {days}, the goal met on {met}": "শেষ ১২ সপ্তাহের পড়ার ক্যালেন্ডার: {days}, লক্ষ্য পূরণ হয়েছে {met} দিন",
  "Pick an emoji": "একটি ইমোজি বেছে নিন",
  "Usernames are 3–24 letters, numbers, dots or underscores.": "ইউজারনেম ৩–২৪টি অক্ষর, সংখ্যা, ডট বা আন্ডারস্কোর।",
@@ -457,7 +454,6 @@
  "Reading": "পড়া",
  "Backgrounds": "পটভূমি",
  "Your pictures": "আপনার ছবি",
- "Painted scenes": "আঁকা দৃশ্য",
  "On · {percent}%": "চালু · {percent}%",
  "Natural · {voice}": "স্বাভাবিক · {voice}",
  "Phone voice": "ফোনের কণ্ঠ",
@@ -533,7 +529,6 @@
  "Beginner words": "শুরুর শব্দ",
  "Middle words": "মাঝারি শব্দ",
  "Advanced words": "উন্নত শব্দ",
- "Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. Pictures added to the app’s backgrounds folder replace the scenes.": "প্রতিটি বই আঁকা দৃশ্যগুলোর একটিতে খোলে, এলোমেলোভাবে বেছে নেওয়া। পড়ার সময় স্ক্রিনে ট্যাপ করে উপরের সারি থেকে অন্যটি বেছে নিন। অ্যাপের পটভূমি ফোল্ডারে যোগ করা ছবি এই দৃশ্যগুলোর জায়গা নেয়।",
  "Moving scenes": "চলমান দৃশ্য",
  "Gentle motion. Off when the phone’s “Remove animations” is on.": "হালকা নড়াচড়া। ফোনে “অ্যানিমেশন সরান” চালু থাকলে বন্ধ।",
  "There’s no music in the app yet: tracks added to its sounds folder play while you read.": "অ্যাপে এখনো কোনো সংগীত নেই: সাউন্ড ফোল্ডারে যোগ করা ট্র্যাক পড়ার সময় বাজে।",
@@ -602,10 +597,6 @@
  "Delete": "মুছুন",
  "Your account is deleted": "আপনার অ্যাকাউন্ট মুছে ফেলা হয়েছে",
  "Couldn’t reach Cloro, so nothing was deleted. Try again.": "Cloro-তে পৌঁছানো গেল না, তাই কিছুই মোছা হয়নি। আবার চেষ্টা করুন।",
- "Each book opens on one of your {n} pictures, picked at random. While reading, tap the screen and pick another from the row at the top.": {
-  "one": "প্রতিটি বই আপনার ছবিতে খোলে। পড়ার সময় স্ক্রিনে ট্যাপ করে উপরের সারি থেকে একটি দৃশ্য বেছে নিন।",
-  "other": "প্রতিটি বই আপনার {n}টি ছবির একটিতে খোলে, এলোমেলোভাবে বেছে নেওয়া। পড়ার সময় স্ক্রিনে ট্যাপ করে উপরের সারি থেকে অন্যটি বেছে নিন।"
- },
  "Each book starts one of your {n} tracks at random, then plays on through them. While reading, tap the screen for previous, pause and next at the bottom.": {
   "one": "পড়ার সময় আপনার ট্র্যাক বাজে। পড়ার সময় নিচে থামাতে ও চালাতে স্ক্রিনে ট্যাপ করুন।",
   "other": "প্রতিটি বই আপনার {n}টি ট্র্যাকের একটি এলোমেলোভাবে শুরু করে, তারপর পরেরগুলো বাজায়। পড়ার সময় নিচে আগের, থামান ও পরের জন্য স্ক্রিনে ট্যাপ করুন।"
@@ -793,5 +784,10 @@
  "Night desk": "রাতের ডেস্ক",
  "Café reading": "ক্যাফেতে পড়া",
  "Sunny nook": "রোদেলা কোণ",
- "Add pictures": "ছবি যোগ করুন"
+ "Add pictures": "ছবি যোগ করুন",
+ "Liked quotes": "পছন্দের উদ্ধৃতি",
+ "Show less": "কম দেখান",
+ "View all {n}": "সব {n}টি দেখুন",
+ "No liked quotes yet": "এখনও কোনো পছন্দের উদ্ধৃতি নেই",
+ "Double-tap a reel you love, and its words show up here.": "যে রিলটি ভালো লাগে তাতে দুবার ট্যাপ করুন, তার কথাগুলো এখানে দেখা যাবে।"
 }

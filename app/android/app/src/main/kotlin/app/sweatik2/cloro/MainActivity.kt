@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
 import android.os.StatFs
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -29,6 +30,22 @@ class MainActivity : FlutterActivity() {
                             "lowRam" to am.isLowRamDevice,
                         )
                     )
+                }
+                else -> result.notImplemented()
+            }
+        }
+        // The screen stays on while reels are read aloud hands-free
+        // (lib/services/screen_awake.dart): a phone that timed out would stop
+        // them turning.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.cloro/screen").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "keepOn" -> {
+                    if (call.arguments == true) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }

@@ -22,7 +22,9 @@ List<SyncRecord> notebookRecords(NotebookState n) => [
       for (final s in n.saved) (kind: 'saved', id: s.id, data: s.toJson()),
       for (final w in n.words) (kind: 'word', id: w.word, data: w.toJson()),
       for (final r in n.reflections) (kind: 'reflection', id: r.id, data: r.toJson()),
-      for (final l in n.liked) (kind: 'like', id: l, data: true),
+      // With the reel's words when they're kept (older likes, and older app
+      // versions, send just `true`).
+      for (final l in n.liked) (kind: 'like', id: l, data: n.likedQuotes[l]?.toJson() ?? true),
     ];
 
 /// Applies pulled records to a notebook: upserts and tombstones.
@@ -32,6 +34,7 @@ NotebookState applyRemote(NotebookState n, List<Map<String, dynamic>> items) {
   final words = {for (final w in n.words) w.word: w};
   final reflections = {for (final r in n.reflections) r.id: r};
   final liked = {...n.liked};
+  final likedQuotes = {...n.likedQuotes};
   for (final item in items) {
     final id = item['id'] as String;
     final deleted = item['deleted'] == true;
@@ -46,7 +49,13 @@ NotebookState applyRemote(NotebookState n, List<Map<String, dynamic>> items) {
       case 'reflection':
         deleted ? reflections.remove(id) : reflections[id] = Reflection.fromJson(data as Map<String, dynamic>);
       case 'like':
-        deleted ? liked.remove(id) : liked.add(id);
+        if (deleted) {
+          liked.remove(id);
+          likedQuotes.remove(id);
+        } else {
+          liked.add(id);
+          if (LikedQuote.fromJson(data) case final q?) likedQuotes[id] = q;
+        }
     }
   }
   int newestFirst(DateTime a, DateTime b) => b.compareTo(a);
@@ -56,6 +65,7 @@ NotebookState applyRemote(NotebookState n, List<Map<String, dynamic>> items) {
     words: words.values.toList()..sort((a, b) => newestFirst(a.addedAt, b.addedAt)),
     reflections: reflections.values.toList()..sort((a, b) => newestFirst(a.createdAt, b.createdAt)),
     liked: liked,
+    likedQuotes: likedQuotes,
   );
 }
 

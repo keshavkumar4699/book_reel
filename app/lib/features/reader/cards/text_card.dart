@@ -609,12 +609,28 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       return;
     }
     const stiffness = 320.0;
-    _dx.animateWith(SpringSimulation(
-      SpringDescription(mass: 1, stiffness: stiffness, damping: 2 * math.sqrt(stiffness)),
-      _dx.value,
-      0,
-      velocity,
-    ));
+    _dx
+        .animateWith(SpringSimulation(
+          SpringDescription(mass: 1, stiffness: stiffness, damping: 2 * math.sqrt(stiffness)),
+          _dx.value,
+          0,
+          velocity,
+          // Done once within half a pixel and all but still (not after a long
+          // sub-pixel creep) ...
+          tolerance: const Tolerance(distance: 0.5, velocity: 10),
+        ))
+        // ... then exactly at rest: the rail fully back, the text on whole
+        // pixels.
+        .whenComplete(() {
+      if (mounted) _dx.value = 0;
+    });
+  }
+
+  /// A swipe the phone takes over (a system gesture, say) goes back to rest
+  /// as if let go.
+  void _onDragCancel() {
+    _armed = false;
+    _settle(0);
   }
 
   // ------------------------------------------------------------- build
@@ -682,6 +698,7 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
       onLongPressStart: editing ? null : _onLongPress,
       onHorizontalDragUpdate: editing ? null : _onDragUpdate,
       onHorizontalDragEnd: editing ? null : _onDragEnd,
+      onHorizontalDragCancel: editing ? null : _onDragCancel,
       child: Stack(children: [
         // The text sits in a calm column well inside the screen.
         Positioned(
@@ -721,7 +738,8 @@ class _PostCardState extends State<PostCard> with TickerProviderStateMixin {
             valueListenable: _dx,
             builder: (context, dx, rail) {
               final away = (dx.abs() / (_swipeTrigger * 0.6)).clamp(0.0, 1.0);
-              return IgnorePointer(ignoring: away > 0, child: Opacity(opacity: 1 - away, child: rail));
+              // Takes taps again once the reel is back within a few pixels.
+              return IgnorePointer(ignoring: dx.abs() > 4, child: Opacity(opacity: 1 - away, child: rail));
             },
             child: _ActionRail(
               ink: t.text,

@@ -170,7 +170,6 @@
  "Stats": "आँकड़े",
  "Trophies": "ट्रॉफ़ियाँ",
  "Books": "किताबें",
- "Saved quotes": "सहेजे गए उद्धरण",
  "{day}, today": "{day}, आज",
  "Today": "आज",
  "week streak": "हफ़्ते की स्ट्रीक",
@@ -199,8 +198,6 @@
  "Import a book from the Library.": "लाइब्रेरी से कोई किताब इम्पोर्ट करें।",
  "{title}, {percent}% read": "{title}, {percent}% पढ़ी",
  "Finished": "पूरी हुई",
- "No quotes yet": "अभी कोई उद्धरण नहीं",
- "Save a card or highlight a line, and it shows up here.": "कोई कार्ड सहेजें या कोई पंक्ति हाइलाइट करें, वह यहाँ दिखेगा।",
  "Reading calendar for the last 12 weeks: {days}, the goal met on {met}": "पिछले 12 हफ़्तों का पढ़ाई कैलेंडर: {days}, लक्ष्य {met} दिन पूरा हुआ",
  "Pick an emoji": "एक इमोजी चुनें",
  "Usernames are 3–24 letters, numbers, dots or underscores.": "यूज़रनेम 3–24 अक्षर, अंक, बिंदु या अंडरस्कोर होते हैं।",
@@ -457,7 +454,6 @@
  "Reading": "पढ़ना",
  "Backgrounds": "पृष्ठभूमियाँ",
  "Your pictures": "आपकी तस्वीरें",
- "Painted scenes": "चित्रित दृश्य",
  "On · {percent}%": "चालू · {percent}%",
  "Natural · {voice}": "प्राकृतिक · {voice}",
  "Phone voice": "फ़ोन की आवाज़",
@@ -533,7 +529,6 @@
  "Beginner words": "आसान शब्द",
  "Middle words": "मध्यम शब्द",
  "Advanced words": "कठिन शब्द",
- "Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. Pictures added to the app’s backgrounds folder replace the scenes.": "हर किताब किसी एक चित्रित दृश्य पर खुलती है, जो बेतरतीब चुना जाता है। पढ़ते समय स्क्रीन पर टैप करें और ऊपर की पंक्ति से दूसरा चुनें। ऐप के बैकग्राउंड फ़ोल्डर में जोड़ी गई तस्वीरें इन दृश्यों की जगह ले लेती हैं।",
  "Moving scenes": "चलते दृश्य",
  "Gentle motion. Off when the phone’s “Remove animations” is on.": "हल्की हलचल। फ़ोन में “एनिमेशन हटाएँ” चालू होने पर बंद।",
  "There’s no music in the app yet: tracks added to its sounds folder play while you read.": "ऐप में अभी कोई संगीत नहीं है: साउंड फ़ोल्डर में जोड़े गए ट्रैक पढ़ते समय बजते हैं।",
@@ -602,10 +597,6 @@
  "Delete": "हटाएँ",
  "Your account is deleted": "आपका खाता हटा दिया गया",
  "Couldn’t reach Cloro, so nothing was deleted. Try again.": "Cloro से जुड़ नहीं सके, इसलिए कुछ भी नहीं हटाया गया। फिर से कोशिश करें।",
- "Each book opens on one of your {n} pictures, picked at random. While reading, tap the screen and pick another from the row at the top.": {
-  "one": "हर किताब आपकी तस्वीर पर खुलती है। पढ़ते समय स्क्रीन पर टैप करें और ऊपर की पंक्ति से कोई दृश्य चुनें।",
-  "other": "हर किताब आपकी {n} तस्वीरों में से किसी एक पर खुलती है, जो बेतरतीब चुनी जाती है। पढ़ते समय स्क्रीन पर टैप करें और ऊपर की पंक्ति से दूसरी चुनें।"
- },
  "Each book starts one of your {n} tracks at random, then plays on through them. While reading, tap the screen for previous, pause and next at the bottom.": {
   "one": "पढ़ते समय आपका ट्रैक बजता है। पढ़ते समय नीचे रोकने और चलाने के लिए स्क्रीन पर टैप करें।",
   "other": "हर किताब आपके {n} ट्रैक में से किसी एक से बेतरतीब शुरू होती है, फिर आगे बजती रहती है। पढ़ते समय नीचे पिछला, रोकें और अगला के लिए स्क्रीन पर टैप करें।"
@@ -793,5 +784,10 @@
  "Night desk": "रात की मेज़",
  "Café reading": "कैफ़े में पढ़ाई",
  "Sunny nook": "धूप वाला कोना",
- "Add pictures": "तस्वीरें जोड़ें"
+ "Add pictures": "तस्वीरें जोड़ें",
+ "Liked quotes": "पसंद किए गए उद्धरण",
+ "Show less": "कम दिखाएँ",
+ "View all {n}": "सभी {n} देखें",
+ "No liked quotes yet": "अभी तक कोई पसंद किया गया उद्धरण नहीं",
+ "Double-tap a reel you love, and its words show up here.": "जो रील आपको अच्छी लगे उस पर दो बार टैप करें, उसके शब्द यहाँ दिखेंगे।"
 }

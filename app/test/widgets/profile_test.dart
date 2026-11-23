@@ -113,6 +113,9 @@ void main() {
   testWidgets('this week, streak, stats, trophies, books and quotes', (tester) async {
     readingHistory();
     c.read(notebookProvider.notifier).addHighlight(bookId: 'b', bookTitle: 'Walden', sid: 'c0.b0.s0', text: 'Simplify, simplify.');
+    c.read(notebookProvider.notifier).like('b', 'c0.b3.s0',
+        quote: LikedQuote(
+            bookId: 'b', sid: 'c0.b3.s0', bookTitle: 'Walden', author: 'Thoreau', chapterTitle: 'Economy', text: 'Our life is frittered away by detail.', likedAt: DateTime(2026, 11, 2)));
     await open(tester);
     // The page builds as it scrolls: bring each section into view first.
     Future<void> scrollTo(Finder f) => tester.scrollUntilVisible(f, 300, scrollable: find.byType(Scrollable).first);
@@ -178,10 +181,41 @@ void main() {
     expect(find.bySemanticsLabel('Next trophy: First book'), findsOneWidget);
     expect(find.bySemanticsLabel('Next trophy: 100 cards'), findsOneWidget);
     expect(find.bySemanticsLabel('Trophy: Best week: 100 min'), findsOneWidget);
-    // No books yet; one quote.
+    // No books yet; one liked quote (a highlight stays in the Notebook).
     await scrollTo(find.text('No books yet'));
-    await scrollTo(find.text('Simplify, simplify.'));
-    expect(find.text('Saved quotes'), findsOneWidget);
+    await scrollTo(find.text('Our life is frittered away by detail.'));
+    expect(find.text('Liked quotes'), findsOneWidget);
+    expect(find.text('Simplify, simplify.'), findsNothing);
+    expect(find.text('View all 1'), findsNothing, reason: 'nothing more to show');
+  });
+
+  testWidgets('liked quotes: the newest first, two rows, then every one with View all', (tester) async {
+    for (var i = 1; i <= 8; i++) {
+      c.read(notebookProvider.notifier).like('b', 'c0.b$i.s0',
+          quote: LikedQuote(
+              bookId: 'b', sid: 'c0.b$i.s0', bookTitle: 'Walden', author: 'Thoreau', chapterTitle: 'Economy', text: 'Quote $i', likedAt: DateTime(2026, 11, i)));
+    }
+    c.read(notebookProvider.notifier).like('b', 'c0.b9.s0'); // from before words were kept
+    await open(tester);
+    Future<void> scrollTo(Finder f) => tester.scrollUntilVisible(f, 300, scrollable: find.byType(Scrollable).first);
+    await scrollTo(find.text('View all 8'));
+    Iterable<String> shown() => find.textContaining(RegExp(r'^Quote \d$')).evaluate().map((e) => (e.widget as Text).data!);
+    expect(shown(), ['Quote 8', 'Quote 7', 'Quote 6', 'Quote 5', 'Quote 4', 'Quote 3'], reason: 'two rows, the newest first');
+    expect(find.bySemanticsLabel('Quote 8. Walden'), findsOneWidget);
+
+    await tester.tap(find.text('View all 8'));
+    await tester.pumpAndSettle();
+    expect(shown(), hasLength(8), reason: 'all of them, in place');
+    await scrollTo(find.text('Show less'));
+    await tester.tap(find.text('Show less'));
+    await tester.pumpAndSettle();
+    expect(shown(), hasLength(6));
+  });
+
+  testWidgets('no liked quotes yet: how to get one', (tester) async {
+    await open(tester);
+    await tester.scrollUntilVisible(find.text('No liked quotes yet'), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.text('Double-tap a reel you love, and its words show up here.'), findsOneWidget);
   });
 
   test('day circles grow by area; streak levels follow the goal', () {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show mergeSort;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/book.dart';
@@ -167,6 +168,63 @@ class SavedCard {
       );
 }
 
+/// A reel you liked, with its words, so the Profile can show it as a quote
+/// (offline, and after the book is gone). A like from before words were kept
+/// gets them the next time its book is opened.
+class LikedQuote {
+  const LikedQuote({
+    required this.bookId,
+    required this.sid,
+    required this.bookTitle,
+    required this.author,
+    required this.chapterTitle,
+    required this.text,
+    this.likedAt,
+  });
+
+  final String bookId;
+
+  /// The reel's first sentence (its anchor), as in [NotebookState.liked].
+  final String sid;
+  final String bookTitle;
+  final String author;
+  final String chapterTitle;
+
+  /// The words on the reel, as they were shown.
+  final String text;
+
+  /// When it was liked; unknown for a like from before words were kept.
+  final DateTime? likedAt;
+
+  String get key => '$bookId|$sid';
+
+  Map<String, dynamic> toJson() => {
+        'book': bookId,
+        'sid': sid,
+        'title': bookTitle,
+        'author': author,
+        'chapter': chapterTitle,
+        'text': text,
+        if (likedAt != null) 'at': likedAt!.toIso8601String(),
+      };
+
+  /// Null for anything that isn't one (a like synced as just `true`).
+  static LikedQuote? fromJson(Object? j) {
+    if (j is! Map) return null;
+    final book = j['book'], sid = j['sid'], text = j['text'];
+    if (book is! String || sid is! String || text is! String) return null;
+    return LikedQuote(
+      bookId: book,
+      sid: sid,
+      bookTitle: (j['title'] as String?) ?? '',
+      author: (j['author'] as String?) ?? '',
+      chapterTitle: (j['chapter'] as String?) ?? '',
+      text: text,
+      likedAt: DateTime.tryParse((j['at'] as String?) ?? ''),
+    );
+  }
+}
+
 /// Leitner-style review intervals in days.
 const reviewIntervals = [1, 3, 7, 16, 35, 90];
 
@@ -268,6 +326,7 @@ class NotebookState {
     this.words = const [],
     this.reflections = const [],
     this.liked = const {},
+    this.likedQuotes = const {},
   });
 
   final List<Highlight> highlights;
@@ -278,12 +337,26 @@ class NotebookState {
   /// Liked card start sIDs, keyed `bookId|sid` (double-tap).
   final Set<String> liked;
 
+  /// The words of liked reels, by the same key (see [LikedQuote]).
+  final Map<String, LikedQuote> likedQuotes;
+
+  /// Liked reels with their words, the newest first (likes from before
+  /// words were kept, and so when, last).
+  List<LikedQuote> get likedNewestFirst {
+    final quotes = [for (final k in liked) ?likedQuotes[k]];
+    final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+    // A stable sort: likes liked at the same (or an unknown) time keep their order.
+    mergeSort(quotes, compare: (a, b) => (b.likedAt ?? epoch).compareTo(a.likedAt ?? epoch));
+    return quotes;
+  }
+
   NotebookState copyWith({
     List<Highlight>? highlights,
     List<SavedCard>? saved,
     List<WordEntry>? words,
     List<Reflection>? reflections,
     Set<String>? liked,
+    Map<String, LikedQuote>? likedQuotes,
   }) =>
       NotebookState(
         highlights: highlights ?? this.highlights,
@@ -291,6 +364,7 @@ class NotebookState {
         words: words ?? this.words,
         reflections: reflections ?? this.reflections,
         liked: liked ?? this.liked,
+        likedQuotes: likedQuotes ?? this.likedQuotes,
       );
 
   Map<String, dynamic> toJson() => {
@@ -299,6 +373,7 @@ class NotebookState {
         'words': words.map((e) => e.toJson()).toList(),
         'reflections': reflections.map((e) => e.toJson()).toList(),
         'liked': liked.toList(),
+        'likedQuotes': [for (final k in liked) ?likedQuotes[k]?.toJson()],
       };
 
   factory NotebookState.fromJson(Map<String, dynamic> j) {
@@ -310,6 +385,9 @@ class NotebookState {
       words: list('words', WordEntry.fromJson),
       reflections: list('reflections', Reflection.fromJson),
       liked: ((j['liked'] as List?) ?? const []).cast<String>().toSet(),
+      likedQuotes: {
+        for (final q in ((j['likedQuotes'] as List?) ?? const []).map(LikedQuote.fromJson).nonNulls) q.key: q,
+      },
     );
   }
 
@@ -415,20 +493,40 @@ class NotebookNotifier extends Notifier<NotebookState> {
 
   void removeSaved(String id) => _set(state.copyWith(saved: state.saved.where((s) => s.id != id).toList()));
 
-  /// Toggles a like; returns true when liked.
-  bool toggleLike(String bookId, String sid) {
+  /// Toggles a like; returns true when liked. [quote] keeps the reel's
+  /// words, for the Profile's liked quotes.
+  bool toggleLike(String bookId, String sid, {LikedQuote? Function()? quote}) {
     final key = '$bookId|$sid';
     final liked = {...state.liked};
     final added = liked.add(key);
-    if (!added) liked.remove(key);
-    _set(state.copyWith(liked: liked));
+    final quotes = {...state.likedQuotes};
+    if (added) {
+      if (quote?.call() case final q?) quotes[key] = q;
+    } else {
+      liked.remove(key);
+      quotes.remove(key);
+    }
+    _set(state.copyWith(liked: liked, likedQuotes: quotes));
     return added;
   }
 
-  void like(String bookId, String sid) {
+  void like(String bookId, String sid, {LikedQuote? quote}) {
     final key = '$bookId|$sid';
     if (state.liked.contains(key)) return;
-    _set(state.copyWith(liked: {...state.liked, key}));
+    _set(state.copyWith(
+      liked: {...state.liked, key},
+      likedQuotes: quote == null ? null : {...state.likedQuotes, key: quote},
+    ));
+  }
+
+  /// Words for likes that were kept without them (see [LikedQuote]).
+  void keepLikedWords(Iterable<LikedQuote> quotes) {
+    final add = {
+      for (final q in quotes)
+        if (state.liked.contains(q.key) && !state.likedQuotes.containsKey(q.key)) q.key: q,
+    };
+    if (add.isEmpty) return;
+    _set(state.copyWith(likedQuotes: {...state.likedQuotes, ...add}));
   }
 
   void addWord({required String word, required String meaning, required String sentence, required String bookTitle}) {

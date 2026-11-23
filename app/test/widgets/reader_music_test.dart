@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:book_reel/core/segmentation/rule_segmenter.dart';
+import 'package:book_reel/data/habit.dart';
 import 'package:book_reel/data/json_store.dart';
 import 'package:book_reel/data/library.dart';
 import 'package:book_reel/data/settings.dart';
@@ -10,9 +11,11 @@ import 'package:book_reel/features/reader/reader_screen.dart';
 import 'package:book_reel/services/local_voice.dart';
 import 'package:book_reel/services/music.dart';
 import 'package:book_reel/services/read_aloud.dart';
+import 'package:book_reel/services/screen_awake.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -160,6 +163,114 @@ void main() {
     await tester.pump();
     expect(music.volume, full);
     expect(music.playing, isTrue);
+  });
+
+  testWidgets('reels read aloud hands-free count as read, keep the screen on, and go on with it off', (tester) async {
+    final voiceDir = Directory.systemTemp.createTempSync('voice');
+    dirs.add(voiceDir);
+    final speech = FakeSpeechPlayer();
+    final messenger = tester.binding.defaultBinaryMessenger;
+    final (player, cache, installer, root, engine) =
+        (ReadAloud.playerFactory, ReadAloud.cacheRoot, LocalVoiceController.installer, LocalVoiceController.root, LocalSpeech.factory);
+    addTearDown(() {
+      ReadAloud.playerFactory = player;
+      ReadAloud.cacheRoot = cache;
+      LocalVoiceController.installer = installer;
+      LocalVoiceController.root = root;
+      LocalSpeech.factory = engine;
+      ReaderScreen.clock = DateTime.now;
+      messenger.setMockMethodCallHandler(ScreenAwake.channel, null);
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+    // What the phone is asked: keep the screen on, and tick under the thumb.
+    final awake = <bool>[];
+    messenger.setMockMethodCallHandler(ScreenAwake.channel, (call) async {
+      if (call.method == 'keepOn') awake.add(call.arguments as bool);
+      return null;
+    });
+    var ticks = 0;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'HapticFeedback.vibrate') ticks++;
+      return null;
+    });
+    ReadAloud.playerFactory = () => speech;
+    ReadAloud.cacheRoot = () async => voiceDir;
+    LocalVoiceController.installer = InstalledVoice();
+    LocalVoiceController.root = () async => voiceDir;
+    LocalSpeech.factory = (_) => FakeLocalEngine();
+    var now = DateTime(2026, 11, 17, 9);
+    ReaderScreen.clock = () => now;
+    final (c, _, _) = await open(tester);
+    c.read(settingsProvider.notifier).update((s) => s.copyWith(naturalVoice: true));
+    c.read(localVoiceProvider);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    expect(c.read(localVoiceProvider).ready, isTrue);
+    int verified() => c.read(habitProvider).totalVerifiedCards;
+    final pager = tester.widget<PageView>(find.byType(PageView)).controller!;
+    int page() => pager.page!.round();
+
+    await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
+    await settle(tester);
+    await tester.tap(find.bySemanticsLabel('Read aloud').first);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(awake, [true], reason: 'the screen stays on while reels are read aloud');
+    ticks = 0;
+
+    /// Reads aloud, untouched, until [pages] reels have turned: each part
+    /// takes as long to hear as it would to read. [frames] is whether the
+    /// app is drawing (not with the screen off).
+    Future<void> listen(int pages, {bool frames = true}) async {
+      final until = page() + pages;
+      for (var i = 0; i < 60 && page() < until; i++) {
+        final heard = speech.played.length;
+        for (var k = 0; k < 40 && speech.played.length == heard; k++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        now = now.add(const Duration(seconds: 12));
+        speech.finish();
+        for (var k = 0; k < 8; k++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+      }
+      expect(page(), until, reason: frames ? 'the reels turn by themselves' : 'they turn with the screen off too');
+    }
+
+    final first = page();
+    await listen(8);
+    final inSight = verified();
+    expect(inSight, greaterThanOrEqualTo(2), reason: 'the reels heard count as read (a card is a few reels)');
+    expect(ticks, 0, reason: 'no tick for a reel no finger turned');
+    expect(awake, [true]);
+
+    // The screen goes off (or another app comes up): nothing is drawn, yet
+    // listening goes on, the reels turn as they're read, and they count,
+    // the time in the background with them.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    expect(tester.binding.framesEnabled, isFalse);
+    await listen(8, frames: false);
+    expect(verified(), greaterThan(inSight), reason: 'read aloud with the screen off counts');
+    expect(ticks, 0, reason: 'and the phone in your pocket doesn’t tick');
+    final away = verified();
+
+    // Back: the reel being heard carries on where it is, its time away
+    // counted with it.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await listen(4);
+    expect(verified(), greaterThanOrEqualTo(away));
+    expect(page(), first + 20);
+
+    // Stopped: the screen may time out again.
+    await tester.tap(find.bySemanticsLabel('Stop reading aloud').first);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(awake, [true, false]);
+    await settle(tester);
   });
 
   testWidgets('a voice that can’t read stops listening, and the music comes back up', (tester) async {

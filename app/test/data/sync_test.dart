@@ -98,6 +98,29 @@ void main() {
     expect(server.seq, before);
   });
 
+  test('a like reaches another device with its words; one from an older app (no words) is still a like', () async {
+    final server = FakeServer();
+    final a = await device(server, 'acct');
+    final b = await device(server, 'acct');
+    a.read(notebookProvider.notifier).toggleLike('bk', 'c0.b0.s0',
+        quote: () => LikedQuote(
+            bookId: 'bk', sid: 'c0.b0.s0', bookTitle: 'Walden', author: 'Thoreau', chapterTitle: 'Economy', text: 'Simplify, simplify.', likedAt: DateTime(2026, 11, 20, 8)));
+    a.read(notebookProvider.notifier).like('bk', 'c0.b1.s0'); // as an older app sent it: just `true`
+    await a.read(syncServiceProvider).syncNow();
+    await b.read(syncServiceProvider).syncNow();
+    final n = b.read(notebookProvider);
+    expect(n.liked, {'bk|c0.b0.s0', 'bk|c0.b1.s0'});
+    expect(n.likedNewestFirst.single.text, 'Simplify, simplify.');
+    expect(n.likedNewestFirst.single.likedAt, DateTime(2026, 11, 20, 8));
+
+    // Unliked on B: gone from A too, words and all.
+    b.read(notebookProvider.notifier).toggleLike('bk', 'c0.b0.s0');
+    await b.read(syncServiceProvider).syncNow();
+    await a.read(syncServiceProvider).syncNow();
+    expect(a.read(notebookProvider).liked, {'bk|c0.b1.s0'});
+    expect(a.read(notebookProvider).likedQuotes, isEmpty);
+  });
+
   test('a local edit made before pulling is kept and pushed', () async {
     final server = FakeServer();
     final a = await device(server, 'acct');

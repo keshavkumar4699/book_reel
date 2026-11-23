@@ -105,9 +105,10 @@ bool fileExists(String path) => _exists[path] ??= File(path).existsSync();
 /// Book cover: the EPUB cover image when available, otherwise a typographic
 /// cover generated from the title.
 class BookCover extends StatelessWidget {
-  const BookCover({super.key, required this.book, this.width = 110});
+  const BookCover({super.key, required this.book, this.width = 110, this.radius = 8});
   final BookMeta book;
   final double width;
+  final double radius;
 
   static const _palette = [
     Color(0xFF7A4E2D), Color(0xFF2F5D62), Color(0xFF5B3F6E), Color(0xFF8C3B3B), Color(0xFF3D5A80), Color(0xFF4F6D3A),
@@ -147,7 +148,7 @@ class BookCover extends StatelessWidget {
     }
     return Semantics(
       label: tr('{title} by {author}', {'title': book.title, 'author': book.author}),
-      child: ClipRRect(borderRadius: BorderRadius.circular(8), child: child),
+      child: ClipRRect(borderRadius: BorderRadius.circular(radius), child: child),
     );
   }
 }

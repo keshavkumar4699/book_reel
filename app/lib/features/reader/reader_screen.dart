@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart' show Ticker;
+import 'package:flutter/scheduler.dart' show SchedulerBinding, Ticker;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,6 +31,7 @@ import '../../services/notifications.dart';
 import '../../services/on_device_ai.dart';
 import '../../services/music.dart';
 import '../../services/read_aloud.dart';
+import '../../services/screen_awake.dart';
 import 'add_pictures.dart';
 import '../../ui/backdrops.dart';
 import '../../ui/haptics.dart';
@@ -38,6 +39,7 @@ import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/typography.dart';
 import '../../ui/vibes.dart';
+import '../../ui/widgets.dart';
 import '../share/progress_shares.dart';
 import '../share/share_sheet.dart';
 import 'cards/special_cards.dart';
@@ -117,6 +119,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   bool _tts = false;
 
   Timer? _passTitle;
+
+  /// The next reel was turned to on its own (listening hands-free), not by a
+  /// swipe.
+  bool _autoTurn = false;
 
   /// The reel being read aloud is still being turned into audio.
   bool _preparing = false;
@@ -286,6 +292,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     WidgetsBinding.instance.removeObserver(this);
     _chromeTimer?.cancel();
     _passTitle?.cancel();
+    unawaited(ScreenAwake.keep(false));
     _pager?.dispose();
     _readAloud.waiting.removeListener(_onWaiting);
     unawaited(_readAloud.stop());
@@ -302,7 +309,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       _backgrounded = true;
       // No music while the app is in the background.
       unawaited(_music.hold());
-      _recordCurrent();
+      if (_tts) {
+        // Listening goes on with the screen off (see [_turnOn]): the reel
+        // being heard counts when it ends, its time in the background too.
+        _creditQueued();
+      } else {
+        _recordCurrent();
+      }
       final habit = ref.read(habitProvider);
       final notifier = ref.read(habitProvider.notifier);
       if (!habit.today(DateTime.now()).meets(ref.read(settingsProvider).goal)) {
@@ -312,8 +325,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       _backgrounded = false;
       if (!_visible) return;
       // The time away isn't reading (the reel's time so far was counted as
-      // the app left).
-      _shownAt = ReaderScreen.clock();
+      // the app left), unless it was spent listening.
+      if (!_tts) _shownAt = ReaderScreen.clock();
       unawaited(_music.release());
     }
   }
@@ -391,7 +404,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     }
     _page = index;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _maybeRequestAi(book);
+      if (!mounted) return;
+      _maybeRequestAi(book);
+      _keepLikedWords(book);
     });
   }
 
@@ -478,6 +493,51 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           (sid: sid, text: _sentences[sid]!.sentence.text, block: _sentences[sid]!.block.index, type: _sentences[sid]!.block.type),
     ]);
     return pieces.sublist(lines.from.clamp(0, pieces.length), lines.to.clamp(0, pieces.length)).map((p) => p.text).join(' ');
+  }
+
+  /// A liked reel's words, for the Profile's liked quotes.
+  LikedQuote? _likedQuote(BookContent book, FeedItem item) {
+    final card = item.card, sid = item.anchorSid;
+    if (card == null || sid == null) return null;
+    final text = _reelText(item).trim();
+    if (text.isEmpty) return null;
+    return LikedQuote(
+      bookId: widget.bookId,
+      sid: sid,
+      bookTitle: book.title,
+      author: book.author,
+      chapterTitle: book.chapters[card.chapterIndex].title,
+      text: text,
+      likedAt: DateTime.now(),
+    );
+  }
+
+  /// Likes in this book from before their words were kept get them now (from
+  /// the reel that starts with the liked sentence, or else the one showing it).
+  void _keepLikedWords(BookContent book) {
+    final notebook = ref.read(notebookProvider);
+    if (notebook.liked.every(notebook.likedQuotes.containsKey)) return; // all kept
+    final prefix = '${widget.bookId}|';
+    final quotes = <LikedQuote>[];
+    for (final key in notebook.liked) {
+      if (!key.startsWith(prefix) || notebook.likedQuotes.containsKey(key)) continue;
+      final sid = key.substring(prefix.length);
+      var i = _feed.indexWhere((f) => f.kind == CardKind.text && f.anchorSid == sid);
+      if (i < 0) i = feedIndexForSid(_feed, sid);
+      if (i < 0 || i >= _feed.length || _feed[i].kind != CardKind.text || !_feed[i].shownSids.contains(sid)) continue;
+      final quote = _likedQuote(book, _feed[i]);
+      if (quote == null) continue;
+      // Liked at a time no one kept; under the key it was liked by.
+      quotes.add(LikedQuote(
+        bookId: quote.bookId,
+        sid: sid,
+        bookTitle: quote.bookTitle,
+        author: quote.author,
+        chapterTitle: quote.chapterTitle,
+        text: quote.text,
+      ));
+    }
+    if (quotes.isNotEmpty) ref.read(notebookProvider.notifier).keepLikedWords(quotes);
   }
 
   /// Ends the time on the reel on screen. A card shown as several reels
@@ -583,7 +643,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _leave();
     _page = index;
     _shownAt = ReaderScreen.clock();
-    Haptics.tick();
+    // A tick under the thumb; none when the reel turned on its own.
+    if (!_autoTurn) Haptics.tick();
+    _autoTurn = false;
     if (_feed[index].kind == CardKind.text) _textCardsThisSession++;
     setState(() {});
   }
@@ -592,6 +654,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   /// what the reel on screen asks for, between swipes rather than during one.
   void _settled(BookContent book, BookMeta? meta) {
     if (!mounted || _feed.isEmpty) return;
+    _autoTurn = false;
     final met = _creditQueued();
     _savePosition(book);
     final item = _feed[_page.clamp(0, _feed.length - 1)];
@@ -616,10 +679,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       if (item.kind == CardKind.chapterTitle) {
         final page = _page;
         _passTitle = Timer(ReaderScreen.passTitleAfter, () {
-          if (mounted && _tts && _page == page && _pager != null && _page < _feed.length - 1) {
-            _pager!.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-          }
+          if (_page == page) _turnOn();
         });
+      } else {
+        // A recap, a question or the end waits for you: the screen may time
+        // out again until reading aloud goes on.
+        unawaited(ScreenAwake.keep(false));
       }
     }
     _maybeRequestAi(book);
@@ -719,6 +784,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     _spoken = item;
     final text = _reelText(item);
     _music.duck(true);
+    unawaited(ScreenAwake.keep(true));
     // The next two reels and the one before are made ready while this one plays.
     _readAloud.speak(
       text,
@@ -726,9 +792,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       behind: _reelTextBehind(_page),
       onDone: () {
         _music.duck(false);
-        if (mounted && _tts && _pager != null && _page < _feed.length - 1) {
-          _pager!.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-        }
+        _turnOn();
       },
       // A word pronounced over it, or audio that won't play: listening stops
       // (the music comes back up), rather than hanging on silently.
@@ -736,6 +800,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         _music.duck(false);
         if (!mounted || !_tts) return;
         _spoken = null;
+        unawaited(ScreenAwake.keep(false));
         setState(() => _tts = false);
         if (why == SpeechStopped.failed) showKitToast(_ui, tr('Couldn’t read this aloud'), icon: Icons.volume_off_rounded);
       },
@@ -810,7 +875,26 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       _spoken = null;
       _passTitle?.cancel();
       unawaited(_readAloud.stop());
+      unawaited(ScreenAwake.keep(false));
       _music.duck(false);
+    }
+  }
+
+  /// Listening hands-free, on to the next reel: animated while it's in
+  /// sight; at once while the app is in the background, where there are no
+  /// frames to animate with, so listening carries on with the screen off.
+  void _turnOn() {
+    final pager = _pager;
+    if (!mounted || !_tts || pager == null || !pager.hasClients) return;
+    if (_page >= _feed.length - 1) {
+      _toggleTts(); // the end: nothing more to read, listening stops
+      return;
+    }
+    _autoTurn = true;
+    if (SchedulerBinding.instance.framesEnabled) {
+      pager.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    } else {
+      pager.jumpToPage(_page + 1);
     }
   }
 
@@ -1145,41 +1229,28 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
           ),
         ),
       ),
-      // With the controls: where you are, and the pictures to read on.
-      Positioned(
-        top: padding.top + 10,
-        left: 0,
-        right: 0,
-        child: FadeChrome(
-          visible: _chrome,
-          slide: const Offset(0, -0.25),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _TopBar(
-                color: chromeColor,
-                shadows: t.textShadows,
-                title: current == null ? book.title : book.chapters[current.chapterIndex].title,
-                subtitle: current?.cardsInChapter == null
-                    ? book.title
-                    : '${book.title} · ${(current!.cardIndexInChapter ?? 0) + 1} / ${current.cardsInChapter}',
-              ),
+      // With the controls, at the top: the pictures to read on.
+      if (backdrops.isNotEmpty)
+        Positioned(
+          top: padding.top + 14,
+          left: 0,
+          right: 0,
+          child: FadeChrome(
+            visible: _chrome,
+            slide: const Offset(0, -0.25),
+            child: BackdropStrip(
+              backdrops: backdrops,
+              selected: backdrop,
+              ink: chromeColor,
+              paperColor: paper.background,
+              onPick: _setBackdrop,
+              onAdd: _addPictures,
+              onRemove: _removePicture,
             ),
-            if (backdrops.isNotEmpty)
-              BackdropStrip(
-                backdrops: backdrops,
-                selected: backdrop,
-                ink: chromeColor,
-                paperColor: paper.background,
-                onPick: _setBackdrop,
-                onAdd: _addPictures,
-                onRemove: _removePicture,
-              ),
-          ]),
+          ),
         ),
-      ),
-      // With the controls: the music, at the bottom left (where a reel's
-      // account line would be), beside the rail.
+      // With the controls, at the bottom (where a reel's account line would
+      // be), beside the rail: the book, the chapter you're in, the music.
       AnimatedPositioned(
         duration: glide,
         curve: Curves.easeOutCubic,
@@ -1189,7 +1260,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
         child: FadeChrome(
           visible: _chrome,
           slide: const Offset(0, 0.5),
-          child: _MusicBar(color: chromeColor, shadows: t.textShadows),
+          child: _NowBar(
+            book: meta,
+            chapter: current == null ? book.title : chapterName(book.chapters[current.chapterIndex].title),
+            color: chromeColor,
+            shadows: t.textShadows,
+          ),
         ),
       ),
       if (!s.gestureTutorialSeen && _feed.isNotEmpty)
@@ -1281,7 +1357,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
                         )
                     : null);
           },
-          onLike: () => ref.read(notebookProvider.notifier).toggleLike(widget.bookId, item.anchorSid!),
+          onLike: () => ref.read(notebookProvider.notifier).toggleLike(widget.bookId, item.anchorSid!, quote: () => _likedQuote(book, item)),
           onSave: () => _toggleSave(book, item),
           onShare: () => _share(book, meta, item),
           onNote: () => _writeThought(book, item),
@@ -1510,69 +1586,61 @@ class _GoalLine extends StatelessWidget {
       );
 }
 
-/// With the controls showing: the chapter you're in, and the book with your
-/// place in the chapter. (No close button: switch tabs to leave.)
-class _TopBar extends StatelessWidget {
-  const _TopBar({required this.color, required this.shadows, required this.title, required this.subtitle});
+/// With the controls showing, at the bottom: the book's cover; beside it the
+/// chapter you're in and, below that, the music playing; then the music's
+/// previous, play/pause and next, at the far end.
+class _NowBar extends ConsumerWidget {
+  const _NowBar({required this.book, required this.chapter, required this.color, required this.shadows});
 
+  /// The book (its cover); null while it's still being found.
+  final BookMeta? book;
+  final String chapter;
   final Color color;
   final List<Shadow>? shadows;
-  final String title;
-  final String subtitle;
 
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        height: 52,
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 15, shadows: shadows)),
-          Text(subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: color.withValues(alpha: 0.85), fontSize: 12.5, fontWeight: FontWeight.w600, shadows: shadows)),
-        ]),
-      );
-}
-
-/// What's playing, at the bottom: a note, the track and its artist, then
-/// previous, play/pause and next. Nothing when there's no music.
-class _MusicBar extends ConsumerWidget {
-  const _MusicBar({required this.color, required this.shadows});
-
-  final Color color;
-  final List<Shadow>? shadows;
+  static const coverWidth = 34.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final track = ref.watch(musicProvider.select((m) => m.track));
-    if (track == null) return const SizedBox.shrink();
+    final meta = book;
     return Row(children: [
-      Container(
-        width: 34,
-        height: 34,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color.withValues(alpha: 0.7), width: 1.5)),
-        child: Icon(Icons.music_note_rounded, size: 18, color: color, shadows: shadows),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Semantics(
-          label: tr('Playing {track}', {'track': track.label}),
-          excludeSemantics: true,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text(track.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 14.5, shadows: shadows)),
-            if (track.artist != null)
-              Text(track.artist!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 12.5, shadows: shadows)),
-          ]),
+      if (meta != null) ...[
+        // A thin line round it keeps a dark cover clear of a dark picture.
+        DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: color.withValues(alpha: 0.45)),
+          ),
+          child: BookCover(book: meta, width: coverWidth, radius: 4),
         ),
+        const SizedBox(width: 10),
+      ],
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(chapter,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 14.5, shadows: shadows)),
+          if (track != null) ...[
+            const SizedBox(height: 2),
+            Semantics(
+              label: tr('Playing {track}', {'track': track.label}),
+              excludeSemantics: true,
+              child: Row(children: [
+                Icon(Icons.music_note_rounded, size: 14, color: color.withValues(alpha: 0.85), shadows: shadows),
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(track.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: color.withValues(alpha: 0.85), fontSize: 12.5, fontWeight: FontWeight.w600, shadows: shadows)),
+                ),
+              ]),
+            ),
+          ],
+        ]),
       ),
       _MusicControls(color: color, shadows: shadows),
     ]);

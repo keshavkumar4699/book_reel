@@ -190,7 +190,6 @@
  "Stats": "الإحصاءات",
  "Trophies": "الجوائز",
  "Books": "الكتب",
- "Saved quotes": "الاقتباسات المحفوظة",
  "{day}, today": "{day}، اليوم",
  "Today": "اليوم",
  "week streak": "سلسلة أسابيع",
@@ -219,8 +218,6 @@
  "Import a book from the Library.": "استورد كتابًا من المكتبة.",
  "{title}, {percent}% read": "{title}، مقروء {percent}%",
  "Finished": "منتهية",
- "No quotes yet": "لا اقتباسات بعد",
- "Save a card or highlight a line, and it shows up here.": "احفظ بطاقة أو ميّز سطرًا وسيظهر هنا.",
  "Reading calendar for the last 12 weeks: {days}, the goal met on {met}": "تقويم القراءة لآخر 12 أسبوعًا: {days}، وتحقق الهدف في {met}",
  "Pick an emoji": "اختر رمزًا تعبيريًا",
  "Usernames are 3–24 letters, numbers, dots or underscores.": "اسم المستخدم من 3 إلى 24 حرفًا أو رقمًا أو نقطة أو شرطة سفلية.",
@@ -533,7 +530,6 @@
  "Reading": "القراءة",
  "Backgrounds": "الخلفيات",
  "Your pictures": "صورك",
- "Painted scenes": "مشاهد مرسومة",
  "On · {percent}%": "مفعّلة · {percent}%",
  "Natural · {voice}": "طبيعي · {voice}",
  "Phone voice": "صوت الهاتف",
@@ -609,7 +605,6 @@
  "Beginner words": "كلمات للمبتدئين",
  "Middle words": "كلمات متوسطة",
  "Advanced words": "كلمات متقدمة",
- "Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. Pictures added to the app’s backgrounds folder replace the scenes.": "يُفتح كل كتاب على أحد المشاهد المرسومة، يُختار عشوائيًا. أثناء القراءة، اضغط على الشاشة واختر غيره من الصف العلوي. الصور المضافة إلى مجلد الخلفيات في التطبيق تحلّ محل المشاهد.",
  "Moving scenes": "مشاهد متحركة",
  "Gentle motion. Off when the phone’s “Remove animations” is on.": "حركة خفيفة. تتوقف عند تفعيل «إزالة الرسوم المتحركة» في الهاتف.",
  "There’s no music in the app yet: tracks added to its sounds folder play while you read.": "لا توجد موسيقى في التطبيق بعد: المقاطع المضافة إلى مجلد الأصوات تُشغَّل أثناء قراءتك.",
@@ -678,14 +673,6 @@
  "Delete": "حذف",
  "Your account is deleted": "حُذف حسابك",
  "Couldn’t reach Cloro, so nothing was deleted. Try again.": "تعذّر الوصول إلى Cloro، لذا لم يُحذف شيء. حاول مجددًا.",
- "Each book opens on one of your {n} pictures, picked at random. While reading, tap the screen and pick another from the row at the top.": {
-  "zero": "يُفتح كل كتاب على مشهد مرسوم. أثناء القراءة، اضغط على الشاشة واختر من الصف العلوي.",
-  "one": "يُفتح كل كتاب على صورتك. أثناء القراءة، اضغط على الشاشة لاختيار مشهد من الصف العلوي.",
-  "two": "يُفتح كل كتاب على إحدى صورتيك، تُختار عشوائيًا. أثناء القراءة، اضغط على الشاشة واختر الأخرى من الصف العلوي.",
-  "few": "يُفتح كل كتاب على إحدى صورك الـ {n}، تُختار عشوائيًا. أثناء القراءة، اضغط على الشاشة واختر غيرها من الصف العلوي.",
-  "many": "يُفتح كل كتاب على إحدى صورك الـ {n}، تُختار عشوائيًا. أثناء القراءة، اضغط على الشاشة واختر غيرها من الصف العلوي.",
-  "other": "يُفتح كل كتاب على إحدى صورك الـ {n}، تُختار عشوائيًا. أثناء القراءة، اضغط على الشاشة واختر غيرها من الصف العلوي."
- },
  "Each book starts one of your {n} tracks at random, then plays on through them. While reading, tap the screen for previous, pause and next at the bottom.": {
   "zero": "لا مقاطع موسيقية بعد.",
   "one": "يُشغَّل مقطعك أثناء القراءة. أثناء القراءة، اضغط على الشاشة للإيقاف والتشغيل في الأسفل.",
@@ -905,5 +892,10 @@
  "Night desk": "مكتب ليلي",
  "Café reading": "قراءة في المقهى",
  "Sunny nook": "ركن مشمس",
- "Add pictures": "إضافة صور"
+ "Add pictures": "إضافة صور",
+ "Liked quotes": "اقتباسات أعجبتك",
+ "Show less": "عرض أقل",
+ "View all {n}": "عرض الكل ({n})",
+ "No liked quotes yet": "لا توجد اقتباسات أعجبتك بعد",
+ "Double-tap a reel you love, and its words show up here.": "انقر مرتين على مقطع تحبه وستظهر كلماته هنا."
 }

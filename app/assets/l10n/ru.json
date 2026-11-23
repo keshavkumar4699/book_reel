@@ -180,7 +180,6 @@
  "Stats": "Статистика",
  "Trophies": "Награды",
  "Books": "Книги",
- "Saved quotes": "Сохранённые цитаты",
  "{day}, today": "{day}, сегодня",
  "Today": "Сегодня",
  "week streak": "нед. серия",
@@ -209,8 +208,6 @@
  "Import a book from the Library.": "Импортируйте книгу в Библиотеке.",
  "{title}, {percent}% read": "{title}, прочитано {percent}%",
  "Finished": "Прочитанные",
- "No quotes yet": "Цитат пока нет",
- "Save a card or highlight a line, and it shows up here.": "Сохраните карточку или выделите строку, и она появится здесь.",
  "Reading calendar for the last 12 weeks: {days}, the goal met on {met}": "Календарь чтения за 12 недель: {days}, цель выполнена {met} раз",
  "Pick an emoji": "Выберите эмодзи",
  "Usernames are 3–24 letters, numbers, dots or underscores.": "Имя пользователя: 3–24 латинских буквы, цифры, точки или подчёркивания.",
@@ -495,7 +492,6 @@
  "Reading": "Чтение",
  "Backgrounds": "Фоны",
  "Your pictures": "Ваши картинки",
- "Painted scenes": "Нарисованные сцены",
  "On · {percent}%": "Вкл. · {percent}%",
  "Natural · {voice}": "Естественный · {voice}",
  "Phone voice": "Голос телефона",
@@ -571,7 +567,6 @@
  "Beginner words": "Слова для начинающих",
  "Middle words": "Слова среднего уровня",
  "Advanced words": "Сложные слова",
- "Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. Pictures added to the app’s backgrounds folder replace the scenes.": "Каждая книга открывается на одной из нарисованных сцен, выбранной случайно. Во время чтения нажмите на экран и выберите другую в ряду сверху. Картинки, добавленные в папку фонов приложения, заменяют сцены.",
  "Moving scenes": "Живые сцены",
  "Gentle motion. Off when the phone’s “Remove animations” is on.": "Мягкое движение. Выключено, если в телефоне включено «Отключить анимацию».",
  "There’s no music in the app yet: tracks added to its sounds folder play while you read.": "В приложении пока нет музыки: треки, добавленные в его папку звуков, играют во время чтения.",
@@ -640,12 +635,6 @@
  "Delete": "Удалить",
  "Your account is deleted": "Аккаунт удалён",
  "Couldn’t reach Cloro, so nothing was deleted. Try again.": "Не удалось связаться с Cloro, поэтому ничего не удалено. Повторите попытку.",
- "Each book opens on one of your {n} pictures, picked at random. While reading, tap the screen and pick another from the row at the top.": {
-  "one": "Каждая книга открывается на одной из ваших {n} картинок, выбранной случайно. Во время чтения нажмите на экран и выберите другую в ряду сверху.",
-  "few": "Каждая книга открывается на одной из ваших {n} картинок, выбранной случайно. Во время чтения нажмите на экран и выберите другую в ряду сверху.",
-  "many": "Каждая книга открывается на одной из ваших {n} картинок, выбранной случайно. Во время чтения нажмите на экран и выберите другую в ряду сверху.",
-  "other": "Каждая книга открывается на одной из ваших {n} картинок, выбранной случайно. Во время чтения нажмите на экран и выберите другую в ряду сверху."
- },
  "Each book starts one of your {n} tracks at random, then plays on through them. While reading, tap the screen for previous, pause and next at the bottom.": {
   "one": "Каждая книга начинает один из ваших {n} треков случайно, а затем играет остальные. Во время чтения нажмите на экран: внизу назад, пауза и вперёд.",
   "few": "Каждая книга начинает один из ваших {n} треков случайно, а затем играет остальные. Во время чтения нажмите на экран: внизу назад, пауза и вперёд.",
@@ -849,5 +838,10 @@
  "Night desk": "Ночной стол",
  "Café reading": "Чтение в кафе",
  "Sunny nook": "Солнечный уголок",
- "Add pictures": "Добавить картинки"
+ "Add pictures": "Добавить картинки",
+ "Liked quotes": "Понравившиеся цитаты",
+ "Show less": "Свернуть",
+ "View all {n}": "Показать все ({n})",
+ "No liked quotes yet": "Пока нет понравившихся цитат",
+ "Double-tap a reel you love, and its words show up here.": "Дважды коснитесь понравившегося рилса — его слова появятся здесь."
 }

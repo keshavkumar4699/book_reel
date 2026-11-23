@@ -46,6 +46,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   /// The stats' period.
   StatsPeriod _period = StatsPeriod.month;
 
+  /// Every liked quote shown, not just the first rows.
+  bool _allLiked = false;
+
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
@@ -58,7 +61,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final now = DateTime.now();
     final goalMet = habit.today(now).meets(s.goal);
     final reading = ref.read(libraryProvider.notifier).current;
-    final saved = notebook.saved.length + notebook.highlights.length;
+    final liked = notebook.likedNewestFirst;
     // Follower counts come from the server; offline they're left out.
     final me = ref.watch(apiProvider).enabled ? ref.watch(socialMeProvider).value : null;
     int? count(String k) => (me?[k] as num?)?.toInt();
@@ -138,9 +141,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _Section(title: tr('Trophies'), child: _Trophies(habit: habit, books: books)),
         _Section(title: tr('Books'), child: _BooksSection(books: books)),
         _Section(
-          title: tr('Saved quotes'),
-          trailing: saved == 0 ? null : Text('$saved', style: kit.caption),
-          child: _QuotesGrid(notebook: notebook),
+          title: tr('Liked quotes'),
+          trailing: liked.length <= _LikedQuotes.preview
+              ? (liked.isEmpty ? null : Text('${liked.length}', style: kit.caption))
+              : KitButton.ghost(
+                  label: _allLiked ? tr('Show less') : tr('View all {n}', {'n': liked.length}),
+                  compact: true,
+                  onPressed: () => setState(() => _allLiked = !_allLiked),
+                ),
+          child: _LikedQuotes(quotes: liked, all: _allLiked),
         ),
       ],
     );
@@ -783,23 +792,26 @@ class _ProgressRing extends CustomPainter {
   bool shouldRepaint(_ProgressRing old) => old.progress != progress || old.color != color || old.track != track;
 }
 
-/// Saved cards and highlights as a grid of quote tiles, newest first.
-class _QuotesGrid extends StatelessWidget {
-  const _QuotesGrid({required this.notebook});
-  final NotebookState notebook;
+/// The reels you liked, as a grid of quote tiles, the newest first: the first
+/// two rows, or every one once "View all" is tapped.
+class _LikedQuotes extends StatelessWidget {
+  const _LikedQuotes({required this.quotes, required this.all});
+  final List<LikedQuote> quotes;
+  final bool all;
+
+  /// Tiles shown before "View all": two rows.
+  static const preview = 6;
 
   @override
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
-    final colors = ReadingTheme.of(ReadingThemeId.paper).highlights;
-    final items = [
-      for (final s in notebook.saved) (at: s.createdAt, text: s.text, link: '/read/${s.bookId}?sid=${s.startSid}', tint: kit.ink, saved: true),
-      for (final h in notebook.highlights)
-        (at: h.createdAt, text: h.text, link: '/read/${h.bookId}?sid=${h.sid}', tint: colors[h.color % colors.length].withValues(alpha: 1), saved: false),
-    ]..sort((a, b) => b.at.compareTo(a.at));
-    if (items.isEmpty) {
-      return KitEmpty(emoji: '🔖', title: tr('No quotes yet'), message: tr('Save a card or highlight a line, and it shows up here.'));
+    if (quotes.isEmpty) {
+      return KitEmpty(emoji: '❤️', title: tr('No liked quotes yet'), message: tr('Double-tap a reel you love, and its words show up here.'));
     }
+    // On the amber of lines you keep; the like's red only on its heart (3:1
+    // on the light and the dark shade alike).
+    final shade = kit.shade(KitHue.notes);
+    final shown = all ? quotes : quotes.take(preview);
     return GridView.count(
       crossAxisCount: 3,
       shrinkWrap: true,
@@ -808,32 +820,38 @@ class _QuotesGrid extends StatelessWidget {
       mainAxisSpacing: 4,
       crossAxisSpacing: 4,
       children: [
-        for (final q in items)
+        for (final q in shown)
           KitPressable(
-            onTap: () => context.go(q.link),
+            onTap: () => context.go('/read/${q.bookId}?sid=${q.sid}'),
             pressedScale: 0.97,
-            semanticLabel: q.text,
+            semanticLabel: '${q.text}. ${q.bookTitle}',
             excludeSemantics: true,
             child: Container(
-              padding: const EdgeInsets.all(9),
+              padding: const EdgeInsets.fromLTRB(9, 9, 7, 7),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color.alphaBlend(q.tint.withValues(alpha: 0.32), kit.base), Color.alphaBlend(q.tint.withValues(alpha: 0.12), kit.base)],
+                  colors: [shade, Color.lerp(shade, kit.base, 0.5)!],
                 ),
               ),
-              child: Stack(children: [
-                Text(q.text,
-                    maxLines: 6,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontFamily: 'Literata', fontSize: 11.5, height: 1.3, color: kit.ink)),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Icon(q.saved ? Icons.bookmark_rounded : Icons.border_color_rounded, size: 14, color: q.tint),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Expanded(
+                  child: Text(q.text,
+                      maxLines: 5,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontFamily: 'Literata', fontSize: 11.5, height: 1.3, color: kit.ink)),
                 ),
+                const SizedBox(height: 4),
+                Row(children: [
+                  Expanded(
+                    child: Text(q.bookTitle,
+                        maxLines: 1, overflow: TextOverflow.ellipsis, style: kit.caption.copyWith(fontSize: 10, height: 1.2)),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.favorite_rounded, size: 13, color: ember),
+                ]),
               ]),
             ),
           ),

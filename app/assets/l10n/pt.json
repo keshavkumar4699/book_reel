@@ -170,7 +170,6 @@
  "Stats": "Estatísticas",
  "Trophies": "Troféus",
  "Books": "Livros",
- "Saved quotes": "Citações salvas",
  "{day}, today": "{day}, hoje",
  "Today": "Hoje",
  "week streak": "semanas de sequência",
@@ -199,8 +198,6 @@
  "Import a book from the Library.": "Importe um livro pela Biblioteca.",
  "{title}, {percent}% read": "{title}, {percent}% lido",
  "Finished": "Concluídos",
- "No quotes yet": "Nenhuma citação ainda",
- "Save a card or highlight a line, and it shows up here.": "Salve um cartão ou destaque uma linha e ele aparece aqui.",
  "Reading calendar for the last 12 weeks: {days}, the goal met on {met}": "Calendário de leitura das últimas 12 semanas: {days}, meta cumprida em {met}",
  "Pick an emoji": "Escolha um emoji",
  "Usernames are 3–24 letters, numbers, dots or underscores.": "Nomes de usuário têm 3–24 letras, números, pontos ou sublinhados.",
@@ -457,7 +454,6 @@
  "Reading": "Leitura",
  "Backgrounds": "Fundos",
  "Your pictures": "Suas imagens",
- "Painted scenes": "Cenas pintadas",
  "On · {percent}%": "Ligada · {percent}%",
  "Natural · {voice}": "Natural · {voice}",
  "Phone voice": "Voz do celular",
@@ -533,7 +529,6 @@
  "Beginner words": "Palavras iniciantes",
  "Middle words": "Palavras intermediárias",
  "Advanced words": "Palavras avançadas",
- "Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. Pictures added to the app’s backgrounds folder replace the scenes.": "Cada livro abre numa das cenas pintadas, escolhida ao acaso. Durante a leitura, toque na tela e escolha outra na fileira de cima. Imagens adicionadas à pasta de fundos do app substituem as cenas.",
  "Moving scenes": "Cenas em movimento",
  "Gentle motion. Off when the phone’s “Remove animations” is on.": "Movimento suave. Desligado quando “Remover animações” está ativo no celular.",
  "There’s no music in the app yet: tracks added to its sounds folder play while you read.": "Ainda não há música no app: faixas adicionadas à pasta de sons tocam enquanto você lê.",
@@ -602,10 +597,6 @@
  "Delete": "Excluir",
  "Your account is deleted": "Sua conta foi excluída",
  "Couldn’t reach Cloro, so nothing was deleted. Try again.": "Não foi possível acessar o Cloro, então nada foi excluído. Tente de novo.",
- "Each book opens on one of your {n} pictures, picked at random. While reading, tap the screen and pick another from the row at the top.": {
-  "one": "Cada livro abre na sua imagem. Durante a leitura, toque na tela para escolher uma cena na fileira de cima.",
-  "other": "Cada livro abre numa das suas {n} imagens, escolhida ao acaso. Durante a leitura, toque na tela e escolha outra na fileira de cima."
- },
  "Each book starts one of your {n} tracks at random, then plays on through them. While reading, tap the screen for previous, pause and next at the bottom.": {
   "one": "Sua faixa toca enquanto você lê. Durante a leitura, toque na tela para pausar e tocar embaixo.",
   "other": "Cada livro começa uma das suas {n} faixas ao acaso e depois segue pelas outras. Durante a leitura, toque na tela para anterior, pausa e próxima embaixo."
@@ -793,5 +784,10 @@
  "Night desk": "Escrivaninha à noite",
  "Café reading": "Leitura no café",
  "Sunny nook": "Cantinho ensolarado",
- "Add pictures": "Adicionar imagens"
+ "Add pictures": "Adicionar imagens",
+ "Liked quotes": "Citações curtidas",
+ "Show less": "Ver menos",
+ "View all {n}": "Ver todas ({n})",
+ "No liked quotes yet": "Nenhuma citação curtida ainda",
+ "Double-tap a reel you love, and its words show up here.": "Toque duas vezes num reel que você adora e as palavras dele aparecem aqui."
 }

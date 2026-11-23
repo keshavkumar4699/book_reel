@@ -165,7 +165,6 @@
  "Stats": "统计",
  "Trophies": "奖杯",
  "Books": "书籍",
- "Saved quotes": "收藏的句子",
  "{day}, today": "{day}，今天",
  "Today": "今天",
  "week streak": "周连续",
@@ -194,8 +193,6 @@
  "Import a book from the Library.": "从书库导入一本书。",
  "{title}, {percent}% read": "{title}，已读 {percent}%",
  "Finished": "已读完",
- "No quotes yet": "还没有收藏的句子",
- "Save a card or highlight a line, and it shows up here.": "收藏一张卡片或划一行线，它就会出现在这里。",
  "Reading calendar for the last 12 weeks: {days}, the goal met on {met}": "最近 12 周的阅读日历：{days}，达成目标 {met} 天",
  "Pick an emoji": "选一个表情",
  "Usernames are 3–24 letters, numbers, dots or underscores.": "用户名为 3–24 个字母、数字、点或下划线。",
@@ -438,7 +435,6 @@
  "Reading": "阅读",
  "Backgrounds": "背景",
  "Your pictures": "你的图片",
- "Painted scenes": "手绘场景",
  "On · {percent}%": "开 · {percent}%",
  "Natural · {voice}": "自然语音 · {voice}",
  "Phone voice": "手机语音",
@@ -514,7 +510,6 @@
  "Beginner words": "入门词汇",
  "Middle words": "中级词汇",
  "Advanced words": "高级词汇",
- "Each book opens on one of the painted scenes, picked at random. While reading, tap the screen and pick another from the row at the top. Pictures added to the app’s backgrounds folder replace the scenes.": "每本书会随机打开一个手绘场景。阅读时点按屏幕，从顶部那一排中另选一个。放进应用背景文件夹的图片会取代这些场景。",
  "Moving scenes": "动态场景",
  "Gentle motion. Off when the phone’s “Remove animations” is on.": "轻柔的动效。手机开启“移除动画”时关闭。",
  "There’s no music in the app yet: tracks added to its sounds folder play while you read.": "应用里还没有音乐：放进声音文件夹的曲目会在你阅读时播放。",
@@ -583,9 +578,6 @@
  "Delete": "删除",
  "Your account is deleted": "你的账号已删除",
  "Couldn’t reach Cloro, so nothing was deleted. Try again.": "无法连接 Cloro，所以什么都没有删除。请重试。",
- "Each book opens on one of your {n} pictures, picked at random. While reading, tap the screen and pick another from the row at the top.": {
-  "other": "每本书会随机打开你的 {n} 张图片之一。阅读时点按屏幕，从顶部那一排中另选一张。"
- },
  "Each book starts one of your {n} tracks at random, then plays on through them. While reading, tap the screen for previous, pause and next at the bottom.": {
   "other": "每本书会随机播放你的 {n} 首曲目之一，然后依次播放下去。阅读时点按屏幕，可在底部切换上一首、暂停和下一首。"
  },
@@ -765,5 +757,10 @@
  "Night desk": "夜晚书桌",
  "Café reading": "咖啡馆阅读",
  "Sunny nook": "阳光角落",
- "Add pictures": "添加图片"
+ "Add pictures": "添加图片",
+ "Liked quotes": "喜欢的句子",
+ "Show less": "收起",
+ "View all {n}": "查看全部 {n}",
+ "No liked quotes yet": "还没有喜欢的句子",
+ "Double-tap a reel you love, and its words show up here.": "双击你喜欢的卷轴，它的文字就会出现在这里。"
 }

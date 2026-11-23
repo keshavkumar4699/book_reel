@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:book_reel/core/models/book.dart';
 import 'package:book_reel/core/models/reel_card.dart';
 import 'package:book_reel/core/segmentation/feed_builder.dart';
 import 'package:book_reel/core/segmentation/rule_segmenter.dart';
@@ -11,10 +12,12 @@ import 'package:book_reel/data/segments.dart';
 import 'package:book_reel/data/settings.dart';
 import 'package:book_reel/data/settings_provider.dart';
 import 'package:book_reel/data/store_provider.dart';
+import 'package:book_reel/features/reader/cards/special_cards.dart';
 import 'package:book_reel/features/reader/cards/text_card.dart';
 import 'package:book_reel/features/reader/reader_screen.dart';
 import 'package:book_reel/features/share/share_sheet.dart';
 import 'package:book_reel/services/music.dart';
+import 'package:book_reel/ui/backdrops.dart';
 import 'package:book_reel/ui/kit.dart';
 import 'package:book_reel/ui/theme.dart';
 import 'package:book_reel/ui/typography.dart';
@@ -36,12 +39,17 @@ void main() {
     final dir = Directory.systemTemp.createTempSync('bookreel_widget');
     late ProviderContainer container;
     late String bookId;
+    late Sentence curiouser;
     await tester.runAsync(() async {
       final store = await JsonStore.open(dir);
       container = ProviderContainer(overrides: [storeProvider.overrideWithValue(store)]);
       container.read(settingsProvider.notifier).update(
           (s) => s.copyWith(onboardingDone: true, goalSetupDone: true, animatedBackground: false, cardLength: CardLength.standard));
       bookId = (await container.read(libraryProvider.notifier).ensureStarterBook())!.id;
+      // A line in chapter 2 liked before likes kept their words.
+      final book = await container.read(bookContentProvider(bookId).future);
+      curiouser = book.chapters[book.bodyStart + 1].sentences.firstWhere((s) => s.text.contains('Curiouser'));
+      container.read(notebookProvider.notifier).like(bookId, curiouser.id);
     });
 
     await tester.pumpWidget(UncontrolledProviderScope(
@@ -54,8 +62,12 @@ void main() {
       await tester.pump();
     }
     expect(find.text('CHAPTER 1'), findsOneWidget);
-    expect(find.text('Down the Rabbit-Hole'), findsOneWidget);
+    expect(find.descendant(of: find.byType(ChapterTitleCardView), matching: find.text('Down the Rabbit-Hole')), findsOneWidget);
     expect(find.text('Swipe up to begin'), findsOneWidget);
+    // The book open, the older like has its words now, for the Profile.
+    final kept = container.read(notebookProvider).likedQuotes['$bookId|${curiouser.id}'];
+    expect(kept?.text, contains(curiouser.text.substring(0, 20)));
+    expect(kept?.likedAt, isNull, reason: 'when it was liked was never kept');
 
     // Music plays from the first page, for free users too: until you add your own, a calm loop.
     expect(sounds, ['load assets/sounds/Artist - First.mp3', 'play']);
@@ -106,6 +118,25 @@ void main() {
     expect(find.bySemanticsLabel('Focus: hide the controls'), findsNothing);
     expect(find.bySemanticsLabel('Playing First · Artist'), findsOneWidget);
     expect(tester.getCenter(find.bySemanticsLabel('Next track')).dy, greaterThan(400), reason: 'at the bottom of the screen');
+    // At the top, only the pictures to read on. At the bottom, the book's
+    // cover; beside it the chapter, and the music below that; the music's
+    // buttons at the far end.
+    final screen = tester.getSize(find.byType(ReaderScreen));
+    final strip = tester.getRect(find.byType(BackdropStrip));
+    expect(strip.top, lessThan(80), reason: 'at the very top, nothing above it');
+    final cover = tester.getRect(find.bySemanticsLabel(RegExp('^Alice.s Adventures in Wonderland by ')));
+    final chapter = tester.getRect(find.descendant(of: find.byType(FadeChrome), matching: find.text('Down the Rabbit-Hole')));
+    final music = tester.getRect(find.bySemanticsLabel('Playing First · Artist'));
+    final buttons = [for (final b in ['Previous track', 'Pause music', 'Next track']) tester.getRect(find.bySemanticsLabel(b))];
+    expect(cover.bottom, greaterThan(screen.height - 140), reason: 'the book at the bottom');
+    expect(cover.left, lessThan(30), reason: 'on the left');
+    expect(chapter.left, greaterThan(cover.right), reason: 'the chapter beside the cover');
+    expect(music.top, greaterThanOrEqualTo(chapter.bottom - 1), reason: 'the music just below the chapter');
+    expect(music.left, closeTo(chapter.left, 1));
+    expect(buttons.first.left, greaterThan(chapter.right), reason: 'the buttons after the words');
+    expect(buttons[0].right, lessThanOrEqualTo(buttons[1].left));
+    expect(buttons[1].right, lessThanOrEqualTo(buttons[2].left));
+    expect(buttons.last.right, greaterThan(screen.width - 90), reason: 'at the far end, by the rail');
 
     await tester.fling(find.byType(PageView), const Offset(0, -500), 1500);
     await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
@@ -179,6 +210,10 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     final card = tester.widget<PostCard>(post);
     expect(container.read(notebookProvider).liked, contains('$bookId|${card.card.startSid}'));
+    // With the reel's words, for the Profile's liked quotes.
+    final quote = container.read(notebookProvider).likedQuotes['$bookId|${card.card.startSid}']!;
+    expect(quote.text, startsWith('Alice was beginning'));
+    expect(quote.bookTitle, contains('Alice'));
 
     // A short swipe springs back and does nothing.
     await tester.drag(post, const Offset(-120, 0));
@@ -202,7 +237,43 @@ void main() {
     await g.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 800));
-    expect(railOpacity(), closeTo(1, 0.01), reason: 'back once let go');
+    expect(railOpacity(), 1, reason: 'back once let go');
+
+    // Stopped halfway and let go, the reel springs back and the rail answers
+    // again; the same when the phone takes the swipe over (a system gesture).
+    Future<void> railAnswers() async {
+      await tester.tap(find.bySemanticsLabel('Write a note'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+      expect(find.text('Your thoughts'), findsOneWidget, reason: 'the rail takes taps once the reel is back');
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 5));
+      expect(find.text('Your thoughts'), findsNothing);
+    }
+
+    final half = await tester.startGesture(tester.getCenter(post));
+    await half.moveBy(const Offset(-30, 0));
+    await tester.pump();
+    await half.moveBy(const Offset(-60, 0));
+    await tester.pump(const Duration(milliseconds: 300)); // held still halfway
+    expect(railOpacity(), lessThan(1));
+    await half.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(railOpacity(), 1);
+    await railAnswers();
+
+    final taken = await tester.startGesture(tester.getCenter(post));
+    await taken.moveBy(const Offset(-30, 0));
+    await tester.pump();
+    await taken.moveBy(const Offset(-100, 0));
+    await tester.pump();
+    await taken.cancel();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(railOpacity(), 1, reason: 'a cancelled swipe goes back too');
+    expect(container.read(notebookProvider).isSaved(bookId, card.card.startSid), isFalse, reason: 'and does nothing');
+    await railAnswers();
 
     // Swipe left past 30% of the screen saves (after a short flick out).
     await tester.drag(post, const Offset(-320, 0));

@@ -46,6 +46,14 @@ class _CardFrame extends StatelessWidget {
 }
 
 /// Full-bleed chapter card: a breathing point between chapters.
+/// A chapter's own name, without the "Chapter I." before it: "CHAPTER I.
+/// Down the Rabbit-Hole" → "Down the Rabbit-Hole". A chapter with no other
+/// name keeps its title.
+String chapterName(String title) {
+  final stripped = title.replaceFirst(RegExp(r'^\s*chapter\s+[0-9ivxlcdm]+\s*[.:\-–—]?\s*', caseSensitive: false), '');
+  return stripped.isEmpty ? title : stripped;
+}
+
 class ChapterTitleCardView extends StatelessWidget {
   const ChapterTitleCardView({
     super.key,
@@ -72,9 +80,8 @@ class ChapterTitleCardView extends StatelessWidget {
   Widget build(BuildContext context) {
     final shadows = theme.textShadows;
     final accent = theme.accent;
-    // "CHAPTER I. Down the Rabbit-Hole" → "Down the Rabbit-Hole" (the label above says Chapter 1).
-    final stripped = title.replaceFirst(RegExp(r'^\s*chapter\s+[0-9ivxlcdm]+\s*[.:\-–—]?\s*', caseSensitive: false), '');
-    final heading = stripped.isEmpty ? title : stripped;
+    // The label above says Chapter 1.
+    final heading = chapterName(title);
     return _CardFrame(
       theme: theme,
       bare: true,
