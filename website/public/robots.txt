@@ -1,0 +1,5 @@
+# Cloro — https://cloro.in
+User-agent: *
+Allow: /
+
+Sitemap: https://cloro.in/sitemap.xml

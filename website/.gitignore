@@ -1,0 +1,4 @@
+# Firebase deploy cache and logs
+.firebase/
+firebase-debug.log
+node_modules/

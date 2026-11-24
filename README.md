@@ -12,7 +12,8 @@ Read books as a feed of short "reel" cards: real pages from your EPUBs and PDFs,
 | [`docs/CLORO_PLAN.md`](docs/CLORO_PLAN.md) | The Cloro redesign (steps 1–9, all done) |
 | [`docs/PRODUCTION_PLAN.md`](docs/PRODUCTION_PLAN.md) | What's left for a production launch, in order |
 | [`docs/TRANSLATIONS.md`](docs/TRANSLATIONS.md) | The app's nine languages, and how to add or change text |
-| [`docs/DEPLOY.md`](docs/DEPLOY.md) | Deploying the server so it costs nothing until it has users (Cloud Run + Neon), release signing, error reporting and alerts |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md) | Deploying the server so it costs nothing until it has users (Cloud Run + Neon), release signing, error reporting and alerts, and the website |
+| [`website/README.md`](website/README.md) | cloro.in: the static website, its SEO, checks and hosting |
 
 ## The app at a glance
 
@@ -46,6 +47,7 @@ Five tabs, icons only: **Reading · Library · Notebook · Journal · Profile**.
 ```
 app/      Flutter Android app (offline-first; works fully without the server)
 server/   TypeScript backend: Claude segmentation, reading verification, streaks, leagues
+website/  cloro.in: the static website (HTML, CSS, JS; Firebase Hosting)
 docs/     Design documents
 ```
 

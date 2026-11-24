@@ -50,7 +50,7 @@ These services process data only to provide their service to us. AI providers re
 ## Your choices and rights
 
 - **Download** everything: Settings → You → Download my data.
-- **Delete** your account and everything tied to it: Settings → You → Delete account, or at [your domain]/account/delete. It takes effect straight away.
+- **Delete** your account and everything tied to it: Settings → You → Delete account, or at cloro.in/account/delete. It takes effect straight away.
 - **Correct** your profile: Profile → Edit profile.
 - **Turn off** online features or crash reports in Settings at any time.
 - **Ask us** anything, or complain, at [contact email]. You can also complain to your data protection authority.

@@ -154,7 +154,7 @@ Don't set `CLOUD_SQL_INSTANCE`.
 git tag server-v1.0.0 && git push origin server-v1.0.0
 ```
 
-Map your domain to the service (Cloud Run → Manage custom domains), then set `PUBLIC_BASE_URL` to it.
+Map `api.cloro.in` to the service (Cloud Run → Manage custom domains) and build the app with `BOOKREEL_API=https://api.cloro.in`. The website on `cloro.in` passes share links (`/c/…`), invites (`/i/…`) and `assetlinks.json` through to this service (§5), so set `PUBLIC_BASE_URL=https://cloro.in` and those links use the site's domain.
 
 ### 1.3 Stage 2: when to start paying
 
@@ -246,3 +246,13 @@ keyPassword=…
 - **Uptime check** on `https://<your domain>/healthz` (Monitoring → Uptime checks) every 15 minutes, with an alert to your email. It never wakes the database.
 - **Alerting policies** (Monitoring → Alerting) for Cloud Run 5xx rate over 1% for 5 minutes, and request latency p95 over 2 s.
 - **AI spend:** keep the Anthropic console's monthly limit at a level you're comfortable with. The server's `ai_usage` table has the cost of every request, for comparison with DESIGN.md §5.
+
+## 5. Website (cloro.in)
+
+The site is static and lives in `website/`. It's served by Firebase Hosting, in the same Google Cloud project as the server. The full guide is in [`website/README.md`](../website/README.md).
+
+- **Deploy:** `cd website && firebase use --add` (once), then `npm run deploy` (it checks the site first). In the Firebase console, go to Hosting → Add custom domain: add `cloro.in`, and add `www.cloro.in` as a redirect to it.
+- **Routes to the server:** `website/firebase.json` routes `/c/**`, `/i/**` and `/.well-known/assetlinks.json` to the Cloud Run service `cloro-api` in `asia-southeast1`. Change both there if yours differ.
+- **Domains:** the server answers on `api.cloro.in` for the app. Share links, invites and App Links work on `cloro.in`.
+- **Legal pages:** `/privacy/`, `/terms/` and `/account/delete/` are the site's own pages. The first two are built from `app/assets/legal/*.md` (`npm run build`), the same text the app and server show. Use these URLs in Play Console.
+- **Search:** add `cloro.in` to Google Search Console and submit `https://cloro.in/sitemap.xml`.

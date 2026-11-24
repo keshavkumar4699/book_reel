@@ -1,0 +1,60 @@
+<!doctype html>
+<!-- Social preview images (1200×630): node tools/og.cjs renders each variant
+     to public/og/*.jpg. Self-contained: it reads the site's fonts and
+     screenshots by relative path. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: Outfit; src: url(../../public/assets/fonts/outfit-latin.woff2); font-weight: 100 900; }
+@font-face { font-family: Nunito; src: url(../../public/assets/fonts/nunito-latin.woff2); font-weight: 200 1000; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1200px; height: 630px; overflow: hidden; }
+body { position: relative; background: #fff; color: #1d1d1f; font-family: Nunito, sans-serif; }
+.glow { position: absolute; right: -180px; top: -120px; width: 900px; height: 900px; background: radial-gradient(closest-side, rgba(255,98,63,.18), rgba(255,145,77,.07) 55%, transparent 72%); }
+.copy { position: absolute; left: 76px; top: 64px; width: 600px; height: 502px; display: flex; flex-direction: column; }
+.brand { display: flex; align-items: center; gap: 14px; font-family: Outfit; font-weight: 700; font-size: 34px; letter-spacing: -.02em; }
+.brand img { width: 52px; height: 52px; }
+h1 { margin-top: 54px; font-family: Outfit; font-weight: 700; font-size: 80px; line-height: .98; letter-spacing: -.035em; }
+.ink { background: linear-gradient(90deg, #d92b1f, #c2410c); -webkit-background-clip: text; background-clip: text; color: transparent; }
+p.sub { margin-top: 24px; font-size: 28px; line-height: 1.35; font-weight: 650; color: #424245; }
+.foot { margin-top: auto; display: flex; align-items: center; gap: 16px; font-weight: 800; font-size: 22px; color: #6e6e73; }
+.foot b { padding: 10px 20px; border-radius: 99px; background: #1d1d1f; color: #fff; font-family: Outfit; font-weight: 600; }
+.phones { position: absolute; right: 70px; top: 46px; display: flex; gap: 26px; align-items: flex-start; }
+.phone { width: 300px; aspect-ratio: 1000 / 2107; padding: 2.6%; border-radius: 14% / 6.5%; background: linear-gradient(145deg, #2c2c2e, #0b0b0c 45%, #1c1c1e); box-shadow: 0 40px 80px -20px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08); }
+.phone img { width: 100%; height: 100%; border-radius: 11.6% / 5.4%; object-fit: cover; display: block; }
+.small .phone { width: 206px; }
+.small .phone:nth-child(2) { margin-top: -26px; }
+.plans { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 30px; width: 560px; }
+.plans span { padding: 8px 13px; border-radius: 99px; background: #f5f5f7; font-weight: 800; font-size: 17px; color: #1d1d1f; }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="copy">
+  <div class="brand"><img src="../../public/assets/img/brand/icon.svg" alt="">Cloro</div>
+  <h1 id="title"></h1>
+  <p class="sub" id="sub"></p>
+  <div class="plans" id="plans" hidden></div>
+  <div class="foot"><b>Get it on Google Play</b>cloro.in</div>
+</div>
+<div class="phones" id="phones"></div>
+<script>
+const shot = (n) => `<div class="phone"><img src="../../public/assets/img/app/${n}-786.webp" alt=""></div>`;
+const variants = {
+  home: { title: 'Read like<br>you <span class="ink">scroll.</span>', sub: 'Your books as calm, bite-sized reels.', phones: ['reader-night'] },
+  default: { title: 'Books as calm,<br>bite-sized <span class="ink">reels.</span>', sub: 'Swipe up for the next one, and finish the books you start.', phones: ['reader-cafe'] },
+  features: { title: 'Everything<br>a book <span class="ink">needs.</span>', sub: 'Reels, word meanings, a free offline voice, a notebook and streaks.', phones: ['reader-meaning', 'journal'], small: true },
+  pricing: { title: 'Read free.<br>Add AI when<br>you <span class="ink">want it.</span>', sub: '', phones: ['reader-sun'], plans: ['Free', 'Lite ₹149', 'Plus ₹399', 'Pro ₹899', 'Scholar ₹1,299'] },
+};
+const v = variants[new URLSearchParams(location.search).get('v') || 'home'];
+document.getElementById('title').innerHTML = v.title;
+document.getElementById('sub').textContent = v.sub;
+const phones = document.getElementById('phones');
+phones.innerHTML = v.phones.map(shot).join('');
+if (v.small) phones.classList.add('small');
+if (v.plans) { const p = document.getElementById('plans'); p.hidden = false; p.innerHTML = v.plans.map((x) => `<span>${x}</span>`).join(''); }
+if (!v.sub) document.getElementById('sub').remove();
+</script>
+</body>
+</html>

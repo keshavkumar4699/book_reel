@@ -127,3 +127,19 @@ jobs:
           curl -fsS http://localhost:8080/healthz || { docker logs api; exit 1; }
           curl -fsS http://localhost:8080/privacy | grep -q "Privacy policy" || { docker logs api; exit 1; }
           docker rm -f api
+
+  website:
+    # cloro.in (website/README.md): every page's SEO tags, links, images and
+    # structured data, the sitemap, and that the built parts (shared nav and
+    # footer, privacy and terms from app/assets/legal) are up to date.
+    name: Website (check)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm run check
