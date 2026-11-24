@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Db } from "../db/db.js";
 import { notBlocked } from "../moderation.js";
 import {
+  addDays,
   DAILY_MINUTES_CAP,
   displayStreak,
   emptyStreak,
@@ -30,6 +31,51 @@ export const ActivityBatchSchema = z.object({
 });
 export type ActivityBatch = z.infer<typeof ActivityBatchSchema>;
 
+/**
+ * What a phone counts (round 19): each day's reading as the app shows it,
+ * and its totals. Sent whole the first time the app meets a server (so
+ * reading done before the server existed isn't lost), then the days that
+ * changed. Leagues still rest on the verified events alone.
+ */
+export const StatsBodySchema = z.object({
+  days: z
+    .array(
+      z.object({
+        day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        cards: z.number().int().min(0).max(20_000),
+        skimmed: z.number().int().min(0).max(100_000),
+        minutes: z.number().min(0).max(1440),
+        words: z.number().int().min(0).max(5_000_000),
+      }),
+    )
+    .max(400)
+    .default([]),
+  totals: z
+    .object({
+      books_finished: z.number().int().min(0).max(100_000),
+      streak: z.number().int().min(0).max(100_000),
+      best_streak: z.number().int().min(0).max(100_000),
+      /** The day the streak was counted on (the phone's own date). */
+      as_of: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      weekly: z.boolean().default(false),
+      wpm: z.number().min(0).max(2000).default(0),
+      words_learned: z.number().int().min(0).max(1_000_000).default(0),
+    })
+    .optional(),
+});
+export type StatsBody = z.infer<typeof StatsBodySchema>;
+
+/** One phone's totals, as it last sent them. */
+export interface DeviceTotals {
+  books_finished: number;
+  streak: number;
+  best_streak: number;
+  as_of: string;
+  weekly: boolean;
+  wpm: number;
+  words_learned: number;
+}
+
 export interface UserRow {
   id: string;
   display_name: string;
@@ -45,13 +91,21 @@ export interface UserRow {
   invite_code: string;
   wpm: number;
   daily_goal_cards: number;
+  /** "cards" or "minutes": what the daily goal counts. */
+  goal_unit: string;
+  daily_goal_minutes: number;
   freezes_per_week: number;
   streak: StreakState;
+  /** Each phone's totals (see [DeviceTotals]), by device. */
+  totals: Record<string, DeviceTotals>;
   flagged: number;
   hidden: boolean;
 }
 
 const STREAK_MILESTONES = new Set([7, 30, 100, 365]);
+
+/** Words on a printed page, as the app counts pages read. */
+export const WORDS_PER_PAGE = 275;
 const INVITE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O/1/I/L
 
 export function newInviteCode(): string {
@@ -77,6 +131,9 @@ export class InvalidHandle extends Error {}
 export interface ProfileUpdate {
   displayName?: string;
   dailyGoalCards?: number;
+  /** "cards" or "minutes". */
+  goalUnit?: string;
+  dailyGoalMinutes?: number;
   freezesPerWeek?: number;
   /** "" clears the username. */
   handle?: string;
@@ -145,7 +202,9 @@ export class ActivityService {
            bio = coalesce($8, bio),
            avatar = coalesce($9, avatar),
            genres = coalesce($10, genres),
-           reading = coalesce($11, reading)
+           reading = coalesce($11, reading),
+           goal_unit = coalesce($12, goal_unit),
+           daily_goal_minutes = coalesce($13, daily_goal_minutes)
          where id = $1 returning *`,
         [
           userId,
@@ -165,6 +224,8 @@ export class ActivityService {
                 .slice(0, 3)
                 .join(","),
           p.reading === undefined ? null : p.reading.replace(/\s+/g, " ").trim().slice(0, 120),
+          p.goalUnit === "cards" || p.goalUnit === "minutes" ? p.goalUnit : null,
+          p.dailyGoalMinutes ? Math.min(600, Math.max(1, Math.trunc(p.dailyGoalMinutes))) : null,
         ],
       );
       return rows[0]!;
@@ -213,7 +274,9 @@ export class ActivityService {
       } else {
         stat.skimmed_cards++;
       }
-      if (!stat.goal_met && stat.verified_cards >= u.daily_goal_cards) {
+      // The goal as the reader set it: cards, or minutes.
+      const met = u.goal_unit === "minutes" ? stat.minutes >= u.daily_goal_minutes : stat.verified_cards >= u.daily_goal_cards;
+      if (!stat.goal_met && met) {
         stat.goal_met = true;
         streak = recordGoalMet(streak, day, u.freezes_per_week);
         goalMetOn = day;
@@ -239,6 +302,61 @@ export class ActivityService {
       flagged,
     ]);
     return { accepted, verified, goalMetOn, streak: streak.current, wpm: Math.round(wpm) };
+  }
+
+  /**
+   * Keeps what a phone counts: its days (each replacing that phone's earlier
+   * copy of the day) and its totals. Returns how many days were kept.
+   */
+  async saveStats(userId: string, device: string, body: StatsBody): Promise<number> {
+    await this.user(userId);
+    for (const d of body.days) {
+      await this.db.query(
+        `insert into reading_stats (user_id, device, day, cards, skimmed, minutes, words, updated_at)
+         values ($1, $2, $3, $4, $5, $6, $7, now())
+         on conflict (user_id, device, day) do update set cards = excluded.cards, skimmed = excluded.skimmed,
+           minutes = excluded.minutes, words = excluded.words, updated_at = now()`,
+        [userId, device, d.day, d.cards, d.skimmed, d.minutes, d.words],
+      );
+    }
+    if (body.totals) {
+      await this.db.query("update users set totals = totals || jsonb_build_object($2::text, $3::jsonb) where id = $1", [
+        userId,
+        device,
+        JSON.stringify(body.totals),
+      ]);
+    }
+    return body.days.length;
+  }
+
+  /**
+   * A reader's reading as their phones count it, all phones together: days
+   * read, minutes, cards, words (and pages) from every day kept, and the
+   * best of each phone's totals. A phone's day streak counts while it's
+   * fresh (counted today or yesterday); the server's own verified streak too.
+   */
+  async statsOf(userId: string, today: string) {
+    const u = await this.user(userId);
+    const [sum] = await this.db.query<{ days: string | number; cards: string | number; minutes: string | number; words: string | number }>(
+      `select count(*) as days, coalesce(sum(cards), 0) as cards, coalesce(sum(minutes), 0) as minutes, coalesce(sum(words), 0) as words
+       from (select day, sum(cards) as cards, sum(minutes) as minutes, sum(words) as words
+             from reading_stats where user_id = $1 group by day having sum(cards) > 0 or sum(minutes) > 0) d`,
+      [userId],
+    );
+    const phones = Object.values(u.totals ?? {});
+    const fresh = (t: DeviceTotals) => !t.weekly && t.as_of >= addDays(today, -1);
+    const words = Number(sum?.words ?? 0);
+    return {
+      days_read: Number(sum?.days ?? 0),
+      cards: Number(sum?.cards ?? 0),
+      minutes: Math.round(Number(sum?.minutes ?? 0) * 10) / 10,
+      words,
+      pages: words > 0 ? Math.max(1, Math.round(words / WORDS_PER_PAGE)) : 0,
+      books_finished: Math.max(0, ...phones.map((t) => t.books_finished)),
+      streak: Math.max(displayStreak(u.streak, today, u.freezes_per_week), ...phones.filter(fresh).map((t) => t.streak)),
+      best_streak: Math.max(u.streak.best, ...phones.map((t) => t.best_streak)),
+      words_learned: Math.max(0, ...phones.map((t) => t.words_learned)),
+    };
   }
 
   async bookFinished(userId: string, title: string) {
@@ -353,13 +471,14 @@ export class ActivityService {
   async publicProfile(idOrHandle: string, viewer: string, today: string) {
     const u = await this.visible(idOrHandle, viewer);
     if (!u) return undefined;
-    const [counts, rel] = await Promise.all([
+    const [counts, rel, stats] = await Promise.all([
       this.counts(u.id),
       this.db.query<{ you_follow: boolean; follows_you: boolean }>(
         `select exists (select 1 from follows where follower = $1 and followee = $2) as you_follow,
                 exists (select 1 from follows where follower = $2 and followee = $1) as follows_you`,
         [viewer, u.id],
       ),
+      this.statsOf(u.id, today),
     ]);
     return {
       user_id: u.id,
@@ -371,7 +490,8 @@ export class ActivityService {
       genres: u.genres ? u.genres.split(",").filter(Boolean) : [],
       reading: u.reading,
       ...counts,
-      streak: { current: displayStreak(u.streak, today, u.freezes_per_week), best: u.streak.best },
+      streak: { current: stats.streak, best: stats.best_streak },
+      books_finished: stats.books_finished,
       you_follow: rel[0]?.you_follow ?? false,
       follows_you: rel[0]?.follows_you ?? false,
       me: u.id === viewer,

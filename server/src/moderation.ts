@@ -35,6 +35,8 @@ export const LIMITS = {
   kudos: [{ limit: 60, windowMs: MIN }],
   session: [{ limit: 120, windowMs: HOUR }],
   profile: [{ limit: 30, windowMs: HOUR }],
+  /** A phone's reading stats: a few calls for a long history, then one per sync. */
+  stats: [{ limit: 60, windowMs: HOUR }],
   share: [{ limit: 60, windowMs: HOUR }],
   report: [{ limit: 30, windowMs: DAY }],
   block: [{ limit: 60, windowMs: HOUR }],

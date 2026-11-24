@@ -276,18 +276,18 @@ class ActivityCard extends ConsumerWidget {
     if (e.type == 'session') {
       final quote = e.data['quote'] as String?;
       final progress = (e.data['progress'] as num?)?.toDouble() ?? 0;
-      // Each figure on the light shade of its kind (blue: how much); time
-      // read is the one in colour, as in the Profile's week; the cover's
-      // outline shows how far into the book.
-      Widget stat(String value, String label, {bool headline = false}) => Padding(
+      // Each figure on the light shade of its kind (orange: time, blue:
+      // cards, pink: the book); time read is the one in colour, as in the
+      // Profile's week; the cover's outline shows how far into the book.
+      Widget stat(String value, String label, KitHue hue, {bool headline = false}) => Padding(
             padding: const EdgeInsets.only(right: 8),
             child: DecoratedBox(
-              decoration: BoxDecoration(color: kit.shade(KitHue.activity), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: kit.shade(hue), borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(10, 6, 12, 7),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(label, style: kit.caption),
-                  Text(value, style: kit.strong.copyWith(fontSize: 17, color: headline ? kit.hue(KitHue.activity) : null)),
+                  Text(value, style: kit.strong.copyWith(fontSize: 17, color: headline ? kit.hue(hue) : null)),
                 ]),
               ),
             ),
@@ -304,9 +304,9 @@ class ActivityCard extends ConsumerWidget {
         ]),
         const SizedBox(height: 12),
         Wrap(runSpacing: 8, children: [
-          stat(tr('{n} min', {'n': _minutes((e.data['minutes'] as num?) ?? 0)}), tr('Time'), headline: true),
-          stat('${e.data['cards'] ?? 0}', tr('Cards')),
-          if (progress > 0) stat('${(progress * 100).round()}%', tr('Book')),
+          stat(tr('{n} min', {'n': _minutes((e.data['minutes'] as num?) ?? 0)}), tr('Time'), KitHue.time, headline: true),
+          stat('${e.data['cards'] ?? 0}', tr('Cards'), KitHue.activity),
+          if (progress > 0) stat('${(progress * 100).round()}%', tr('Book'), KitHue.books),
         ]),
         if (quote != null && quote.isNotEmpty) ...[
           const SizedBox(height: 12),

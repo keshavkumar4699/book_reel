@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'data/settings.dart';
 import 'data/settings_provider.dart';
 import 'data/sync_service.dart';
 import 'services/billing.dart';
+import 'services/books_folder.dart';
 import 'features/friends/friends_screen.dart';
 import 'features/settings/legal_screen.dart';
 import 'features/social/people_screen.dart';
@@ -16,6 +19,7 @@ import 'features/notebook/notebook_screen.dart';
 import 'features/notebook/word_review_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/profile/profile_screen.dart';
+import 'features/reader/reader_screen.dart';
 import 'features/reader/reading_tab.dart';
 import 'features/settings/licenses_screen.dart';
 import 'features/settings/settings_screen.dart';
@@ -67,6 +71,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           final sid = state.uri.queryParameters['sid'];
           return Uri(path: '/reading', queryParameters: {'book': state.pathParameters['bookId']!, 'sid': ?sid}).toString();
         },
+      ),
+      // A saved, liked or highlighted reel, over the app: back returns to
+      // where it was opened, and the book you're reading keeps its place.
+      GoRoute(
+        path: '/reel/:bookId',
+        parentNavigatorKey: _rootKey,
+        builder: (c, s) => ReaderScreen(
+          bookId: s.pathParameters['bookId']!,
+          startSid: s.uri.queryParameters['sid'],
+          peek: true,
+          peekLabel: switch (s.uri.queryParameters['from']) {
+            'saved' => tr('Saved'),
+            'liked' => tr('Liked'),
+            'highlight' => tr('Highlight'),
+            _ => null,
+          },
+        ),
       ),
       GoRoute(path: '/friends', parentNavigatorKey: _rootKey, builder: (c, s) => const FriendsScreen(asPage: true)),
       // Followers and following ("me", a user id or "@handle"), and another reader's profile.
@@ -137,11 +158,24 @@ class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingOb
       ref.read(syncServiceProvider).start();
       // Listen for Play purchases from the start (some complete while the app is closed).
       ref.read(billingProvider);
+      _lookInBooksFolder();
+    });
+  }
+
+  /// New books in the books folder, if one was chosen: a few seconds after
+  /// the app opens or comes back, so the reel on screen comes first.
+  Timer? _folderLook;
+  void _lookInBooksFolder() {
+    if (!ref.read(booksFolderProvider).chosen) return;
+    _folderLook?.cancel();
+    _folderLook = Timer(const Duration(seconds: 3), () {
+      if (mounted) ref.read(booksFolderProvider.notifier).scan();
     });
   }
 
   @override
   void dispose() {
+    _folderLook?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -157,6 +191,7 @@ class _BookReelAppState extends ConsumerState<BookReelApp> with WidgetsBindingOb
       sync.stop();
     } else if (state == AppLifecycleState.resumed) {
       sync.start();
+      _lookInBooksFolder();
     }
   }
 

@@ -8,9 +8,11 @@ import 'package:go_router/go_router.dart';
 import '../../core/models/book.dart';
 import '../../core/parsing/epub_parser.dart' show ParseException;
 import '../../data/library.dart';
+import '../../services/books_folder.dart';
 import '../../ui/kit.dart';
 import '../../ui/widgets.dart';
 import '../../l10n/l10n.dart';
+import 'books_folder_sheet.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -21,6 +23,15 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   bool _importing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // New books in your books folder, if you chose one (at most once a minute).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(booksFolderProvider.notifier).scan();
+    });
+  }
 
   Future<void> _import() async {
     final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['epub', 'pdf']);
@@ -77,12 +88,40 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final kit = Kit.of(context);
     final books = ref.watch(libraryProvider);
+    final folder = ref.watch(booksFolderProvider);
+    final folderName = folder.name == null || folder.name!.isEmpty ? tr('your books folder') : folder.name!;
+    // Books the folder brought in while the Library is open (opening the app, coming back to it).
+    ref.listen<BooksFolderState>(booksFolderProvider, (before, now) {
+      if (before?.scanning == true && !now.scanning && now.lastAdded.isNotEmpty) {
+        showKitToast(context, trn(now.lastAdded.length, 'Added {n} book from {folder}', 'Added {n} books from {folder}', {'folder': folderName}), emoji: '📚');
+      }
+    });
     return KitPage(
       back: false,
       backdrop: false,
       dock: true,
       title: tr('Library'),
+      // Where new books come from by themselves, once a folder is chosen.
+      subtitle: !folder.chosen
+          ? null
+          : folder.unavailable
+              ? tr('Can’t read {folder}. Choose it again.', {'folder': folderName})
+              : folder.scanning
+                  ? tr('Looking for new books in {folder}…', {'folder': folderName})
+                  : tr('New books in {folder} appear here by themselves', {'folder': folderName}),
+      onRefresh: folder.chosen
+          ? () async {
+              final added = await ref.read(booksFolderProvider.notifier).scan(force: true);
+              if (context.mounted) reportBooksFolder(context, ref.read(booksFolderProvider), added);
+            }
+          : null,
       actions: [
+        KitIconButton(
+          icon: folder.chosen ? (folder.unavailable ? Icons.folder_off_outlined : Icons.folder_rounded) : Icons.create_new_folder_outlined,
+          semanticLabel: tr('Books folder'),
+          color: folder.unavailable ? kit.danger : null,
+          onPressed: () => showBooksFolder(context, ref),
+        ),
         KitButton(
           label: _importing ? tr('Preparing…') : tr('Import'),
           icon: _importing ? null : Icons.add_rounded,
@@ -92,6 +131,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ),
       ],
       slivers: [
+        // Until a folder is chosen: the way to have books arrive by themselves.
+        if (!folder.chosen && !folder.hintHidden)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: KitPanel(
+                color: kit.shade(KitHue.books),
+                padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
+                child: Row(children: [
+                  Expanded(
+                    child: KitRow(
+                      icon: Icons.create_new_folder_outlined,
+                      hue: KitHue.books,
+                      title: tr('Import books automatically'),
+                      subtitle: tr('Choose a folder, like Download/Books'),
+                      onTap: () => showBooksFolder(context, ref),
+                    ),
+                  ),
+                  KitIconButton(
+                    icon: Icons.close_rounded,
+                    semanticLabel: tr('Not now'),
+                    size: 36,
+                    iconSize: 18,
+                    color: kit.inkSoft,
+                    onPressed: ref.read(booksFolderProvider.notifier).hideHint,
+                  ),
+                ]),
+              ),
+            ),
+          ),
         if (books.isEmpty)
           SliverToBoxAdapter(
             child: KitEmpty(
@@ -130,12 +199,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   LayoutBuilder(builder: (context, c) => BookCover(book: b, width: c.maxWidth)),
                   const SizedBox(height: 8),
-                  // Blue while you read it, green once it's finished.
+                  // The pink of books while you read it, green once it's finished.
                   KitProgress(
                     value: b.finishedAt != null ? 1 : b.progress,
                     height: 4,
-                    color: b.finishedAt != null ? kit.growth : kit.activity,
-                    track: b.finishedAt != null ? kit.growthSoft : kit.activitySoft,
+                    color: b.finishedAt != null ? kit.growth : kit.hue(KitHue.books),
+                    track: b.finishedAt != null ? kit.growthSoft : kit.shade(KitHue.books),
                   ),
                   const SizedBox(height: 6),
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -7,6 +7,7 @@ import '../../data/notebook.dart';
 import '../../data/settings.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
+import '../reader/reader_screen.dart';
 import '../share/share_sheet.dart';
 import '../../l10n/l10n.dart';
 
@@ -98,9 +99,18 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   List<Widget> _all(BuildContext context, NotebookState n) {
     final kit = Kit.of(context);
     final colors = ReadingTheme.of(ReadingThemeId.paper).highlights;
-    final items = <({DateTime at, _Tab kind, String text, String? quote, String source, String? link, Color? mark})>[
+    // A saved card or a highlight opens over the Notebook (see [openReel]).
+    final items = <({DateTime at, _Tab kind, String text, String? quote, String source, VoidCallback? open, Color? mark})>[
       for (final s in n.saved)
-        (at: s.createdAt, kind: _Tab.saved, text: s.text, quote: null, source: '${s.bookTitle} · ${s.chapterTitle}', link: '/read/${s.bookId}?sid=${s.startSid}', mark: null),
+        (
+          at: s.createdAt,
+          kind: _Tab.saved,
+          text: s.text,
+          quote: null,
+          source: '${s.bookTitle} · ${s.chapterTitle}',
+          open: () => openReel(context, bookId: s.bookId, sid: s.startSid, from: 'saved'),
+          mark: null,
+        ),
       for (final h in n.highlights)
         (
           at: h.createdAt,
@@ -108,13 +118,13 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
           text: h.text,
           quote: h.note != null && h.note!.isNotEmpty ? '📝 ${h.note}' : null,
           source: h.bookTitle,
-          link: '/read/${h.bookId}?sid=${h.sid}',
+          open: () => openReel(context, bookId: h.bookId, sid: h.sid, from: 'highlight'),
           mark: colors[h.color % colors.length].withValues(alpha: 1),
         ),
       for (final w in n.words)
-        (at: w.addedAt, kind: _Tab.words, text: w.word, quote: w.meaning, source: w.bookTitle, link: null, mark: null),
+        (at: w.addedAt, kind: _Tab.words, text: w.word, quote: w.meaning, source: w.bookTitle, open: null, mark: null),
       for (final r in n.reflections)
-        (at: r.createdAt, kind: _Tab.reflections, text: r.text, quote: r.quote == null ? null : '“${r.quote}”', source: '${r.bookTitle} · ${r.chapterTitle}', link: null, mark: null),
+        (at: r.createdAt, kind: _Tab.reflections, text: r.text, quote: r.quote == null ? null : '“${r.quote}”', source: '${r.bookTitle} · ${r.chapterTitle}', open: null, mark: null),
     ]..sort((a, b) => b.at.compareTo(a.at));
     if (items.isEmpty) {
       return [
@@ -136,7 +146,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
             color: notebookShade(kit, _hue(i.kind)),
             radius: 16,
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            onTap: i.link == null ? null : () => context.go(i.link!),
+            onTap: i.open,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Container(width: 7, height: 7, decoration: BoxDecoration(color: _hue(i.kind), shape: BoxShape.circle)),
@@ -185,7 +195,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: KitPanel(
-            onTap: () => context.go('/read/${s.bookId}?sid=${s.startSid}'),
+            onTap: () => openReel(context, bookId: s.bookId, sid: s.startSid, from: 'saved'),
             padding: const EdgeInsets.fromLTRB(16, 16, 6, 6),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Padding(
@@ -242,7 +252,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
             ),
             onDismissed: (_) => ref.read(notebookProvider.notifier).removeHighlight(h.id),
             child: KitPanel(
-              onTap: () => context.go('/read/${h.bookId}?sid=${h.sid}'),
+              onTap: () => openReel(context, bookId: h.bookId, sid: h.sid, from: 'highlight'),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(
                   width: 5,

@@ -9,6 +9,12 @@ class FakeServer {
   final Map<String, Map<String, Map<String, dynamic>>> items = {}; // user -> key -> item
   int seq = 0;
   final List<Map<String, dynamic>> activity = [];
+
+  /// Each day's reading as phones sent it (PUT /v1/me/stats): user → day →
+  /// row; the totals by user; and every call's days, in order.
+  final Map<String, Map<String, Map<String, dynamic>>> statDays = {};
+  final Map<String, Map<String, dynamic>> statTotals = {};
+  final List<List<String>> statCalls = [];
   final Map<String, Map<String, dynamic>> profiles = {};
 
   /// Usernames that belong to someone else (PUT /v1/me/profile answers 409).
@@ -133,6 +139,16 @@ class FakeServer {
             'cursor': list.isEmpty ? since : list.last['seq'],
             'more': false,
           });
+        }
+        if (path == '/v1/me/stats' && req.method == 'PUT') {
+          final b = body();
+          final days = (b['days'] as List).cast<Map<String, dynamic>>();
+          for (final d in days) {
+            (statDays[user] ??= {})[d['day'] as String] = d;
+          }
+          statCalls.add([for (final d in days) d['day'] as String]);
+          if (b['totals'] != null) statTotals[user] = (b['totals'] as Map).cast<String, dynamic>();
+          return ok({'ok': true, 'days': days.length});
         }
         if (path == '/v1/activity/batch') {
           final events = (body()['events'] as List).cast<Map<String, dynamic>>();

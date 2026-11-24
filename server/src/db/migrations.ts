@@ -212,4 +212,24 @@ export const MIGRATIONS: string[] = [
   create index feedback_open on feedback (status, created_at);
   create index feedback_user on feedback (user_id);
   `,
+  // What the phone counts, kept from the first day (round 19): each day's
+  // reading on each of the reader's phones, so a server connected later still
+  // gets everything read before; the totals the app shows (books finished,
+  // streak, pace, words learned) per phone; and a goal in minutes.
+  `
+  create table reading_stats (
+    user_id text not null references users(id),
+    device text not null,
+    day date not null,
+    cards int not null default 0,
+    skimmed int not null default 0,
+    minutes double precision not null default 0,
+    words int not null default 0,
+    updated_at timestamptz not null default now(),
+    primary key (user_id, device, day)
+  );
+  alter table users add column totals jsonb not null default '{}'::jsonb;
+  alter table users add column goal_unit text not null default 'cards';
+  alter table users add column daily_goal_minutes int not null default 10;
+  `,
 ];

@@ -97,6 +97,8 @@ class BookReelApi {
   Future<void> updateProfile({
     String? displayName,
     int? dailyGoalCards,
+    String? goalUnit,
+    int? dailyGoalMinutes,
     int? freezesPerWeek,
     String? handle,
     String? pronouns,
@@ -108,6 +110,8 @@ class BookReelApi {
       _send('PUT', '/v1/me/profile', {
         'display_name': ?displayName,
         'daily_goal_cards': ?dailyGoalCards,
+        'goal_unit': ?goalUnit,
+        'daily_goal_minutes': ?dailyGoalMinutes,
         'freezes_per_week': ?freezesPerWeek,
         'handle': ?handle,
         'pronouns': ?pronouns,
@@ -120,6 +124,11 @@ class BookReelApi {
   Future<Map<String, dynamic>> uploadActivity(List<Map<String, dynamic>> events) async =>
       (await _send('POST', '/v1/activity/batch', {'tz_offset_min': _clock().timeZoneOffset.inMinutes, 'events': events}))
           as Map<String, dynamic>;
+
+  /// Each day's reading as the app counts it, and the totals it shows
+  /// (server: PUT /v1/me/stats).
+  Future<void> uploadStats({required List<Map<String, dynamic>> days, Map<String, dynamic>? totals}) =>
+      _send('PUT', '/v1/me/stats', {'days': days, 'totals': ?totals});
 
   Future<void> bookFinished(String title) => _send('POST', '/v1/activity/book-finished', {'title': title});
 

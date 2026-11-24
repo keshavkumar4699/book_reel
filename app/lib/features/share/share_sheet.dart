@@ -8,9 +8,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../core/models/book.dart';
 import '../../core/share/quote_limit.dart';
 import '../../data/api_client.dart';
 import '../../ui/kit.dart';
+import '../../ui/widgets.dart';
 import '../../l10n/l10n.dart';
 
 enum ShareTemplate { paper, dark, ember, minimal, ocean }
@@ -45,10 +47,15 @@ class QuoteShare extends ShareContent {
   final String? chapter;
 }
 
+/// A figure on a progress card: its value, its label, and its kind (the
+/// colour it has in the app: orange for time, indigo for pages, blue for
+/// cards, green for the streak, pink for books).
+typedef ShareStat = (String value, String label, KitHue kind);
+
 /// Reading progress to share, Strava-style: a headline, what it was about,
 /// and the figures (cards, words, time, streak…) in a grid.
 class ProgressShare extends ShareContent {
-  const ProgressShare({required this.headline, this.lines = const [], this.emoji = '📚', this.subtitle, this.stats = const []});
+  const ProgressShare({required this.headline, this.lines = const [], this.emoji = '📚', this.subtitle, this.stats = const [], this.book});
   final String headline;
 
   /// The book, or who's sharing.
@@ -56,12 +63,15 @@ class ProgressShare extends ShareContent {
   final List<String> lines;
   final String emoji;
 
-  /// Figures as (value, label), e.g. ('3.1k', 'words').
-  final List<(String, String)> stats;
+  /// Figures, e.g. ('3.1k', 'words', KitHue.pages).
+  final List<ShareStat> stats;
+
+  /// The book being read, its cover on the card.
+  final BookMeta? book;
 
   /// The figures in one line: "24 cards · 3.1k words · 18 min" (a time
   /// carries its own unit).
-  String get statsLine => [for (final (v, l) in stats) l == tr('time') ? v : '$v $l'].join(' · ');
+  String get statsLine => [for (final (v, l, _) in stats) l == tr('time') ? v : '$v $l'].join(' · ');
 }
 
 /// Minutes as "18 min", "1 h 5 min" or "3 h".
@@ -73,18 +83,21 @@ String shareDuration(double minutes) {
 
 /// One-tap share sheet with a live preview (UX_DESIGN.md §5.6): the preview is
 /// rendered locally the moment the sheet opens; one more tap shares it.
-Future<void> showShareSheet(BuildContext context, ShareContent content) {
+/// [choices]: other versions of it to pick from above the preview (today,
+/// this week, all time), each with its label; [content] is the one shown first.
+Future<void> showShareSheet(BuildContext context, ShareContent content, {List<(String, ShareContent)> choices = const [], String? title}) {
   return showKitSheet<void>(
     context,
-    title: tr('Share'),
+    title: title ?? tr('Share'),
     maxHeight: 0.94,
-    builder: (_) => _ShareSheet(content: content),
+    builder: (_) => _ShareSheet(content: content, choices: choices),
   );
 }
 
 class _ShareSheet extends ConsumerStatefulWidget {
-  const _ShareSheet({required this.content});
+  const _ShareSheet({required this.content, this.choices = const []});
   final ShareContent content;
+  final List<(String, ShareContent)> choices;
 
   @override
   ConsumerState<_ShareSheet> createState() => _ShareSheetState();
@@ -95,9 +108,10 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
   ShareTemplate _template = ShareTemplate.paper;
   ShareAspect _aspect = ShareAspect.story;
   bool _busy = false;
+  late ShareContent _content = widget.content;
 
   String get _plainText {
-    final c = widget.content;
+    final c = _content;
     return switch (c) {
       QuoteShare() =>
         '“${limitQuote(c.sentences, publicDomain: c.publicDomain).text}”\n— ${c.author}, ${c.bookTitle}\n\n${tr('Read it on Cloro')}',
@@ -117,7 +131,7 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
   Future<String?> _link() async {
     final api = ref.read(apiProvider);
     if (!api.enabled) return null;
-    final c = widget.content;
+    final c = _content;
     final payload = switch (c) {
       QuoteShare() => {
           'type': 'quote',
@@ -167,13 +181,23 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.sizeOf(context).height;
+    final choices = widget.choices;
     return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (choices.length > 1) ...[
+        KitSegmented<ShareContent>(
+          values: [for (final (_, c) in choices) c],
+          selected: _content,
+          label: (c) => choices.firstWhere((x) => identical(x.$2, c)).$1,
+          onChanged: (c) => setState(() => _content = c),
+        ),
+        const SizedBox(height: 12),
+      ],
       SizedBox(
-        height: height * 0.42,
+        height: height * (choices.length > 1 ? 0.38 : 0.42),
         child: FittedBox(
           child: RepaintBoundary(
             key: _boundaryKey,
-            child: ShareCardArt(content: widget.content, template: _template, aspect: _aspect),
+            child: ShareCardArt(content: _content, template: _template, aspect: _aspect),
           ),
         ),
       ),
@@ -258,9 +282,16 @@ class ShareCardArt extends StatelessWidget {
     };
     final height = width / aspect.ratio;
     final c = content;
+    // Each figure in the colour it has in the app, on the plain cards; white
+    // on the coloured ones.
+    final Color Function(KitHue) tint = switch (template) {
+      ShareTemplate.paper || ShareTemplate.minimal => Kit.appLight.hue,
+      ShareTemplate.dark => Kit.appDark.hue,
+      ShareTemplate.ember || ShareTemplate.ocean => (_) => fg,
+    };
     final Widget body = switch (c) {
       QuoteShare() => _quoteBody(c, fg, muted),
-      ProgressShare() => _progressBody(c, fg, muted),
+      ProgressShare() => _progressBody(c, fg, muted, tint),
     };
     return MediaQuery(
       data: const MediaQueryData(textScaler: TextScaler.noScaling),
@@ -278,7 +309,7 @@ class ShareCardArt extends StatelessWidget {
               const SizedBox(width: 6),
               Text('Cloro', style: TextStyle(fontFamily: null, fontWeight: FontWeight.w700, fontSize: 13, color: muted)),
               const Spacer(),
-              Text('bookreel.app', style: TextStyle(fontFamily: null, fontSize: 12, color: muted)),
+              Text('cloro.in', style: TextStyle(fontFamily: null, fontSize: 12, color: muted)),
             ]),
           ]),
         ),
@@ -303,8 +334,8 @@ class ShareCardArt extends StatelessWidget {
     ]);
   }
 
-  Widget _progressBody(ProgressShare p, Color fg, Color muted) {
-    if (p.stats.isNotEmpty) return _statsBody(p, fg, muted);
+  Widget _progressBody(ProgressShare p, Color fg, Color muted, Color Function(KitHue) tint) {
+    if (p.stats.isNotEmpty) return _statsBody(p, fg, muted, tint);
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Text(p.emoji, style: const TextStyle(fontSize: 56)),
       const SizedBox(height: 16),
@@ -320,12 +351,15 @@ class ShareCardArt extends StatelessWidget {
 
   /// Strava-style: the headline and what it was about at the top, then the
   /// figures in a grid, each a big value over a small label.
-  Widget _statsBody(ProgressShare p, Color fg, Color muted) {
+  Widget _statsBody(ProgressShare p, Color fg, Color muted, Color Function(KitHue) tint) {
     final square = aspect == ShareAspect.square;
     final columns = p.stats.length <= 4 ? 2 : 3;
     final valueSize = square ? 24.0 : (columns == 2 ? 34.0 : 28.0);
     // The app's own sans faces for figures, as on a run's summary.
-    Widget figure((String, String) f) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    // (A little room after each, so a long time never runs into the next.)
+    Widget figure(ShareStat f) => Padding(
+        padding: const EdgeInsets.only(right: 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(f.$2.toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -348,9 +382,9 @@ class ShareCardArt extends StatelessWidget {
                     height: 1.1,
                     fontWeight: FontWeight.w700,
                     fontVariations: const [FontVariation('wght', 700)],
-                    color: fg)),
+                    color: tint(f.$3))),
           ),
-        ]);
+        ]));
     final rows = <Widget>[];
     for (var i = 0; i < p.stats.length; i += columns) {
       rows.add(Padding(
@@ -360,7 +394,7 @@ class ShareCardArt extends StatelessWidget {
         ]),
       ));
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+    final heading = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
       Text(p.emoji, style: TextStyle(fontSize: square ? 36 : 48)),
       SizedBox(height: square ? 8 : 14),
       Text(p.headline, style: TextStyle(fontSize: square ? 21 : 26, height: 1.2, color: fg, fontWeight: FontWeight.w600)),
@@ -368,6 +402,23 @@ class ShareCardArt extends StatelessWidget {
         const SizedBox(height: 6),
         Text(p.subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, color: muted, fontStyle: FontStyle.italic)),
       ],
+    ]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      // The book being read beside the headline, its cover as on a shelf.
+      if (p.book != null)
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(child: heading),
+          const SizedBox(width: 14),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 10, offset: Offset(0, 4))],
+            ),
+            child: BookCover(book: p.book!, width: square ? 54 : 72, radius: 6),
+          ),
+        ])
+      else
+        heading,
       SizedBox(height: square ? 18 : 30),
       ...rows,
       for (final l in p.lines)

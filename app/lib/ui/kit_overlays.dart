@@ -490,8 +490,11 @@ void showKitToast(
   final overlay = Overlay.maybeOf(context, rootOverlay: true);
   if (overlay == null) return;
   final kit = Kit.of(context);
+  // One at a time: a new toast replaces the last, even one shown in the
+  // same frame (not built yet).
   final old = _toast;
-  if (old != null && old.mounted) old.remove();
+  _toast = null;
+  if (old != null) old.remove();
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder: (_) => _Toast(

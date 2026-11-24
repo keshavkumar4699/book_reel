@@ -12,10 +12,12 @@ import '../../data/settings_provider.dart';
 import '../../data/api_client.dart';
 import '../../services/account.dart';
 import '../../services/billing.dart';
+import '../../services/books_folder.dart';
 import '../../services/on_device_ai.dart';
 import '../../services/read_aloud.dart';
 import '../../services/local_voice.dart';
 import '../../services/music.dart';
+import '../library/books_folder_sheet.dart';
 import '../reader/add_pictures.dart';
 import '../../ui/backdrops.dart';
 import '../../l10n/l10n.dart';
@@ -68,6 +70,21 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ]),
         KitGroup(label: tr('Reading'), divided: true, children: [
+          // Books put in a folder you pick are imported by themselves.
+          Consumer(builder: (context, ref, _) {
+            final folder = ref.watch(booksFolderProvider);
+            return KitRow(
+              icon: folder.chosen ? Icons.folder_rounded : Icons.create_new_folder_outlined,
+              hue: KitHue.books,
+              title: tr('Books folder'),
+              value: !folder.chosen
+                  ? tr('Off')
+                  : folder.unavailable
+                      ? tr('Needs attention')
+                      : (folder.name == null || folder.name!.isEmpty ? tr('On') : folder.name!),
+              onTap: () => showBooksFolder(context, ref),
+            );
+          }),
           KitRow(
             icon: Icons.image_outlined,
             hue: KitHue.activity,

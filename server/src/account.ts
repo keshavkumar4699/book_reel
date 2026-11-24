@@ -10,7 +10,7 @@ export class AccountService {
 
   /**
    * Erases the account and everything tied to it, in one statement (so it
-   * is all or nothing): profile, sign-in links, reading days and events,
+   * is all or nothing): profile, sign-in links, reading days, stats and events,
    * follows both ways, activities with their kudos and comments, comments
    * and kudos given, league places, synced notebook and positions, share
    * links, usage counters, AI jobs and feedback sent. AI cost records stay for accounting
@@ -28,6 +28,7 @@ export class AccountService {
          lg as (update league_groups set members = greatest(0, members - 1) where id in (select group_id from lm)),
          ld as (delete from league_divisions where user_id = $1),
          rd as (delete from reading_days where user_id = $1),
+         rt as (delete from reading_stats where user_id = $1),
          rs as (delete from reading_events_seen where user_id = $1),
          si as (delete from sync_items where user_id = $1),
          sh as (delete from shares where user_id = $1),
@@ -52,13 +53,14 @@ export class AccountService {
     const q = <T>(sql: string) => this.db.query<T>(sql, [userId]);
     const [user] = await q<Record<string, unknown>>(
       `select id, display_name, handle, pronouns, bio, avatar, genres, reading, invite_code, daily_goal_cards,
-              freezes_per_week, streak, created_at
+              goal_unit, daily_goal_minutes, freezes_per_week, streak, totals, created_at
        from users where id = $1`,
     );
     if (!user) return undefined;
-    const [readingDays, following, followers, activities, comments, kudos, notebook, shares, subscriptions, tts, mood, aiBooks, feedback] =
+    const [readingDays, readingStats, following, followers, activities, comments, kudos, notebook, shares, subscriptions, tts, mood, aiBooks, feedback] =
       await Promise.all([
         q("select day, verified_cards, skimmed_cards, minutes, goal_met from reading_days where user_id = $1 order by day"),
+        q("select device, day, cards, skimmed, minutes, words from reading_stats where user_id = $1 order by day, device"),
         q("select u.id, u.display_name, u.handle, f.created_at from follows f join users u on u.id = f.followee where f.follower = $1 order by f.created_at"),
         q("select u.id, u.display_name, u.handle, f.created_at from follows f join users u on u.id = f.follower where f.followee = $1 order by f.created_at"),
         q("select id, type, text, at, data from feed_items where user_id = $1 order by at"),
@@ -76,6 +78,7 @@ export class AccountService {
       exported_at: new Date().toISOString(),
       user: { ...user, genres: String(user.genres ?? "").split(",").filter(Boolean) },
       reading_days: readingDays,
+      reading_stats: readingStats,
       following,
       followers,
       activities,

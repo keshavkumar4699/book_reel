@@ -29,11 +29,20 @@ List<FontVariation> _w(double weight) => [FontVariation('wght', weight)];
 /// figures and icons ([Kit.hue]) and a very light shade behind it
 /// ([Kit.shade]).
 enum KitHue {
-  /// How much you read: time, cards, words, progress.
+  /// How much you read: cards, today's goal on its way, days read.
   activity,
 
-  /// Keeping at it: streaks, goals met, books finished, days read.
+  /// Keeping at it: streaks, goals met, a book finished, days read.
   growth,
+
+  /// Time spent reading: minutes today, this week, all time (orange).
+  time,
+
+  /// Books: the one you're reading and how far in, books read (pink).
+  books,
+
+  /// Pages and words read, and how fast (indigo).
+  pages,
 
   /// What you kept: saved reels, highlights, notes, quotes.
   notes,
@@ -199,6 +208,8 @@ class Kit extends ThemeExtension<Kit> {
   // * Blue is how much: reading time, cards, words, this week, how far into
   //   a book, a goal on its way.
   // * Green is keeping at it: streaks, a goal met, a book finished.
+  // * Three more for the figures you'd show a friend: orange for time,
+  //   pink for books, indigo for pages and words (see [KitHue]).
   //
   // The logo red stays for the flame, the liked heart and badges. Each has a
   // light and a dark tone with at least 4.5:1 contrast on the page behind
@@ -228,6 +239,9 @@ class Kit extends ThemeExtension<Kit> {
   Color hue(KitHue h) => switch (h) {
         KitHue.activity => dark ? const Color(0xFF8AB4F8) : const Color(0xFF1967D2),
         KitHue.growth => dark ? const Color(0xFF81C995) : const Color(0xFF137333),
+        KitHue.time => dark ? const Color(0xFFFCAD70) : const Color(0xFFB3420B),
+        KitHue.books => dark ? const Color(0xFFFF8BCB) : const Color(0xFFB80672),
+        KitHue.pages => dark ? const Color(0xFFA39EFF) : const Color(0xFF4F46E5),
         KitHue.notes => dark ? const Color(0xFFFDD663) : const Color(0xFF985100),
         KitHue.words => dark ? const Color(0xFFD7AEFB) : const Color(0xFF8430CE),
         KitHue.people => dark ? const Color(0xFF78D9EC) : const Color(0xFF00727A),
@@ -240,6 +254,9 @@ class Kit extends ThemeExtension<Kit> {
         switch (h) {
           KitHue.activity => const Color(0xFF1A73E8),
           KitHue.growth => const Color(0xFF188038),
+          KitHue.time => const Color(0xFFFA7B17),
+          KitHue.books => const Color(0xFFE52592),
+          KitHue.pages => const Color(0xFF6366F1),
           KitHue.notes => const Color(0xFFE8A200),
           KitHue.words => const Color(0xFF9334E6),
           KitHue.people => const Color(0xFF12B5CB),

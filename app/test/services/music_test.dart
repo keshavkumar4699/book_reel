@@ -138,6 +138,44 @@ void main() {
     expect(c.read(musicProvider).playing, isFalse);
   });
 
+  test('a saved reel opened over the app plays its own track, then gives the book its music back', () async {
+    final music = c.read(musicProvider.notifier);
+    final book = Object(), look = Object();
+    await music.start(book); // track A
+    await music.hold(); // the Notebook is open over the Reading tab
+    MusicPlayer.random = _Fixed(1);
+    await music.start(look); // a saved reel opens over the Notebook
+    expect(c.read(musicProvider).track!.label, 'B');
+    expect(players.last.playing, isTrue);
+
+    await music.stop(look); // back to the Notebook
+    expect(c.read(musicProvider).track!.label, 'A', reason: 'the book’s own track');
+    expect(c.read(musicProvider).playing, isTrue);
+    expect(players.last.playing, isFalse, reason: 'silent while the Notebook is on screen');
+    await music.release(); // the Reading tab again
+    expect((players.last.playing, players.last.asset), (true, 'assets/sounds/music/a.mp3'));
+    await music.next();
+    expect(c.read(musicProvider).track!.label, 'B', reason: 'the controls work on the book’s music');
+    await music.stop(book);
+    expect(players.last.disposed, isTrue);
+    expect(c.read(musicProvider).playing, isFalse);
+  });
+
+  test('music paused in the book stays paused after a look at a saved reel', () async {
+    final music = c.read(musicProvider.notifier);
+    final book = Object(), look = Object();
+    await music.start(book);
+    await music.toggle(); // paused
+    await music.hold();
+    await music.start(look);
+    await music.stop(look);
+    await music.release();
+    expect(c.read(musicProvider).playing, isFalse);
+    expect(players.last.playing, isFalse);
+    await music.toggle();
+    expect(players.last.playing, isTrue, reason: 'play is still a tap away');
+  });
+
   test('switching music off in Settings stops the open book’s music; on, it plays', () async {
     final music = c.read(musicProvider.notifier);
     await music.start(Object());

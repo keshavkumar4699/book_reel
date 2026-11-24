@@ -789,5 +789,39 @@
  "Show less": "কম দেখান",
  "View all {n}": "সব {n}টি দেখুন",
  "No liked quotes yet": "এখনও কোনো পছন্দের উদ্ধৃতি নেই",
- "Double-tap a reel you love, and its words show up here.": "যে রিলটি ভালো লাগে তাতে দুবার ট্যাপ করুন, তার কথাগুলো এখানে দেখা যাবে।"
+ "Double-tap a reel you love, and its words show up here.": "যে রিলটি ভালো লাগে তাতে দুবার ট্যাপ করুন, তার কথাগুলো এখানে দেখা যাবে।",
+ "Share your progress": "আপনার অগ্রগতি শেয়ার করুন",
+ "Import books automatically": "বই নিজে থেকে ইমপোর্ট করুন",
+ "Pick a folder on your phone, like Download/Books. Every EPUB or PDF you put in it shows up in your Library by itself.": "আপনার ফোনে একটি ফোল্ডার বেছে নিন, যেমন Download/Books। সেখানে রাখা প্রতিটি EPUB বা PDF নিজে থেকেই আপনার লাইব্রেরিতে চলে আসবে।",
+ "Choose folder": "ফোল্ডার বেছে নিন",
+ "Books folder": "বইয়ের ফোল্ডার",
+ "Cloro can’t read this folder any more (moved, deleted, or its access taken back). Choose it again.": "Cloro আর এই ফোল্ডারটি পড়তে পারছে না (সরানো, মুছে ফেলা, বা অ্যাক্সেস তুলে নেওয়া হয়েছে)। আবার বেছে নিন।",
+ "Every EPUB or PDF you put in this folder shows up in your Library by itself.": "এই ফোল্ডারে রাখা প্রতিটি EPUB বা PDF নিজে থেকেই আপনার লাইব্রেরিতে চলে আসে।",
+ "Look for new books now": "এখনই নতুন বই খুঁজুন",
+ "Choose it again": "আবার বেছে নিন",
+ "Choose another folder": "অন্য ফোল্ডার বেছে নিন",
+ "Stop importing from this folder": "এই ফোল্ডার থেকে ইমপোর্ট বন্ধ করুন",
+ "Books in your Library stay; new ones in the folder won’t be added": "লাইব্রেরির বইগুলো থাকবে; ফোল্ডারের নতুন বই আর যোগ হবে না",
+ "your books folder": "আপনার বইয়ের ফোল্ডার",
+ "Can’t read {folder}. Choose it again.": "{folder} পড়া যাচ্ছে না। আবার বেছে নিন।",
+ "No new books in {folder}": "{folder}-এ কোনো নতুন বই নেই",
+ "Added {n} books from {folder}": {
+  "one": "{folder} থেকে {n}টি বই যোগ হয়েছে",
+  "other": "{folder} থেকে {n}টি বই যোগ হয়েছে"
+ },
+ "Looking for new books in {folder}…": "{folder}-এ নতুন বই খোঁজা হচ্ছে…",
+ "New books in {folder} appear here by themselves": "{folder}-এর নতুন বই নিজে থেকেই এখানে আসে",
+ "Choose a folder, like Download/Books": "একটি ফোল্ডার বেছে নিন, যেমন Download/Books",
+ "Not now": "এখন নয়",
+ "That book isn’t in your Library any more": "সেই বইটি আর আপনার লাইব্রেরিতে নেই",
+ "On": "চালু",
+ "Reading {title} · page {page} of {pages}": "{title} পড়ছি · পৃষ্ঠা {page} / {pages}",
+ "Today’s reading": "আজকের পড়া",
+ "My week of reading": "আমার সপ্তাহের পড়া",
+ "My reading so far": "এখন পর্যন্ত আমার পড়া",
+ "days read": "দিন পড়া",
+ "pages": {
+  "one": "পৃষ্ঠা",
+  "other": "পৃষ্ঠা"
+ }
 }

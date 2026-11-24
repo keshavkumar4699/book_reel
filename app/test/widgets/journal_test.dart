@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:book_reel/data/api_client.dart';
+import 'package:book_reel/data/habit.dart';
 import 'package:book_reel/data/json_store.dart';
 import 'package:book_reel/data/sessions.dart';
 import 'package:book_reel/data/settings_provider.dart';
@@ -121,6 +122,33 @@ void main() {
     expect(find.text('20%'), findsOneWidget);
     expect(find.text('Mood'), findsNothing, reason: 'moods are gone');
     expect(find.textContaining('👏'), findsNothing);
+  });
+
+  testWidgets('your progress, shared any time: today, the last 7 days or all time', (tester) async {
+    await open(tester, before: (c) {
+      for (var i = 0; i < 6; i++) {
+        c.read(habitProvider.notifier).recordCard(words: 160, dwellMs: 45000);
+      }
+    });
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('Share your progress'));
+    await tester.pumpAndSettle();
+    expect(find.text('Share your progress'), findsOneWidget, reason: 'the sheet’s title');
+    expect(find.text('Today’s reading'), findsOneWidget, reason: 'read today: today first');
+    expect(find.text('Reading Alice’s Adventures in Wonderland · page 1 of 97'), findsNothing);
+    expect(find.text('CARDS'), findsOneWidget);
+    expect(find.text('6'), findsOneWidget, reason: 'six cards read today');
+    expect(find.text('PAGES'), findsOneWidget);
+    expect(find.text('DAY STREAK'), findsOneWidget);
+
+    await tester.tap(find.text('Last 7 days'));
+    await tester.pumpAndSettle();
+    expect(find.text('My week of reading'), findsOneWidget);
+    expect(find.text('1/7'), findsOneWidget, reason: 'one day read this week');
+    await tester.tap(find.text('All time'));
+    await tester.pumpAndSettle();
+    expect(find.text('My reading so far'), findsOneWidget);
+    expect(find.text('BEST STREAK'), findsOneWidget);
   });
 
   testWidgets('the server can’t be reached: your own reading, and a way to try again', (tester) async {

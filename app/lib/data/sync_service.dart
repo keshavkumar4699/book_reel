@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api_client.dart';
-import '../core/habit/habit_engine.dart' show GoalUnit;
+import '../core/habit/habit_engine.dart' show GoalMode, GoalUnit, dateKey;
+import 'habit.dart';
 import 'library.dart';
 import 'notebook.dart';
 import 'sessions.dart';
@@ -113,6 +115,7 @@ class SyncService {
     for (final (name, step) in [
       ('profile', syncProfile),
       ('activity', flushActivity),
+      ('stats', syncStats),
       ('sessions', flushSessions),
       ('notebook', syncNotebook),
       ('positions', syncPositions),
@@ -132,7 +135,10 @@ class SyncService {
     final s = ref.read(settingsProvider);
     final profile = {
       'name': s.displayName,
+      // The goal as set: cards, or minutes (each side keeps the other's last).
       'goal': s.goalUnit == GoalUnit.cards ? s.dailyGoal : 10,
+      'unit': s.goalUnit.name,
+      'minutes': s.goalUnit == GoalUnit.minutes ? s.dailyGoal : 10,
       'freezes': s.tier.freezes,
       'handle': s.username,
       'pronouns': s.pronouns,
@@ -148,6 +154,8 @@ class SyncService {
     Future<void> send({required bool withHandle}) => _api.updateProfile(
           displayName: profile['name'] as String,
           dailyGoalCards: profile['goal'] as int,
+          goalUnit: profile['unit'] as String,
+          dailyGoalMinutes: profile['minutes'] as int,
           freezesPerWeek: profile['freezes'] as int,
           handle: withHandle ? profile['handle'] as String : null,
           pronouns: profile['pronouns'] as String,
@@ -178,6 +186,60 @@ class SyncService {
       final current = ((store.doc('outbox')?['events'] as List?) ?? const []).cast<Map<String, dynamic>>();
       await store.saveDoc('outbox', {'events': current.skip(chunk.length).toList()});
     }
+  }
+
+  /// Every day's reading as the app counts it (cards, reels skimmed,
+  /// minutes, words) and the totals it shows (books finished, streak, pace,
+  /// words learned). The first time the app meets a server that's all of it,
+  /// back to the first day; after that, the days that changed. The server
+  /// keeps them beside the reading it verified itself.
+  Future<void> syncStats() async {
+    final habit = ref.read(habitProvider);
+    final notifier = ref.read(habitProvider.notifier);
+    final store = ref.read(storeProvider);
+    final syncDoc = Map<String, dynamic>.from(store.doc('sync') ?? const {});
+    final sent = Map<String, String>.from((syncDoc['days'] as Map?) ?? const {});
+    final changed = <Map<String, dynamic>>[];
+    for (final e in habit.stats.entries) {
+      final d = e.value;
+      if (d.verifiedCards == 0 && d.skimmedCards == 0 && d.minutes == 0) continue;
+      final row = {
+        'day': e.key,
+        'cards': d.verifiedCards,
+        'skimmed': d.skimmedCards,
+        'minutes': (d.minutes * 100).round() / 100,
+        'words': d.words,
+      };
+      if (sent[e.key] != _hash(row)) changed.add(row);
+    }
+    changed.sort((a, b) => (a['day'] as String).compareTo(b['day'] as String));
+    final books = ref.read(libraryProvider);
+    final weekly = ref.read(settingsProvider).goalMode == GoalMode.weekly;
+    final now = notifier.clock();
+    final totals = {
+      'books_finished': math.max(habit.booksFinished, books.where((b) => b.finishedAt != null).length),
+      'streak': notifier.displayStreak(),
+      'best_streak': habit.streak.best,
+      'as_of': dateKey(now),
+      'weekly': weekly,
+      'wpm': habit.wpm.round(),
+      'words_learned': ref.read(notebookProvider).words.length,
+    };
+    final totalsHash = _hash(totals);
+    if (changed.isEmpty && syncDoc['totals'] == totalsHash) return;
+    // A long history goes up 400 days at a time, the totals with the last.
+    var i = 0;
+    do {
+      final chunk = changed.sublist(i, math.min(i + 400, changed.length));
+      final last = i + 400 >= changed.length;
+      await _api.uploadStats(days: chunk, totals: last ? totals : null);
+      for (final row in chunk) {
+        sent[row['day'] as String] = _hash(row);
+      }
+      final latest = Map<String, dynamic>.from(store.doc('sync') ?? const {});
+      await store.saveDoc('sync', {...latest, 'days': sent, if (last) 'totals': totalsHash});
+      i += 400;
+    } while (i < changed.length);
   }
 
   /// Reading sessions for the feed of readers who follow you; each upload

@@ -789,5 +789,39 @@
  "Show less": "Voir moins",
  "View all {n}": "Tout voir ({n})",
  "No liked quotes yet": "Aucune citation aimée pour l’instant",
- "Double-tap a reel you love, and its words show up here.": "Touchez deux fois un reel que vous aimez : ses mots apparaîtront ici."
+ "Double-tap a reel you love, and its words show up here.": "Touchez deux fois un reel que vous aimez : ses mots apparaîtront ici.",
+ "Share your progress": "Partager ma progression",
+ "Import books automatically": "Importer des livres automatiquement",
+ "Pick a folder on your phone, like Download/Books. Every EPUB or PDF you put in it shows up in your Library by itself.": "Choisissez un dossier sur votre téléphone, comme Download/Books. Chaque EPUB ou PDF que vous y mettez apparaît tout seul dans votre Bibliothèque.",
+ "Choose folder": "Choisir un dossier",
+ "Books folder": "Dossier de livres",
+ "Cloro can’t read this folder any more (moved, deleted, or its access taken back). Choose it again.": "Cloro ne peut plus lire ce dossier (déplacé, supprimé ou accès retiré). Choisissez-le à nouveau.",
+ "Every EPUB or PDF you put in this folder shows up in your Library by itself.": "Chaque EPUB ou PDF mis dans ce dossier apparaît tout seul dans votre Bibliothèque.",
+ "Look for new books now": "Chercher de nouveaux livres",
+ "Choose it again": "Le choisir à nouveau",
+ "Choose another folder": "Choisir un autre dossier",
+ "Stop importing from this folder": "Ne plus importer depuis ce dossier",
+ "Books in your Library stay; new ones in the folder won’t be added": "Les livres de votre Bibliothèque restent ; les nouveaux du dossier ne seront plus ajoutés",
+ "your books folder": "votre dossier de livres",
+ "Can’t read {folder}. Choose it again.": "Impossible de lire {folder}. Choisissez-le à nouveau.",
+ "No new books in {folder}": "Aucun nouveau livre dans {folder}",
+ "Added {n} books from {folder}": {
+  "one": "{n} livre ajouté depuis {folder}",
+  "other": "{n} livres ajoutés depuis {folder}"
+ },
+ "Looking for new books in {folder}…": "Recherche de nouveaux livres dans {folder}…",
+ "New books in {folder} appear here by themselves": "Les nouveaux livres de {folder} apparaissent ici tout seuls",
+ "Choose a folder, like Download/Books": "Choisissez un dossier, comme Download/Books",
+ "Not now": "Pas maintenant",
+ "That book isn’t in your Library any more": "Ce livre n’est plus dans votre Bibliothèque",
+ "On": "Activé",
+ "Reading {title} · page {page} of {pages}": "Je lis {title} · page {page} sur {pages}",
+ "Today’s reading": "Ma lecture du jour",
+ "My week of reading": "Ma semaine de lecture",
+ "My reading so far": "Ma lecture jusqu’ici",
+ "days read": "jours de lecture",
+ "pages": {
+  "one": "page",
+  "other": "pages"
+ }
 }

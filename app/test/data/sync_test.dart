@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:book_reel/core/habit/habit_engine.dart';
 import 'package:book_reel/data/api_client.dart';
 import 'package:book_reel/data/habit.dart';
 import 'package:book_reel/data/json_store.dart';
@@ -150,6 +151,8 @@ void main() {
     expect(server.profiles['dev1'], {
       'display_name': 'Asha',
       'daily_goal_cards': 5,
+      'goal_unit': 'cards',
+      'daily_goal_minutes': 10,
       'freezes_per_week': 1,
       'handle': '',
       'pronouns': '',
@@ -160,6 +163,73 @@ void main() {
     });
     await a.read(syncServiceProvider).syncNow();
     expect(server.activity, hasLength(2), reason: 'the outbox is emptied after upload');
+  });
+
+  test('a goal in minutes reaches the server as minutes (not as ten cards)', () async {
+    final server = FakeServer();
+    final a = await device(server, 'dev1');
+    a.read(settingsProvider.notifier).update((s) => s.copyWith(goalUnit: GoalUnit.minutes, dailyGoal: 15));
+    await a.read(syncServiceProvider).syncNow();
+    expect(server.profiles['dev1'], containsPair('goal_unit', 'minutes'));
+    expect(server.profiles['dev1'], containsPair('daily_goal_minutes', 15));
+  });
+
+  test('reading done before there was a server reaches it: every day, then only the days that change', () async {
+    final server = FakeServer();
+    final dir = await Directory.systemTemp.createTemp('bookreel_sync');
+    dirs.add(dir);
+    final store = await JsonStore.open(dir);
+    // Fifteen months of reading with no server: nothing is queued for one.
+    final before = ProviderContainer(overrides: [
+      storeProvider.overrideWithValue(store),
+      apiProvider.overrideWithValue(BookReelApi(baseUrl: '', deviceId: 'dev1')),
+    ]);
+    containers.add(before);
+    final habit = before.read(habitProvider.notifier);
+    for (var d = 0; d < 450; d++) {
+      habit.clock = () => DateTime(2025, 8, 1 + d, 9);
+      habit.recordCard(words: 120, dwellMs: 30000, bookId: 'bk', cardRef: 'bk:c$d');
+    }
+    habit.bookFinished();
+    before.read(notebookProvider.notifier).addWord(word: 'quaint', meaning: 'attractively odd', sentence: 'A quaint old house.', bookTitle: 'Emma');
+
+    // The server arrives: the whole history goes up, 400 days at a time.
+    final after = ProviderContainer(overrides: [
+      storeProvider.overrideWithValue(store),
+      apiProvider.overrideWithValue(BookReelApi(baseUrl: 'http://fake', deviceId: 'dev1', httpClient: server.client)),
+    ]);
+    containers.add(after);
+    after.read(habitProvider.notifier).clock = () => DateTime(2026, 10, 25, 20);
+    await after.read(syncServiceProvider).syncNow();
+    final days = server.statDays['dev1']!;
+    expect(days, hasLength(450));
+    expect(server.statCalls.map((c) => c.length), [400, 50]);
+    expect(days['2025-08-01'], containsPair('cards', 1));
+    expect(days['2025-08-01'], containsPair('words', 120));
+    expect(days['2026-10-24'], containsPair('cards', 1), reason: 'the last day read');
+    expect(server.statTotals['dev1'], {
+      'books_finished': 1,
+      'streak': isA<int>(),
+      'best_streak': isA<int>(),
+      'as_of': '2026-10-25',
+      'weekly': false,
+      'wpm': isA<int>(),
+      'words_learned': 1,
+    });
+    expect(server.activity, isEmpty, reason: 'no raw events from before: the days carry the reading');
+
+    // Nothing new: nothing sent.
+    await after.read(syncServiceProvider).syncNow();
+    expect(server.statCalls, hasLength(2));
+
+    // A new day's reading: that day alone.
+    final online = after.read(habitProvider.notifier);
+    online.clock = () => DateTime(2026, 10, 25, 21);
+    online.recordCard(words: 120, dwellMs: 30000, bookId: 'bk', cardRef: 'bk:new');
+    await after.read(syncServiceProvider).syncNow();
+    expect(server.statCalls.last, ['2026-10-25']);
+    expect(server.activity, hasLength(1), reason: 'and its verified event, for leagues');
+    await store.flush();
   });
 
   test('profile: username, pronouns, bio and avatar emoji sync; a taken username never blocks syncing', () async {

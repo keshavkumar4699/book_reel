@@ -21,41 +21,49 @@ class HomeShell extends ConsumerWidget {
     final kit = Kit.of(context);
     final due = ref.watch(notebookProvider.select((n) => n.dueWords(DateTime.now()).length));
     final focus = shell.currentIndex == 0 && !ref.watch(readerChromeProvider);
-    return AnnotatedRegion(
-      value: kit.statusBar,
-      child: Scaffold(
-        backgroundColor: kit.base,
-        body: Stack(children: [
-          Positioned.fill(child: shell),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              ignoring: focus,
-              child: AnimatedSlide(
-                offset: focus ? const Offset(0, 1.2) : Offset.zero,
-                duration: Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 240),
-                curve: Curves.easeOutCubic,
-                child: ExcludeSemantics(
-                  excluding: focus,
-                  child: KitNavBar(
-                    index: shell.currentIndex,
-                    // Tapping the Reading tab again keeps your place (no reset).
-                    onSelect: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex && i != 0),
-                    items: [
-                      KitNavItem(Icons.play_circle_outline_rounded, Icons.play_circle_rounded, tr('Reading')),
-                      KitNavItem(Icons.auto_stories_outlined, Icons.auto_stories_rounded, tr('Library')),
-                      KitNavItem(Icons.book_outlined, Icons.book_rounded, tr('Notebook'), badge: due),
-                      KitNavItem(Icons.event_note_outlined, Icons.event_note_rounded, tr('Journal')),
-                      KitNavItem(Icons.person_outline_rounded, Icons.person_rounded, tr('Profile')),
-                    ],
+    // Back from another tab goes to the book you're reading (where you left
+    // it); from Reading, it leaves the app.
+    return PopScope(
+      canPop: shell.currentIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) shell.goBranch(0);
+      },
+      child: AnnotatedRegion(
+        value: kit.statusBar,
+        child: Scaffold(
+          backgroundColor: kit.base,
+          body: Stack(children: [
+            Positioned.fill(child: shell),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                ignoring: focus,
+                child: AnimatedSlide(
+                  offset: focus ? const Offset(0, 1.2) : Offset.zero,
+                  duration: Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 240),
+                  curve: Curves.easeOutCubic,
+                  child: ExcludeSemantics(
+                    excluding: focus,
+                    child: KitNavBar(
+                      index: shell.currentIndex,
+                      // Tapping the Reading tab again keeps your place (no reset).
+                      onSelect: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex && i != 0),
+                      items: [
+                        KitNavItem(Icons.play_circle_outline_rounded, Icons.play_circle_rounded, tr('Reading')),
+                        KitNavItem(Icons.auto_stories_outlined, Icons.auto_stories_rounded, tr('Library')),
+                        KitNavItem(Icons.book_outlined, Icons.book_rounded, tr('Notebook'), badge: due),
+                        KitNavItem(Icons.event_note_outlined, Icons.event_note_rounded, tr('Journal')),
+                        KitNavItem(Icons.person_outline_rounded, Icons.person_rounded, tr('Profile')),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ]),
+          ]),
+        ),
       ),
     );
   }

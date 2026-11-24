@@ -25,7 +25,7 @@ void main() {
   });
 
   Future<ProviderContainer> open(WidgetTester tester, FakeServer? server) async {
-    tester.view.physicalSize = const Size(1236, 4400);
+    tester.view.physicalSize = const Size(1236, 4800);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     final dir = Directory.systemTemp.createTempSync('account_settings');

@@ -279,6 +279,7 @@ POST   /v1/books/{id}/segment          {chapters:[{idx, sentences:[{sid,text}]}]
 GET    /v1/books/{id}/segments?from_ch=&to_ch=&tier=&len=                  → cards[]
 POST   /v1/activity/batch              [{card_id, book_id, dwell_ms, words, ts, client_wpm}]
 GET    /v1/me/streak                   → {current, best, freezes_left, today_progress}
+PUT    /v1/me/stats                    {days:[{day, cards, skimmed, minutes, words}], totals?:{books_finished, streak, best_streak, as_of, weekly, wpm, words_learned}}
 GET    /v1/leaderboards/{scope}/{period}?metric=minutes|cards|streak
 POST   /v1/social/follow/{user_id} · POST /v1/activities/{id}/kudos
 POST   /v1/share                       {type: card|progress, payload}       → {share_id, url, image_url}
@@ -288,6 +289,8 @@ GET    /v1/me/ai-usage                 → {tier, books_used, books_limit, reset
 POST   /v1/book/profile                {tier, book, subjects[], sample}     → {voice, genre, source}         (paid)
 ```
 `/v1/book/profile` receives only the title, author, genre tags and about 900 words of the opening pages, once per book.
+
+`/v1/me/stats` keeps what each phone counts (table `reading_stats`, per user, phone and day; the totals in `users.totals` per phone): the app sends every day it has the first time it meets a server, so reading done before there was one isn't lost, then only the days that change. Leagues and the server's own streak still come from `/v1/activity/batch` alone; the public profile shows the larger of the server's streak and a phone's fresh one (counted today or yesterday). `/v1/me` returns the totals of all the reader's phones. The daily goal can be in minutes (`goal_unit`, `daily_goal_minutes` on `PUT /v1/me/profile`), and the server meets it on minutes read.
 
 ---
 

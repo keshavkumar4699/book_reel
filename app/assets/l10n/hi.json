@@ -789,5 +789,39 @@
  "Show less": "कम दिखाएँ",
  "View all {n}": "सभी {n} देखें",
  "No liked quotes yet": "अभी तक कोई पसंद किया गया उद्धरण नहीं",
- "Double-tap a reel you love, and its words show up here.": "जो रील आपको अच्छी लगे उस पर दो बार टैप करें, उसके शब्द यहाँ दिखेंगे।"
+ "Double-tap a reel you love, and its words show up here.": "जो रील आपको अच्छी लगे उस पर दो बार टैप करें, उसके शब्द यहाँ दिखेंगे।",
+ "Share your progress": "अपनी प्रगति शेयर करें",
+ "Import books automatically": "किताबें अपने-आप इम्पोर्ट करें",
+ "Pick a folder on your phone, like Download/Books. Every EPUB or PDF you put in it shows up in your Library by itself.": "अपने फ़ोन पर एक फ़ोल्डर चुनें, जैसे Download/Books। उसमें रखी हर EPUB या PDF अपने-आप आपकी लाइब्रेरी में आ जाएगी।",
+ "Choose folder": "फ़ोल्डर चुनें",
+ "Books folder": "किताबों का फ़ोल्डर",
+ "Cloro can’t read this folder any more (moved, deleted, or its access taken back). Choose it again.": "Cloro अब इस फ़ोल्डर को नहीं पढ़ पा रहा (हटाया गया, मिटाया गया, या उसकी अनुमति वापस ली गई)। इसे फिर से चुनें।",
+ "Every EPUB or PDF you put in this folder shows up in your Library by itself.": "इस फ़ोल्डर में रखी हर EPUB या PDF अपने-आप आपकी लाइब्रेरी में आ जाती है।",
+ "Look for new books now": "अभी नई किताबें खोजें",
+ "Choose it again": "इसे फिर से चुनें",
+ "Choose another folder": "दूसरा फ़ोल्डर चुनें",
+ "Stop importing from this folder": "इस फ़ोल्डर से इम्पोर्ट बंद करें",
+ "Books in your Library stay; new ones in the folder won’t be added": "लाइब्रेरी की किताबें बनी रहेंगी; फ़ोल्डर की नई किताबें नहीं जोड़ी जाएँगी",
+ "your books folder": "आपका किताबों का फ़ोल्डर",
+ "Can’t read {folder}. Choose it again.": "{folder} नहीं पढ़ा जा सका। इसे फिर से चुनें।",
+ "No new books in {folder}": "{folder} में कोई नई किताब नहीं",
+ "Added {n} books from {folder}": {
+  "one": "{folder} से {n} किताब जोड़ी गई",
+  "other": "{folder} से {n} किताबें जोड़ी गईं"
+ },
+ "Looking for new books in {folder}…": "{folder} में नई किताबें खोजी जा रही हैं…",
+ "New books in {folder} appear here by themselves": "{folder} की नई किताबें यहाँ अपने-आप आ जाती हैं",
+ "Choose a folder, like Download/Books": "एक फ़ोल्डर चुनें, जैसे Download/Books",
+ "Not now": "अभी नहीं",
+ "That book isn’t in your Library any more": "वह किताब अब आपकी लाइब्रेरी में नहीं है",
+ "On": "चालू",
+ "Reading {title} · page {page} of {pages}": "{title} पढ़ रहे हैं · पेज {page} / {pages}",
+ "Today’s reading": "आज की पढ़ाई",
+ "My week of reading": "मेरे हफ़्ते की पढ़ाई",
+ "My reading so far": "अब तक की मेरी पढ़ाई",
+ "days read": "दिन पढ़ा",
+ "pages": {
+  "one": "पेज",
+  "other": "पेज"
+ }
 }

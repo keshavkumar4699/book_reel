@@ -22,6 +22,7 @@ import '../../ui/haptics.dart';
 import '../../ui/kit.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
+import '../reader/reader_screen.dart';
 import '../share/progress_shares.dart';
 import '../share/share_sheet.dart';
 import '../social/people_screen.dart';
@@ -308,10 +309,11 @@ class _LastSevenDaysState extends State<_LastSevenDays> {
         },
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            Expanded(child: _Figure('${minutes.round()}', trn(minutes.round(), 'minute', 'minutes'), hue: KitHue.activity, headline: true)),
+            // Time in orange, cards in blue, words in indigo, books in pink.
+            Expanded(child: _Figure('${minutes.round()}', trn(minutes.round(), 'minute', 'minutes'), hue: KitHue.time, headline: true)),
             Expanded(child: _Figure('$cards', trn(cards, 'card', 'cards'), hue: KitHue.activity)),
-            Expanded(child: _Figure(compactCount(words), tr('words'), hue: KitHue.activity)),
-            Expanded(child: _Figure('$read', trn(read, 'book', 'books'), hue: KitHue.growth)),
+            Expanded(child: _Figure(compactCount(words), tr('words'), hue: KitHue.pages)),
+            Expanded(child: _Figure('$read', trn(read, 'book', 'books'), hue: KitHue.books)),
           ]),
           const SizedBox(height: 14),
           Row(children: [
@@ -339,7 +341,7 @@ class _LastSevenDaysState extends State<_LastSevenDays> {
                 TextSpan(text: dayName(picked), style: TextStyle(color: kit.ink, fontWeight: FontWeight.w700)),
                 if (!(latest && picked == 6)) TextSpan(text: ' ${short.format(days[picked])}', style: TextStyle(color: kit.ink, fontWeight: FontWeight.w700)),
                 const TextSpan(text: '  ·  '),
-                TextSpan(text: tr('{n} min', {'n': day.minutes.round()}), style: TextStyle(color: kit.activity, fontWeight: FontWeight.w800)),
+                TextSpan(text: tr('{n} min', {'n': day.minutes.round()}), style: TextStyle(color: kit.hue(KitHue.time), fontWeight: FontWeight.w800)),
                 TextSpan(text: '  ·  ${trn(day.verifiedCards, '{n} card', '{n} cards')}'),
                 if (day.words > 0) TextSpan(text: '  ·  ${tr('{count} words', {'count': compactCount(day.words)})}'),
               ]),
@@ -538,18 +540,18 @@ class _StatsSection extends StatelessWidget {
         ? math.max(habit.booksFinished, books.where((b) => b.finishedAt != null).length)
         : books.where((b) => b.finishedAt != null && period.covers(dateKey(b.finishedAt!), now)).length;
     final figures = [
-      _Figure(_duration(minutes), tr('reading time'), hue: KitHue.activity, headline: true),
+      _Figure(_duration(minutes), tr('reading time'), hue: KitHue.time, headline: true),
       _Figure('$cards', trn(cards, 'card', 'cards'), hue: KitHue.activity),
-      _Figure(compactCount(words), tr('words read'), hue: KitHue.activity),
+      _Figure(compactCount(words), tr('words read'), hue: KitHue.pages),
       // Honest about it: reels flicked past too fast to read count toward nothing.
       _Figure('$skimmed', trn(skimmed, 'reel skimmed (not counted)', 'reels skimmed (not counted)')),
-      _Figure('$finished', trn(finished, 'book finished', 'books finished'), hue: KitHue.growth, headline: finished > 0),
+      _Figure('$finished', trn(finished, 'book finished', 'books finished'), hue: KitHue.books, headline: finished > 0),
       _Figure('$readingDays', trn(readingDays, 'reading day', 'reading days'), hue: KitHue.growth, headline: readingDays > 0),
-      _Figure(readingDays == 0 ? '0' : '${(minutes / readingDays).round()}', tr('minutes a reading day'), hue: KitHue.activity),
+      _Figure(readingDays == 0 ? '0' : '${(minutes / readingDays).round()}', tr('minutes a reading day'), hue: KitHue.time),
       if (period == StatsPeriod.all)
         _Figure('${notebook.words.length}', tr('words learned'), hue: KitHue.words)
       else
-        _Figure('${habit.wpm.round()}', tr('words a minute'), hue: KitHue.activity),
+        _Figure('${habit.wpm.round()}', tr('words a minute'), hue: KitHue.pages),
     ];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       KitSegmented<StatsPeriod>(values: StatsPeriod.values, selected: period, label: (p) => p.label, onChanged: onChanged),
@@ -761,7 +763,8 @@ class _ShelfCircle extends StatelessWidget {
       width: size,
       height: size,
       child: CustomPaint(
-        painter: _ProgressRing(progress: b.progress.clamp(0.0, 1.0), color: kit.activity, track: kit.activitySoft),
+        // How far into it, in the pink of books.
+        painter: _ProgressRing(progress: b.progress.clamp(0.0, 1.0), color: kit.hue(KitHue.books), track: kit.shade(KitHue.books)),
         child: Padding(
           padding: const EdgeInsets.all(5),
           child: ClipOval(child: FittedBox(fit: BoxFit.cover, child: BookCover(book: b, width: 64))),
@@ -822,7 +825,8 @@ class _LikedQuotes extends StatelessWidget {
       children: [
         for (final q in shown)
           KitPressable(
-            onTap: () => context.go('/read/${q.bookId}?sid=${q.sid}'),
+            // Over the Profile: your place in the book stays where it was.
+            onTap: () => openReel(context, bookId: q.bookId, sid: q.sid, from: 'liked'),
             pressedScale: 0.97,
             semanticLabel: '${q.text}. ${q.bookTitle}',
             excludeSemantics: true,

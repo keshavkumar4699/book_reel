@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +14,8 @@ import '../../ui/kit.dart';
 import '../../ui/widgets.dart';
 import '../profile/profile_screen.dart';
 import '../reader/goal_setup_sheet.dart';
+import '../share/progress_shares.dart';
+import '../share/share_sheet.dart';
 import 'feed.dart';
 import '../../l10n/l10n.dart';
 
@@ -32,6 +36,33 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => ref.read(libraryProvider.notifier).ensureStarterBook());
+  }
+
+  /// Your progress as a card to show friends, any time: today, the last 7
+  /// days or all time, with the book you're reading and the page you're on.
+  void _shareProgress() {
+    final now = DateTime.now();
+    final habit = ref.read(habitProvider);
+    final books = ref.read(libraryProvider);
+    final finished = math.max(habit.booksFinished, books.where((b) => b.finishedAt != null).length);
+    final weekly = ref.read(settingsProvider).goal.mode == GoalMode.weekly;
+    ProgressShare card(SharePeriod period) => journalShare(
+          period: period,
+          habit: habit,
+          streak: ref.read(habitProvider.notifier).displayStreak(),
+          weekly: weekly,
+          reading: ref.read(libraryProvider.notifier).current,
+          booksFinished: finished,
+          now: now,
+        );
+    final today = card(SharePeriod.today), week = card(SharePeriod.week), all = card(SharePeriod.all);
+    final readToday = habit.today(now).verifiedCards > 0 || habit.today(now).minutes > 0;
+    showShareSheet(
+      context,
+      readToday ? today : week,
+      title: tr('Share your progress'),
+      choices: [(tr('Today'), today), (tr('Last 7 days'), week), (tr('All time'), all)],
+    );
   }
 
   String _greeting() {
@@ -71,6 +102,13 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           ? tr('{greeting} · a few calm minutes with a book', {'greeting': _greeting()})
           : tr('{greeting}, {name}', {'greeting': _greeting(), 'name': settings.displayName}),
       actions: [
+        // Your progress, to show friends: the book, pages, streak, time.
+        KitIconButton(
+          icon: Icons.ios_share_rounded,
+          semanticLabel: tr('Share your progress'),
+          onPressed: _shareProgress,
+          child: const ShareArrowIcon(size: 22),
+        ),
         KitIconButton(
           icon: Icons.person_outline_rounded,
           semanticLabel: tr('Your profile'),
@@ -122,9 +160,10 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                 ),
           ]),
         ),
+        // The book you're reading, on the pink of books.
         if (current != null)
           KitPanel(
-            color: kit.shade(KitHue.activity),
+            color: kit.shade(KitHue.books),
             padding: const EdgeInsets.all(14),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // How far you are, drawn round the cover.
@@ -138,7 +177,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                     TextSpan(children: [
                       TextSpan(
                         text: '${(current.progress * 100).round()}%',
-                        style: TextStyle(color: kit.hue(KitHue.activity), fontWeight: FontWeight.w800),
+                        style: TextStyle(color: kit.hue(KitHue.books), fontWeight: FontWeight.w800),
                       ),
                       TextSpan(text: tr(' read · ~{n} min left', {'n': _minutesLeft(current.wordCount, current.progress, habit.wpm)})),
                     ]),
@@ -160,7 +199,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             padding: EdgeInsets.zero,
             child: KitRow(
               icon: Icons.auto_stories_rounded,
-              hue: KitHue.activity,
+              hue: KitHue.books,
               title: tr('Pick a book to start'),
               subtitle: tr('Import an EPUB or PDF, or try a classic.'),
               onTap: () => context.go('/library'),

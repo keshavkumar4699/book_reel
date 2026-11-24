@@ -72,6 +72,41 @@ void main() {
     expect(Kit.forScene(Vibe.meadow, ReadingTheme.of(ReadingThemeId.paper)).sheet, Kit.appLight.sheet);
   });
 
+  test('each kind of information has its own colour, readable on its shade and the page', () {
+    // CIE76 distance: how different two colours look (over ~10 tells apart at a glance).
+    List<double> lab(Color c) {
+      double lin(double v) => v <= 0.04045 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+      final r = lin(c.r), g = lin(c.g), b = lin(c.b);
+      double f(double t) => t > 0.008856 ? math.pow(t, 1 / 3).toDouble() : 7.787 * t + 16 / 116;
+      final x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047), y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+      final z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+      return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+    }
+
+    double apart(Color a, Color b) {
+      final p = lab(a), q = lab(b);
+      return math.sqrt([for (var i = 0; i < 3; i++) math.pow(p[i] - q[i], 2)].fold(0.0, (s, v) => s + v));
+    }
+
+    final kinds = KitHue.values.where((h) => h != KitHue.neutral).toList();
+    expect(kinds, containsAll([KitHue.time, KitHue.books, KitHue.pages]), reason: 'orange, pink and indigo beside blue and green');
+    for (final kit in [Kit.appLight, Kit.appDark]) {
+      final name = kit.dark ? 'dark' : 'light';
+      for (final h in kinds) {
+        expect(_contrast(kit.hue(h), kit.shade(h)), greaterThanOrEqualTo(4.5), reason: '$name ${h.name} on its shade');
+        expect(_contrast(kit.hue(h), kit.base), greaterThanOrEqualTo(4.5), reason: '$name ${h.name} on the page');
+        expect(_contrast(kit.hue(h), kit.sheet), greaterThanOrEqualTo(4.5), reason: '$name ${h.name} on a sheet');
+      }
+      final all = [...kinds, null];
+      for (var i = 0; i < all.length; i++) {
+        for (var j = i + 1; j < all.length; j++) {
+          final a = kit.hue(all[i]!), b = all[j] == null ? kit.accent : kit.hue(all[j]!);
+          expect(apart(a, b), greaterThan(15), reason: '$name ${all[i]!.name} and ${all[j]?.name ?? 'the logo red'} look alike');
+        }
+      }
+    }
+  });
+
   testWidgets('option groups are flat: no box, no line between options, one line between groups', (tester) async {
     await tester.pumpWidget(_app(ListView(children: const [
       KitGroup(label: 'One', children: [KitRow(title: 'a', icon: Icons.star), KitRow(title: 'b', icon: Icons.star)]),

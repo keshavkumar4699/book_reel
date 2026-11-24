@@ -168,6 +168,11 @@ class MusicPlayer extends Notifier<MusicState> {
   /// The reader that started the music (a new book's reader starts before
   /// the old one is gone, so only the owner can stop it).
   Object? _owner;
+
+  /// Readers whose music a newer one took over, oldest first: a look at a
+  /// saved reel opens over the book you're reading, which gets its track
+  /// back when the look closes (see [stop]).
+  final List<({Object owner, List<Track> tracks, int index, bool playing, bool held})> _under = [];
   bool _held = false;
   bool _ducked = false;
   Timer? _fadeTimer;
@@ -194,6 +199,10 @@ class MusicPlayer extends Notifier<MusicState> {
   /// play). [visible]: its reader is on screen (a book can open behind
   /// another tab or page; it plays once [release]d).
   Future<void> start(Object owner, {bool visible = true}) async {
+    final before = _owner;
+    if (before != null && !identical(before, owner)) {
+      _under.add((owner: before, tracks: state.tracks, index: state.index, playing: state.playing, held: _held));
+    }
     _owner = owner;
     // Nothing carries over from the last book: not being out of sight, not
     // being quieter under its voice, not its track.
@@ -210,10 +219,29 @@ class MusicPlayer extends Notifier<MusicState> {
     await _load(play: _settings.music);
   }
 
-  /// The book closed (only its own reader stops the music).
+  /// The book closed (only its own reader stops the music). The reader under
+  /// it, if any, gets its own track back, as it was: playing or paused, and
+  /// silent while it's out of sight.
   Future<void> stop(Object owner) async {
     // (Once the app's providers are gone, so is the player.)
-    if (!ref.mounted || !identical(_owner, owner)) return;
+    if (!ref.mounted) return;
+    if (!identical(_owner, owner)) {
+      // A reader under another closed (the book before, once a new book
+      // opened in its place): nothing to give back to it.
+      _under.removeWhere((u) => identical(u.owner, owner));
+      return;
+    }
+    if (_under.isNotEmpty) {
+      final back = _under.removeLast();
+      _owner = back.owner;
+      _held = back.held;
+      _ducked = false;
+      _failures = 0;
+      _fadeTimer?.cancel();
+      state = MusicState(tracks: back.tracks, index: back.index, playing: back.playing);
+      await _load(play: back.playing);
+      return;
+    }
     _owner = null;
     _held = false;
     _ducked = false;

@@ -154,8 +154,9 @@ class BookCover extends StatelessWidget {
 }
 
 /// A book's cover with how far you've read drawn round it: an outline that
-/// runs clockwise from the top centre, blue while you read and green once
-/// the book is finished, over a faint track of the same colour.
+/// runs clockwise from the top centre, in the pink of books while you read
+/// and green once the book is finished, over a faint track of the same
+/// colour.
 class ProgressCover extends StatelessWidget {
   const ProgressCover({super.key, required this.book, this.width = 76, this.progress, this.stroke = 3});
   final BookMeta book;
@@ -171,14 +172,15 @@ class ProgressCover extends StatelessWidget {
     final p = book.finishedAt != null ? 1.0 : (progress ?? book.progress).clamp(0.0, 1.0);
     final done = p >= 1;
     final gap = stroke + 2.5;
+    final color = done ? kit.growth : kit.hue(KitHue.books);
     return Semantics(
       value: done ? tr('finished') : tr('{percent}% read', {'percent': (p * 100).round()}),
       child: CustomPaint(
         foregroundPainter: CoverOutlinePainter(
           progress: p,
-          color: done ? kit.growth : kit.activity,
+          color: color,
           // A thin line needs a firmer track than a ring to read as one outline.
-          track: Color.alphaBlend((done ? kit.growth : kit.activity).withValues(alpha: 0.2), kit.base),
+          track: Color.alphaBlend(color.withValues(alpha: 0.2), kit.base),
           stroke: stroke,
           // Concentric with the cover's own rounded corners.
           radius: 8 + gap - stroke / 2,

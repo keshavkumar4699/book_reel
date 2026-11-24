@@ -2,6 +2,7 @@ package app.sweatik2.cloro
 
 import android.app.ActivityManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.StatFs
 import android.view.WindowManager
@@ -10,8 +11,14 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private var booksFolder: BooksFolder? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // The folder books are imported from by themselves (BooksFolder.kt).
+        booksFolder = BooksFolder(this).also {
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.cloro/books_folder").setMethodCallHandler(it)
+        }
         // What the phone can run, for the Free plan's on-device AI
         // (lib/services/on_device_ai.dart): Android version, ABIs, memory, free space.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.cloro/device").setMethodCallHandler { call, result ->
@@ -50,5 +57,11 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    // Android's folder picker answers here.
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (booksFolder?.onActivityResult(requestCode, resultCode, data) == true) return
+        super.onActivityResult(requestCode, resultCode, data)
     }
 }

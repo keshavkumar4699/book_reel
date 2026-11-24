@@ -63,14 +63,41 @@ class ReaderChrome extends Notifier<bool> {
 
 final readerChromeProvider = NotifierProvider<ReaderChrome, bool>(ReaderChrome.new);
 
+/// Where a saved, liked or highlighted reel opens: over the app, leaving your
+/// place in the book as it was (see [ReaderScreen.peek]). [from] says which:
+/// `saved`, `liked` or `highlight`.
+String reelLocation(String bookId, String sid, {required String from}) =>
+    Uri(path: '/reel/$bookId', queryParameters: {'sid': sid, 'from': from}).toString();
+
+/// Opens a saved, liked or highlighted reel over the screen it's on: back
+/// comes back here, and the book you're reading is still where you left it.
+void openReel(BuildContext context, {required String bookId, required String sid, required String from}) {
+  final books = ProviderScope.containerOf(context, listen: false).read(libraryProvider);
+  if (!books.any((b) => b.id == bookId)) {
+    showKitToast(context, tr('That book isn’t in your Library any more'), emoji: '📚');
+    return;
+  }
+  context.push(reelLocation(bookId, sid, from: from));
+}
+
 class ReaderScreen extends ConsumerStatefulWidget {
-  const ReaderScreen({super.key, required this.bookId, this.startSid, this.embedded = false});
+  const ReaderScreen({super.key, required this.bookId, this.startSid, this.embedded = false, this.peek = false, this.peekLabel});
 
   final String bookId;
   final String? startSid;
 
   /// Shown in the Reading tab (with the tab bar under the controls).
   final bool embedded;
+
+  /// A look at a saved, liked or highlighted reel, opened over the app (see
+  /// [openReel]). What's read in it counts as reading, but the book's place,
+  /// when it was last read and whether it's finished stay as they were: the
+  /// Reading tab and "Continue reading" still open the reel you were on.
+  /// Back closes it.
+  final bool peek;
+
+  /// What's being looked at, beside the back button ("Saved", "Liked"…).
+  final String? peekLabel;
 
   /// The time on each reel is measured with this clock (tests move it on).
   @visibleForTesting
@@ -175,7 +202,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
     }
     if (_chrome == on) return;
     setState(() => _chrome = on);
-    _chromeFlag.set(on);
+    // The tab bar follows the Reading tab's reader, never a look at a reel.
+    if (!widget.peek) _chromeFlag.set(on);
     if (on) _warmLooks();
   }
 
@@ -282,8 +310,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   @override
   void dispose() {
     // The tab bar shows again once the reader is gone.
-    final flag = _chromeFlag;
-    Future.microtask(() => flag.set(false));
+    if (!widget.peek) {
+      final flag = _chromeFlag;
+      Future.microtask(() => flag.set(false));
+    }
     // Providers can't be modified while the tree is being torn down, so the
     // last card's reading time is recorded right after.
     _recordCurrent(deferred: true);
@@ -614,8 +644,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
   }
 
   /// Saves the place in the book (the reel on screen, or the text before it).
+  /// A look at a saved reel leaves the place where it was.
   void _savePosition(BookContent book) {
-    if (_feed.isEmpty) return;
+    if (widget.peek || _feed.isEmpty) return;
     final item = _feed[_page.clamp(0, _feed.length - 1)];
     if (item.kind != CardKind.text || item.card == null) return;
     final anchor = item.anchorSid ?? item.card!.startSid;
@@ -688,8 +719,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       }
     }
     _maybeRequestAi(book);
-    // The end: it counts as finished only when most of it was really read.
-    if (item.kind == CardKind.milestone && _readShare() >= finishedShare && _library.markFinished(widget.bookId)) {
+    // The end: it counts as finished only when most of it was really read
+    // (and not from a look at a saved reel, which leaves the book as it was).
+    if (!widget.peek && item.kind == CardKind.milestone && _readShare() >= finishedShare && _library.markFinished(widget.bookId)) {
       _habit.bookFinished();
       final api = ref.read(apiProvider);
       if (api.enabled) unawaited(api.bookFinished(book.title).catchError((_) {}));
@@ -1154,6 +1186,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
             ),
           ),
           Positioned.fill(child: body),
+          // A look at a saved reel: the way back, always in sight.
+          if (widget.peek)
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 14,
+              left: 8,
+              child: _PeekBack(label: widget.peekLabel, color: readingTheme.text, shadows: readingTheme.textShadows),
+            ),
         ]),
     );
   }
@@ -1232,7 +1271,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> with WidgetsBinding
       // With the controls, at the top: the pictures to read on.
       if (backdrops.isNotEmpty)
         Positioned(
-          top: padding.top + 14,
+          top: padding.top + 14 + (widget.peek ? _PeekBack.height + 4 : 0),
           left: 0,
           right: 0,
           child: FadeChrome(
@@ -1648,6 +1687,43 @@ class _NowBar extends ConsumerWidget {
 }
 
 /// Previous, play/pause and next.
+/// The way back from a look at a saved reel, saying what it is ("Saved").
+class _PeekBack extends StatelessWidget {
+  const _PeekBack({this.label, required this.color, this.shadows});
+
+  static const height = 48.0;
+
+  final String? label;
+  final Color color;
+  final List<Shadow>? shadows;
+
+  @override
+  Widget build(BuildContext context) {
+    return KitPressable(
+      onTap: () {
+        Haptics.select();
+        Navigator.maybePop(context);
+      },
+      semanticLabel: tr('Back'),
+      excludeSemantics: true,
+      pressedScale: 0.94,
+      child: SizedBox(
+        height: height,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 8, right: 12),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.arrow_back_rounded, size: 24, color: color, shadows: shadows),
+            if (label != null) ...[
+              const SizedBox(width: 8),
+              Text(label!, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w800, shadows: shadows)),
+            ],
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 class _MusicControls extends ConsumerWidget {
   const _MusicControls({required this.color, required this.shadows});
 

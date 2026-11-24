@@ -14,7 +14,7 @@ import {
 } from "./billing/play.js";
 import { isPaidTier, quotaFor } from "./config.js";
 import type { Db } from "./db/db.js";
-import { ActivityBatchSchema, ActivityService, CannotFollowSelf, HandleTaken, InvalidHandle, NotFollowable } from "./habit/activity.js";
+import { ActivityBatchSchema, ActivityService, CannotFollowSelf, HandleTaken, InvalidHandle, NotFollowable, StatsBodySchema } from "./habit/activity.js";
 import { localDateKey, weekKey } from "./habit/engine.js";
 import { CommentSchema, FeedService, NotVisible, SessionSchema } from "./habit/feed.js";
 import { LeagueService } from "./habit/leagues.js";
@@ -42,6 +42,8 @@ const AppErrorSchema = z
 const ProfileBodySchema = z.object({
   display_name: z.string().max(80).optional(),
   daily_goal_cards: z.number().optional(),
+  goal_unit: z.enum(["cards", "minutes"]).optional(),
+  daily_goal_minutes: z.number().optional(),
   freezes_per_week: z.number().optional(),
   handle: z.string().max(40).optional(),
   pronouns: z.string().max(60).optional(),
@@ -201,6 +203,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       invite_code: u.invite_code,
       invite_url: `${baseUrl}/i/${u.invite_code}`,
       daily_goal_cards: u.daily_goal_cards,
+      goal_unit: u.goal_unit,
+      daily_goal_minutes: u.daily_goal_minutes,
+      stats: await activity.statsOf(u.id, localDateKey(new Date(), tzOffset(req))),
       signed_in: !u.id.startsWith("device:"),
     };
   });
@@ -251,6 +256,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const u = await activity.setProfile(c.userId, {
       displayName: b.display_name,
       dailyGoalCards: b.daily_goal_cards,
+      goalUnit: b.goal_unit,
+      dailyGoalMinutes: b.daily_goal_minutes,
       freezesPerWeek: b.freezes_per_week,
       handle: b.handle,
       pronouns: b.pronouns,
@@ -268,8 +275,21 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       genres: u.genres ? u.genres.split(",").filter(Boolean) : [],
       reading: u.reading,
       daily_goal_cards: u.daily_goal_cards,
+      goal_unit: u.goal_unit,
+      daily_goal_minutes: u.daily_goal_minutes,
       freezes_per_week: u.freezes_per_week,
     };
+  });
+
+  // What the phone counts (round 19): every day read, and the totals the
+  // app shows. All of it the first time a phone meets the server.
+  app.put("/v1/me/stats", async (req) => {
+    const c = await caller(req);
+    limit("stats", c.userId);
+    const header = req.headers["x-device-id"];
+    const device = typeof header === "string" && /^[A-Za-z0-9._:-]{1,80}$/.test(header) ? header : "phone";
+    const kept = await activity.saveStats(c.userId, device, StatsBodySchema.parse(req.body ?? {}));
+    return { ok: true, days: kept };
   });
 
   app.post("/v1/activity/batch", async (req) => {

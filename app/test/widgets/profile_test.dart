@@ -122,10 +122,10 @@ void main() {
     final kit = Kit.of(tester.element(find.byType(ProfileScreen)));
     Color? colour(String value, String label) =>
         tester.widget<Text>(find.descendant(of: figure(value, label).first, matching: find.text(value))).style?.color;
-    // The last 7 days, up to today: today's reading only; minutes, the headline, in blue.
+    // The last 7 days, up to today: today's reading only; minutes, the headline, in the orange of time.
     expect(find.text('Last 7 days'), findsOneWidget);
     expect(figure('30', 'minutes'), findsOneWidget);
-    expect(colour('30', 'minutes'), kit.activity);
+    expect(colour('30', 'minutes'), kit.hue(KitHue.time));
     expect(figure('12', 'cards'), findsNWidgets(2), reason: 'this week, and this month in Stats');
     expect(colour('12', 'cards'), isNot(kit.activity), reason: 'one figure in colour, not all');
     // A circle round each day, today last: today's, the best of the seven, is the largest; days without reading are empty rings.
@@ -159,7 +159,7 @@ void main() {
     await scrollTo(find.text('All time'));
     expect(find.text('This month'), findsOneWidget);
     expect(figure('30 min', 'reading time'), findsOneWidget);
-    expect(colour('30 min', 'reading time'), kit.activity);
+    expect(colour('30 min', 'reading time'), kit.hue(KitHue.time));
     expect(figure('1', 'reading day'), findsOneWidget);
     expect(colour('1', 'reading day'), kit.growth);
     await tester.tap(find.text('This year'));

@@ -762,5 +762,37 @@
  "Show less": "收起",
  "View all {n}": "查看全部 {n}",
  "No liked quotes yet": "还没有喜欢的句子",
- "Double-tap a reel you love, and its words show up here.": "双击你喜欢的卷轴，它的文字就会出现在这里。"
+ "Double-tap a reel you love, and its words show up here.": "双击你喜欢的卷轴，它的文字就会出现在这里。",
+ "Share your progress": "分享我的进度",
+ "Import books automatically": "自动导入书籍",
+ "Pick a folder on your phone, like Download/Books. Every EPUB or PDF you put in it shows up in your Library by itself.": "在手机上选一个文件夹，比如 Download/Books。放进去的每个 EPUB 或 PDF 都会自动出现在书库里。",
+ "Choose folder": "选择文件夹",
+ "Books folder": "书籍文件夹",
+ "Cloro can’t read this folder any more (moved, deleted, or its access taken back). Choose it again.": "Cloro 无法再读取这个文件夹（已被移动、删除或撤销了访问权限）。请重新选择。",
+ "Every EPUB or PDF you put in this folder shows up in your Library by itself.": "放进这个文件夹的每个 EPUB 或 PDF 都会自动出现在书库里。",
+ "Look for new books now": "立即查找新书",
+ "Choose it again": "重新选择",
+ "Choose another folder": "选择其他文件夹",
+ "Stop importing from this folder": "停止从此文件夹导入",
+ "Books in your Library stay; new ones in the folder won’t be added": "书库里的书会保留；文件夹里的新书不再添加",
+ "your books folder": "你的书籍文件夹",
+ "Can’t read {folder}. Choose it again.": "无法读取{folder}。请重新选择。",
+ "No new books in {folder}": "{folder}里没有新书",
+ "Added {n} books from {folder}": {
+  "other": "已从{folder}添加 {n} 本书"
+ },
+ "Looking for new books in {folder}…": "正在{folder}中查找新书…",
+ "New books in {folder} appear here by themselves": "{folder}里的新书会自动出现在这里",
+ "Choose a folder, like Download/Books": "选择一个文件夹，比如 Download/Books",
+ "Not now": "暂不",
+ "That book isn’t in your Library any more": "这本书已不在你的书库里",
+ "On": "开",
+ "Reading {title} · page {page} of {pages}": "正在读《{title}》· 第 {page} / {pages} 页",
+ "Today’s reading": "今天的阅读",
+ "My week of reading": "我这一周的阅读",
+ "My reading so far": "我至今的阅读",
+ "days read": "阅读天数",
+ "pages": {
+  "other": "页"
+ }
 }
